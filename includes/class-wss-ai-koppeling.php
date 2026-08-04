@@ -91,7 +91,7 @@ class WSS_AI_Koppeling {
 	 * Geeft de tekst terug, of een WP_Error met een uitlegbare reden. Nooit een
 	 * kale `false`: de klant hoort te horen wat er aan de hand is.
 	 */
-	public static function vraag( $pad, $body ) {
+	public static function vraag( $pad, $body, $wachttijd = 90 ) {
 		if ( ! self::is_actief() ) {
 			return new WP_Error( 'niet-actief', self::uitleg() ? self::uitleg() : __( 'Je webshop is nog niet gekoppeld.', 'wss-ai' ) );
 		}
@@ -100,8 +100,9 @@ class WSS_AI_Koppeling {
 			self::api() . $pad,
 			array(
 				/* Ruim: een tekst schrijven duurt bij een lang product tientallen
-				   seconden, en een time-out halverwege kost wel de credits. */
-				'timeout' => 90,
+				   seconden, en een time-out halverwege kost wel de credits. Een
+				   foto duurt nog langer; die geeft zijn eigen wachttijd mee. */
+				'timeout' => max( 15, (int) $wachttijd ),
 				'headers' => array(
 					'Content-Type'  => 'application/json',
 					'Authorization' => 'Bearer ' . self::token(),
@@ -130,5 +131,54 @@ class WSS_AI_Koppeling {
 		}
 
 		return isset( $data['data'] ) ? $data['data'] : array();
+	}
+
+	/**
+	 * De manieren van werken die de fotostudio aanbiedt.
+	 *
+	 * Die lijst staat bij Webshopschool en niet in deze plugin, zodat een nieuw
+	 * of beter model bij iedereen tegelijk verschijnt zonder dat er een update
+	 * langs alle webshops moet.
+	 *
+	 * Een uur onthouden. Lukt het ophalen niet, dan geven we een LEGE lijst terug
+	 * en niet een verzonnen standaardlijst: de beheerpagina hoort te zeggen dat
+	 * het niet gelukt is, in plaats van keuzes te tonen die er misschien niet zijn.
+	 */
+	public static function fotomodellen() {
+		$onthouden = get_transient( 'wss_ai_fotomodellen' );
+		if ( is_array( $onthouden ) ) {
+			return $onthouden;
+		}
+		if ( ! self::is_actief() ) {
+			return array();
+		}
+
+		$antwoord = wp_remote_get(
+			self::api() . '/foto/opties',
+			array(
+				'timeout' => 15,
+				'headers' => array( 'Authorization' => 'Bearer ' . self::token() ),
+			)
+		);
+		if ( is_wp_error( $antwoord ) ) {
+			return array();
+		}
+		$data = json_decode( wp_remote_retrieve_body( $antwoord ), true );
+		if ( ! is_array( $data ) || empty( $data['ok'] ) || empty( $data['data']['modellen'] ) ) {
+			return array();
+		}
+
+		$lijst = array();
+		foreach ( (array) $data['data']['modellen'] as $m ) {
+			if ( ! empty( $m['key'] ) ) {
+				$lijst[] = array(
+					'key'   => sanitize_key( $m['key'] ),
+					'label' => isset( $m['label'] ) ? sanitize_text_field( $m['label'] ) : $m['key'],
+					'hint'  => isset( $m['hint'] ) ? sanitize_text_field( $m['hint'] ) : '',
+				);
+			}
+		}
+		set_transient( 'wss_ai_fotomodellen', $lijst, HOUR_IN_SECONDS );
+		return $lijst;
 	}
 }

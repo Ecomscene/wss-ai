@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.4.0
+ * Version:           0.5.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.4.0' );
+define( 'WSS_AI_VERSIE', '0.5.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -41,6 +41,7 @@ require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-fotostudio.php';
 
 /**
  * Het menu-item in wp-admin.
@@ -121,11 +122,13 @@ function wss_ai_pagina() {
 				?>
 			</p>
 			<p class="wss-ai-mut">
-				<?php esc_html_e( 'Wat eraan komt: een AI-medewerker die je vragen over je shop beantwoordt, een fotostudio voor betere productfoto\'s, en teksten die je met één knop vult.', 'wss-ai' ); ?>
+				<?php esc_html_e( 'Wat eraan komt: een AI-medewerker die je vragen over je webshop beantwoordt.', 'wss-ai' ); ?>
 			</p>
 		</div>
 
 		<?php WSS_AI_Instellingen::kaart(); ?>
+
+		<?php WSS_AI_Fotostudio::kaart(); ?>
 
 		<div class="wss-ai-kaart">
 			<h2><?php esc_html_e( 'Koppeling met Webshopschool', 'wss-ai' ); ?></h2>
@@ -246,7 +249,27 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-klein{font-size:12px}'
 		. '.wss-ai-seo .wss-ai-klein{margin-bottom:0}'
 		. '.wss-ai-voorbeeld{margin-right:12px}'
-		. '.wss-ai-uitkomst textarea{width:100%;margin:6px 0}';
+		. '.wss-ai-uitkomst textarea{width:100%;margin:6px 0}'
+		/* Het paneel van de fotostudio. Bewust een eigen laag over het scherm:
+		   het productscherm van WooCommerce is vol, en een blok dat ertussen
+		   schuift duwt alles weg terwijl je net stond te kijken. */
+		. '.wss-ai-paneel{position:fixed;inset:0;z-index:160000;background:rgba(0,0,0,.55);'
+		. 'display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:40px 16px}'
+		. '.wss-ai-paneel[hidden]{display:none}'
+		. '.wss-ai-paneel-vak{position:relative;background:#fff;border-radius:6px;padding:20px 24px;'
+		. 'width:100%;max-width:720px;box-shadow:0 8px 40px rgba(0,0,0,.3)}'
+		. '.wss-ai-paneel-vak h2{margin-top:0}'
+		. '.wss-ai-sluit{position:absolute;top:8px;right:10px;border:0;background:none;'
+		. 'font-size:24px;line-height:1;cursor:pointer;color:#646970}'
+		. '.wss-ai-paneel-beelden{display:flex;gap:16px;flex-wrap:wrap}'
+		. '.wss-ai-paneel-beelden figure{margin:0;flex:1 1 240px;min-width:0}'
+		. '.wss-ai-paneel-beelden figcaption{font-size:12px;color:#646970;margin-bottom:4px}'
+		. '.wss-ai-paneel-beelden img{width:100%;height:auto;border:1px solid #dcdcde;border-radius:4px;'
+		. 'background:#f6f7f7;display:block}'
+		. '.wss-ai-paneel-knoppen{display:flex;gap:8px;align-items:center;flex-wrap:wrap}'
+		. '.wss-ai-paneel-melding{color:#646970;font-size:13px}'
+		. '.wss-ai-paneel-melding.wss-ai-fout{color:#b32d2e}'
+		. '.wss-ai-fotoknop{margin:8px 0 0}';
 	wp_register_style( 'wss-ai', false, array(), WSS_AI_VERSIE );
 	wp_enqueue_style( 'wss-ai' );
 	wp_add_inline_style( 'wss-ai', $css );
@@ -310,3 +333,4 @@ add_action(
 WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
 WSS_AI_Instellingen::init();
 WSS_AI_SEO::init();
+WSS_AI_Fotostudio::init();
