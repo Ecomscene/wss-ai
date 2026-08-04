@@ -163,6 +163,14 @@ class WSS_AI_Fotostudio {
 					'geplaatst'  => __( 'Gelukt. De foto staat op je product; vergeet niet op te slaan.', 'wss-ai' ),
 					'kiesMedia'  => __( 'Kies foto\'s die de stijl laten zien', 'wss-ai' ),
 					'kiesKnop'   => __( 'Gebruik deze foto\'s', 'wss-ai' ),
+					/* Bij een variant vraagt hetzelfde veld iets anders, en is het
+					   niet optioneel. Een model dat zelf een omgeving mag verzinnen
+					   kiest meestal de omgeving die er al stond. */
+					'extraKop'   => __( 'Iets erbij voor dit product', 'wss-ai' ),
+					'extraUit'   => __( 'Optioneel. Bijvoorbeeld: op een houten plank, met een takje eucalyptus ernaast.', 'wss-ai' ),
+					'plekKop'    => __( 'Waar moet je product komen te staan?', 'wss-ai' ),
+					'plekUit'    => __( 'Beschrijf kort een plek of situatie. Bijvoorbeeld: op een bank in een woonkamer, op een houten bureau, op een plank in de badkamer. Wil je nog een variant? Noem dan een andere plek.', 'wss-ai' ),
+					'plekLeeg'   => __( 'Vertel eerst waar je product moet komen te staan.', 'wss-ai' ),
 				),
 			)
 		);
@@ -242,8 +250,8 @@ class WSS_AI_Fotostudio {
 				</p>
 
 				<p class="wss-ai-extra-vak">
-					<label for="wss-ai-extra"><strong><?php esc_html_e( 'Iets erbij voor dit product', 'wss-ai' ); ?></strong></label><br>
-					<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Optioneel. Bijvoorbeeld: op een houten plank, met een takje eucalyptus ernaast.', 'wss-ai' ); ?></span>
+					<label for="wss-ai-extra"><strong class="wss-ai-extra-kop"><?php esc_html_e( 'Iets erbij voor dit product', 'wss-ai' ); ?></strong></label><br>
+					<span class="wss-ai-mut wss-ai-klein wss-ai-extra-uitleg"><?php esc_html_e( 'Optioneel. Bijvoorbeeld: op een houten plank, met een takje eucalyptus ernaast.', 'wss-ai' ); ?></span>
 					<textarea id="wss-ai-extra" rows="2" class="large-text"></textarea>
 				</p>
 
@@ -370,10 +378,17 @@ class WSS_AI_Fotostudio {
 		   van het product zelf gewijzigd. */
 		$extra = isset( $_POST['extra'] ) ? sanitize_textarea_field( wp_unslash( $_POST['extra'] ) ) : '';
 		$extra = mb_substr( $extra, 0, 800 );
-		if ( '' === $extra ) {
-			delete_post_meta( $post_id, self::PROMPT_META );
-		} else {
-			update_post_meta( $post_id, self::PROMPT_META, $extra );
+		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
+
+		/* Alleen bij vernieuwen onthouden. Daar gaat de tekst over het product en
+		   blijft hij gelden. Bij een variant is het de plek waar hij komt te
+		   staan, en die wil je de volgende keer juist anders hebben. */
+		if ( 'variant' !== $taak ) {
+			if ( '' === $extra ) {
+				delete_post_meta( $post_id, self::PROMPT_META );
+			} else {
+				update_post_meta( $post_id, self::PROMPT_META, $extra );
+			}
 		}
 
 		$stijl = self::stijl();
@@ -389,6 +404,13 @@ class WSS_AI_Fotostudio {
 
 		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
 		$doel = isset( $_POST['doel'] ) ? sanitize_key( wp_unslash( $_POST['doel'] ) ) : 'hoofd';
+
+		if ( 'variant' === $taak && '' === trim( $extra ) ) {
+			wp_send_json_error(
+				array( 'error' => __( 'Vertel eerst waar je product moet komen te staan.', 'wss-ai' ) )
+			);
+		}
+
 		$uit = WSS_AI_Koppeling::vraag(
 			'/foto/genereer',
 			array(

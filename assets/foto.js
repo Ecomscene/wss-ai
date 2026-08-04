@@ -32,10 +32,14 @@
 		$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', true);
 		$p.find('.wss-ai-maak').prop('hidden', false).prop('disabled', false);
 		$p.find('.wss-ai-paneel-melding').removeClass('wss-ai-fout').text('');
-		$p.find('#wss-ai-extra').val(C.prompt || '');
 		$p.find('.wss-ai-paneel-kop').text(
 			doel === 'galerij' ? 'Foto voor de galerij' : 'Nieuwe hoofdfoto'
 		);
+
+		/* Bij vernieuwen staat er weer wat je de vorige keer typte; dat gaat over
+		   dit product en blijft gelden. Bij een variant juist niet: daar is het
+		   de plek waar hij komt te staan, en die wil je nu een andere hebben. */
+		$p.find('#wss-ai-extra').val(doel === 'galerij' ? '' : C.prompt || '');
 		/**
 		 * Welke taak er klaarstaat hangt af van waar je vandaan komt.
 		 *
@@ -70,6 +74,21 @@
 		/* De knop zegt wat er gaat gebeuren. "Maak de foto" onder een keuze die
 		   "variant" heet laat je twijfelen of je wel het goede aanklikte. */
 		$p.find('.wss-ai-maak').text(variant ? 'Maak de variant' : 'Maak de foto');
+
+		/**
+		 * Bij een variant vraagt hetzelfde veld iets anders, en is het verplicht.
+		 *
+		 * Dat is geen pesterij maar wat werkt. Een model dat zelf een omgeving mag
+		 * verzinnen kiest bijna altijd de omgeving die al op de foto stond; noem
+		 * je een plek, dan is het in een keer raak. Eén regel typen is een kleine
+		 * prijs voor het verschil tussen een variant en dezelfde foto.
+		 */
+		$p.find('.wss-ai-extra-kop').text(variant ? T.plekKop : T.extraKop);
+		$p.find('.wss-ai-extra-uitleg').text(variant ? T.plekUit : T.extraUit);
+		$p.find('#wss-ai-extra').attr(
+			'placeholder',
+			variant ? 'op een bank in een woonkamer' : ''
+		);
 
 		/* Een variant hoort van de hoofdfoto uit te gaan: dat is de foto waarop
 		   het product het duidelijkst te zien is, en hier is de bronfoto alleen
@@ -170,6 +189,16 @@
 
 	function maak() {
 		var $p = paneel();
+		var variant = $p.find('input[name="wss-ai-taak"]:checked').val() === 'variant';
+
+		/* Zelf tegenhouden in plaats van de server laten weigeren: dat scheelt
+		   een rondje wachten voor iets wat je hier al kunt zien. */
+		if (variant && !$.trim($p.find('#wss-ai-extra').val() || '')) {
+			melding(T.plekLeeg || '', true);
+			$p.find('#wss-ai-extra').trigger('focus');
+			return;
+		}
+
 		$p.find('.wss-ai-maak, .wss-ai-gebruik, .wss-ai-opnieuw').prop('disabled', true);
 		melding(T.bezig || 'Bezig…');
 
