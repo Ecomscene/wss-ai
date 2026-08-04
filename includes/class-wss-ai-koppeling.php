@@ -134,17 +134,6 @@ class WSS_AI_Koppeling {
 	}
 
 	/**
-	 * Wat de fotostudio kan: welke taken er zijn en welke AI ze kan uitvoeren.
-	 *
-	 * Die lijsten staan bij Webshopschool en niet in deze plugin, zodat een nieuw
-	 * of beter model bij iedereen tegelijk verschijnt zonder dat er een update
-	 * langs alle webshops moet.
-	 *
-	 * Een uur onthouden. Lukt het ophalen niet, dan komen er LEGE lijsten terug
-	 * en geen verzonnen standaardlijst: de beheerpagina hoort te zeggen dat het
-	 * niet gelukt is, in plaats van keuzes te tonen die er misschien niet zijn.
-	 */
-	/**
 	 * Het onthouden lijstje weggooien.
 	 *
 	 * Nodig na een update van de plugin. De lijst met taken en motoren komt van
@@ -158,6 +147,17 @@ class WSS_AI_Koppeling {
 		delete_transient( 'wss_ai_fotomodellen' );
 	}
 
+	/**
+	 * Wat de fotostudio kan: welke taken er zijn en welke AI ze kan uitvoeren.
+	 *
+	 * Die lijsten staan bij Webshopschool en niet in deze plugin, zodat een nieuw
+	 * of beter model bij iedereen tegelijk verschijnt zonder dat er een update
+	 * langs alle webshops moet.
+	 *
+	 * Een uur onthouden. Lukt het ophalen niet, dan komen er LEGE lijsten terug
+	 * en geen verzonnen standaardlijst: de beheerpagina hoort te zeggen dat het
+	 * niet gelukt is, in plaats van keuzes te tonen die er misschien niet zijn.
+	 */
 	private static function foto_opties() {
 		$onthouden = get_transient( 'wss_ai_foto_opties' );
 		if ( is_array( $onthouden ) ) {
@@ -183,8 +183,8 @@ class WSS_AI_Koppeling {
 			return $leeg;
 		}
 
-		$uit = array( 'taken' => array(), 'motoren' => array(), 'varianten' => array() );
-		foreach ( array( 'taken', 'motoren', 'varianten' ) as $soort ) {
+		$uit = array( 'taken' => array(), 'motoren' => array() );
+		foreach ( array( 'taken', 'motoren' ) as $soort ) {
 			foreach ( (array) ( isset( $data['data'][ $soort ] ) ? $data['data'][ $soort ] : array() ) as $m ) {
 				if ( empty( $m['key'] ) ) {
 					continue;
@@ -195,7 +195,6 @@ class WSS_AI_Koppeling {
 					'hint'          => isset( $m['hint'] ) ? sanitize_text_field( $m['hint'] ) : '',
 					'gemeten'       => ! empty( $m['gemeten'] ),
 					'gebruiktStijl' => ! empty( $m['gebruiktStijl'] ),
-					'heeftSoorten'  => ! empty( $m['heeftSoorten'] ),
 				);
 			}
 		}
@@ -211,10 +210,5 @@ class WSS_AI_Koppeling {
 	public static function fotomotoren() {
 		$o = self::foto_opties();
 		return $o['motoren'];
-	}
-
-	public static function fotovarianten() {
-		$o = self::foto_opties();
-		return isset( $o['varianten'] ) ? $o['varianten'] : array();
 	}
 }

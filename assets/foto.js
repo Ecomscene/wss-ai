@@ -62,23 +62,20 @@
 	function toonBijTaak() {
 		var $p = paneel();
 		var $gekozen = $p.find('input[name="wss-ai-taak"]:checked');
-		var aan = function (naam) {
-			return $gekozen.data(naam) !== 0 && $gekozen.data(naam) !== '0';
-		};
-		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(aan('stijl'));
-		$p.find('.wss-ai-soorten').prop('hidden', !aan('soorten'));
+		var variant = $gekozen.val() === 'variant';
+		var metStijl = $gekozen.data('stijl') !== 0 && $gekozen.data('stijl') !== '0';
+
+		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(metStijl);
 
 		/* De knop zegt wat er gaat gebeuren. "Maak de foto" onder een keuze die
 		   "variant" heet laat je twijfelen of je wel het goede aanklikte. */
-		$p.find('.wss-ai-maak').text(
-			aan('soorten') ? 'Maak de variant' : 'Maak de foto'
-		);
+		$p.find('.wss-ai-maak').text(variant ? 'Maak de variant' : 'Maak de foto');
 
 		/* Een variant hoort van de hoofdfoto uit te gaan: dat is de foto waarop
 		   het product het duidelijkst te zien is, en hier is de bronfoto alleen
 		   een voorbeeld en geen beginpunt. Heeft de winkelier zelf een foto
 		   aangeklikt, dan laten we zijn keuze staan. */
-		if (aan('soorten') && !$p.data('handmatig')) {
+		if (variant && !$p.data('handmatig')) {
 			var fotos = beschikbareFotos();
 			if (fotos.length) {
 				kiesBron(fotos[0]);
@@ -181,7 +178,6 @@
 			nonce: C.nonce,
 			post: C.post,
 			taak: $p.find('input[name="wss-ai-taak"]:checked').val() || 'vernieuwen',
-			soort: $p.find('input[name="wss-ai-soort"]:checked').val() || '',
 			doel: $p.data('doel') || 'hoofd',
 			bron: $p.data('bron') || 0,
 			extra: $p.find('#wss-ai-extra').val() || '',
@@ -413,9 +409,6 @@
 		$(document).on('click', '.wss-ai-bronknop', function () {
 			paneel().data('handmatig', true);
 			kiesBron($(this).data('foto'));
-		});
-		$(document).on('change', 'input[name="wss-ai-soort"]', function () {
-			paneel().find('.wss-ai-paneel-melding').text('');
 		});
 		$(document).on('click', '.wss-ai-maak', maak);
 		$(document).on('click', '.wss-ai-opnieuw', maak);
