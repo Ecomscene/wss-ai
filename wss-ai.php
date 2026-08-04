@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.6.0
+ * Version:           0.7.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.6.0' );
+define( 'WSS_AI_VERSIE', '0.7.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -270,6 +270,11 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-paneel-melding{color:#646970;font-size:13px}'
 		. '.wss-ai-paneel-melding.wss-ai-fout{color:#b32d2e}'
 		. '.wss-ai-fotoknop{margin:8px 0 0}'
+		. '.wss-ai-bronkiezer{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}'
+		. '.wss-ai-bronknop{padding:0;border:2px solid transparent;border-radius:4px;background:none;'
+		. 'cursor:pointer;line-height:0}'
+		. '.wss-ai-bronknop img{width:44px;height:44px;object-fit:cover;border-radius:2px;display:block}'
+		. '.wss-ai-bronknop.is-gekozen{border-color:#2271b1}'
 		. '.wss-ai-taken{border:0;padding:0;margin:16px 0 4px}'
 		. '.wss-ai-taken legend{padding:0;margin-bottom:6px}'
 		. '.wss-ai-taak{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid #dcdcde;'

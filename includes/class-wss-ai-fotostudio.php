@@ -185,6 +185,7 @@ class WSS_AI_Fotostudio {
 					<figure>
 						<figcaption><?php esc_html_e( 'Waar we mee beginnen', 'wss-ai' ); ?></figcaption>
 						<img class="wss-ai-bron" src="" alt="">
+						<div class="wss-ai-bronkiezer"></div>
 					</figure>
 					<figure class="wss-ai-nieuw-vak" hidden>
 						<figcaption><?php esc_html_e( 'Wat eruit kwam', 'wss-ai' ); ?></figcaption>
@@ -261,6 +262,36 @@ class WSS_AI_Fotostudio {
 	/* ---------------- de foto opsturen en terugkrijgen ---------------- */
 
 	/**
+	 * Welke afbeeldingen bij dit product horen: de hoofdfoto en de galerij.
+	 *
+	 * Dat is tegelijk de lijst waaruit gekozen mag worden. Een verzoek met een
+	 * nummer dat er niet in staat wordt niet geweigerd maar teruggebracht tot de
+	 * hoofdfoto: de winkelier heeft er niets aan om te horen dat zijn keuze
+	 * ongeldig was, en wij hebben er niets aan om zomaar een willekeurige
+	 * afbeelding uit de mediabibliotheek te versturen.
+	 */
+	public static function eigen_afbeeldingen( $post_id ) {
+		$ids = array();
+		$hoofd = (int) get_post_thumbnail_id( $post_id );
+		if ( $hoofd ) {
+			$ids[] = $hoofd;
+		}
+		$galerij = get_post_meta( $post_id, '_product_image_gallery', true );
+		foreach ( array_filter( array_map( 'absint', explode( ',', (string) $galerij ) ) ) as $id ) {
+			$ids[] = $id;
+		}
+		return array_values( array_unique( $ids ) );
+	}
+
+	private static function eigen_afbeelding( $post_id, $gevraagd ) {
+		$eigen = self::eigen_afbeeldingen( $post_id );
+		if ( $gevraagd && in_array( (int) $gevraagd, $eigen, true ) ) {
+			return (int) $gevraagd;
+		}
+		return $eigen ? $eigen[0] : 0;
+	}
+
+	/**
 	 * Een afbeelding klaarmaken om op te sturen: kleiner, en als base64.
 	 *
 	 * Kleiner omdat een productfoto van vier megapixel niets toevoegt voor het
@@ -309,7 +340,16 @@ class WSS_AI_Fotostudio {
 			wp_send_json_error( array( 'error' => __( 'Je mag dit product niet bewerken.', 'wss-ai' ) ) );
 		}
 
-		$bron_id = (int) get_post_thumbnail_id( $post_id );
+		/* De winkelier kiest zelf met welke foto we beginnen: de hoofdfoto of een
+		   van zijn galerijfoto's. Zonder die keuze werd altijd de hoofdfoto
+		   gepakt, ook als je een galerijfoto wilde maken, en dan kreeg je dus
+		   opnieuw een variant op dezelfde foto.
+
+		   Wel controleren dat het een afbeelding is die bij dit product hoort.
+		   Anders zou een verzoek met een willekeurig nummer elke afbeelding uit
+		   de mediabibliotheek naar buiten kunnen sturen. */
+		$gevraagd = isset( $_POST['bron'] ) ? absint( $_POST['bron'] ) : 0;
+		$bron_id = self::eigen_afbeelding( $post_id, $gevraagd );
 		if ( ! $bron_id ) {
 			wp_send_json_error(
 				array(
@@ -346,12 +386,17 @@ class WSS_AI_Fotostudio {
 		}
 
 		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
+		$doel = isset( $_POST['doel'] ) ? sanitize_key( wp_unslash( $_POST['doel'] ) ) : 'hoofd';
 
 		$uit = WSS_AI_Koppeling::vraag(
 			'/foto/genereer',
 			array(
 				'bron'      => $beeld,
 				'taak'      => $taak,
+				/* Voor de galerij vragen we om een ander standpunt: die foto komt
+				   náást de bestaande te staan, dus nog een keer vrijwel hetzelfde
+				   beeld voegt daar niets aan toe. */
+				'doel'      => $doel,
 				'motor'     => self::motor(),
 				'stijl'     => $recept,
 				'extra'     => $extra,
@@ -425,14 +470,25 @@ class WSS_AI_Fotostudio {
 			wp_send_json_error( array( 'error' => __( 'De foto kon niet in je mediabibliotheek gezet worden.', 'wss-ai' ) ) );
 		}
 
+		$huidig = get_post_meta( $post_id, '_product_image_gallery', true );
+		$galerij = array_filter( array_map( 'absint', explode( ',', (string) $huidig ) ) );
+
 		if ( 'galerij' === $doel ) {
-			$huidig = get_post_meta( $post_id, '_product_image_gallery', true );
-			$lijst = array_filter( array_map( 'absint', explode( ',', (string) $huidig ) ) );
-			$lijst[] = (int) $id;
-			update_post_meta( $post_id, '_product_image_gallery', implode( ',', array_unique( $lijst ) ) );
+			$galerij[] = (int) $id;
 		} else {
+			/* De oude hoofdfoto gaat naar de galerij in plaats van uit beeld te
+			   verdwijnen. Hij staat nog wel in de mediabibliotheek, maar die
+			   raakt bij een drukke webshop zo vol dat je hem daar niet
+			   terugvindt, en dan ben je een goede foto kwijt door één klik. */
+			$oude = (int) get_post_thumbnail_id( $post_id );
+			if ( $oude && $oude !== (int) $id ) {
+				$galerij[] = $oude;
+			}
 			set_post_thumbnail( $post_id, $id );
 		}
+
+		$galerij = array_values( array_unique( $galerij ) );
+		update_post_meta( $post_id, '_product_image_gallery', implode( ',', $galerij ) );
 
 		/* Laten weten dat hij gebruikt is. Puur om te kunnen zien hoeveel van het
 		   gemaakte werk ook echt landt; mislukt het, dan is dat geen reden om de

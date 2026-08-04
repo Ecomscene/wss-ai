@@ -26,9 +26,8 @@
 		if (!$p.length) {
 			return;
 		}
-		var bron = huidigeHoofdfoto();
 		$p.data('doel', doel);
-		$p.find('.wss-ai-bron').attr('src', bron || '');
+		vulBronkiezer(doel);
 		$p.find('.wss-ai-nieuw-vak').prop('hidden', true);
 		$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', true);
 		$p.find('.wss-ai-maak').prop('hidden', false).prop('disabled', false);
@@ -61,15 +60,77 @@
 	}
 
 	/**
-	 * De foto waar we mee beginnen.
+	 * Welke foto's van dit product er zijn om mee te beginnen.
 	 *
-	 * Uit het blok van de hoofdfoto, want dat is wat de winkelier op zijn scherm
-	 * ziet staan. Heeft hij hem net vervangen zonder op te slaan, dan pakken we
-	 * dus de nieuwe: dat is wat hij bedoelt.
+	 * Uit het scherm, niet uit de database. Heeft de winkelier net een foto
+	 * toegevoegd zonder op te slaan, dan staat die er wel bij: dat is wat hij
+	 * voor zich ziet, en daar hoort de keuze op te slaan.
 	 */
-	function huidigeHoofdfoto() {
-		var img = document.querySelector('#postimagediv .inside img');
-		return img ? img.src : '';
+	function beschikbareFotos() {
+		var lijst = [];
+
+		var hoofdId = parseInt($('#_thumbnail_id').val(), 10);
+		var hoofdImg = document.querySelector('#postimagediv .inside img');
+		if (hoofdId > 0 && hoofdImg) {
+			lijst.push({ id: hoofdId, src: hoofdImg.src, label: 'Hoofdfoto' });
+		}
+
+		$('#product_images_container li[data-attachment_id]').each(function (i) {
+			var id = parseInt($(this).data('attachment_id'), 10);
+			var img = this.querySelector('img');
+			if (id > 0 && img) {
+				lijst.push({ id: id, src: img.src, label: 'Galerij ' + (i + 1) });
+			}
+		});
+
+		return lijst;
+	}
+
+	/**
+	 * Het rijtje met foto's om uit te kiezen.
+	 *
+	 * Bij een galerijfoto beginnen we niet vanzelf bij de hoofdfoto maar bij de
+	 * laatste galerijfoto, als die er is. Anders krijg je bij elke klik weer een
+	 * variant op diezelfde ene foto, en dat was precies de klacht.
+	 */
+	function vulBronkiezer(doel) {
+		var $p = paneel();
+		var $vak = $p.find('.wss-ai-bronkiezer').empty();
+		var fotos = beschikbareFotos();
+
+		if (!fotos.length) {
+			$p.find('.wss-ai-bron').attr('src', '');
+			$p.data('bron', 0);
+			return;
+		}
+
+		var start = fotos[0];
+		if (doel === 'galerij' && fotos.length > 1) {
+			start = fotos[fotos.length - 1];
+		}
+		kiesBron(start);
+
+		if (fotos.length < 2) {
+			return;
+		}
+		fotos.forEach(function (f) {
+			$vak.append(
+				$('<button type="button" class="wss-ai-bronknop"/>')
+					.attr('title', f.label)
+					.toggleClass('is-gekozen', f.id === start.id)
+					.data('foto', f)
+					.append($('<img alt=""/>').attr('src', f.src))
+			);
+		});
+	}
+
+	function kiesBron(f) {
+		var $p = paneel();
+		$p.data('bron', f.id);
+		$p.find('.wss-ai-bron').attr('src', f.src);
+		$p.find('.wss-ai-bronknop').each(function () {
+			$(this).toggleClass('is-gekozen', $(this).data('foto').id === f.id);
+		});
 	}
 
 	function melding(tekst, fout) {
@@ -89,6 +150,8 @@
 			nonce: C.nonce,
 			post: C.post,
 			taak: $p.find('input[name="wss-ai-taak"]:checked').val() || 'vernieuwen',
+			doel: $p.data('doel') || 'hoofd',
+			bron: $p.data('bron') || 0,
 			extra: $p.find('#wss-ai-extra').val() || '',
 		})
 			.done(function (res) {
@@ -268,6 +331,9 @@
 			}
 		});
 		$(document).on('change', 'input[name="wss-ai-taak"]', toonBijTaak);
+		$(document).on('click', '.wss-ai-bronknop', function () {
+			kiesBron($(this).data('foto'));
+		});
 		$(document).on('click', '.wss-ai-maak', maak);
 		$(document).on('click', '.wss-ai-opnieuw', maak);
 		$(document).on('click', '.wss-ai-gebruik', gebruik);
