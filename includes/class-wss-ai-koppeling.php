@@ -144,6 +144,20 @@ class WSS_AI_Koppeling {
 	 * en geen verzonnen standaardlijst: de beheerpagina hoort te zeggen dat het
 	 * niet gelukt is, in plaats van keuzes te tonen die er misschien niet zijn.
 	 */
+	/**
+	 * Het onthouden lijstje weggooien.
+	 *
+	 * Nodig na een update van de plugin. De lijst met taken en motoren komt van
+	 * de server en wordt een uur bewaard, maar dat lijstje overleeft een update:
+	 * je draait dan de nieuwe plugin met de mogelijkheden van de oude, ziet een
+	 * knop niet verschijnen die er wel is, en denkt dat de update niet werkte.
+	 * Dat is precies wat er gebeurde bij het uitbrengen van "Variant maken".
+	 */
+	public static function vergeet_opties() {
+		delete_transient( 'wss_ai_foto_opties' );
+		delete_transient( 'wss_ai_fotomodellen' );
+	}
+
 	private static function foto_opties() {
 		$onthouden = get_transient( 'wss_ai_foto_opties' );
 		if ( is_array( $onthouden ) ) {

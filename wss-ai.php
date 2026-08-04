@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.8.0
+ * Version:           0.8.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.8.0' );
+define( 'WSS_AI_VERSIE', '0.8.1' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -346,8 +346,31 @@ add_action(
 			return;
 		}
 		WSS_AI_Koppeling::meld_aan();
+		/* Ook het onthouden lijstje met mogelijkheden vernieuwen. Wie op deze
+		   knop drukt wil dat alles opnieuw wordt opgehaald, niet de helft. */
+		WSS_AI_Koppeling::vergeet_opties();
 		wp_safe_redirect( admin_url( 'admin.php?page=wss-ai' ) );
 		exit;
+	}
+);
+
+/**
+ * Na een update: opnieuw bij de server vragen wat er kan.
+ *
+ * De plugin onthoudt een uur lang welke taken en motoren er zijn. Dat lijstje
+ * overleeft een update, dus zonder deze controle draai je de nieuwe versie met
+ * de mogelijkheden van de oude: een knop die er wel is verschijnt niet, en je
+ * denkt dat de update niet werkte. Dat is precies wat er gebeurde toen
+ * "Variant maken" erbij kwam.
+ */
+add_action(
+	'admin_init',
+	function () {
+		if ( get_option( 'wss_ai_draaiende_versie' ) === WSS_AI_VERSIE ) {
+			return;
+		}
+		update_option( 'wss_ai_draaiende_versie', WSS_AI_VERSIE );
+		WSS_AI_Koppeling::vergeet_opties();
 	}
 );
 

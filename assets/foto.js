@@ -36,7 +36,18 @@
 		$p.find('.wss-ai-paneel-kop').text(
 			doel === 'galerij' ? 'Foto voor de galerij' : 'Nieuwe hoofdfoto'
 		);
-		$p.find('input[name="wss-ai-taak"]').first().prop('checked', true);
+		/**
+		 * Welke taak er klaarstaat hangt af van waar je vandaan komt.
+		 *
+		 * Klik je bij de galerij, dan wil je een EXTRA foto: een variant. Dat
+		 * eerst zelf moeten omzetten voelt als een omweg, want je hebt net al
+		 * gezegd wat je wilde door op die knop te drukken. Bij de hoofdfoto is
+		 * vernieuwen wel de logische start: daar gaat het om die ene foto.
+		 */
+		var wens = doel === 'galerij' ? 'variant' : 'vernieuwen';
+		var $wens = $p.find('input[name="wss-ai-taak"][value="' + wens + '"]');
+		($wens.length ? $wens : $p.find('input[name="wss-ai-taak"]').first()).prop('checked', true);
+
 		toonBijTaak();
 		$p.prop('hidden', false);
 	}
@@ -56,6 +67,12 @@
 		};
 		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(aan('stijl'));
 		$p.find('.wss-ai-soorten').prop('hidden', !aan('soorten'));
+
+		/* De knop zegt wat er gaat gebeuren. "Maak de foto" onder een keuze die
+		   "variant" heet laat je twijfelen of je wel het goede aanklikte. */
+		$p.find('.wss-ai-maak').text(
+			aan('soorten') ? 'Maak de variant' : 'Maak de foto'
+		);
 
 		/* Een variant hoort van de hoofdfoto uit te gaan: dat is de foto waarop
 		   het product het duidelijkst te zien is, en hier is de bronfoto alleen
