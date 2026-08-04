@@ -59,7 +59,7 @@ lukt. Er staan drie mogelijke standen, en het verschil telt:
 |---|---|
 | Werkt | We hebben GitHub gesproken en je hebt de laatste versie |
 | Update beschikbaar | Er staat een nieuwere release klaar |
-| Niet gecontroleerd | We konden GitHub niet bereiken — dit is **geen** "je bent bij" |
+| Niet gecontroleerd | We konden GitHub niet bereiken - dit is **geen** "je bent bij" |
 
 Die laatste is met opzet geen groen vinkje. Anders denk je dat updates
 binnenkomen terwijl er al drie versies zijn uitgekomen.
