@@ -1,0 +1,192 @@
+<?php
+/**
+ * Plugin Name:       WSS AI
+ * Plugin URI:        https://github.com/Ecomscene/wss-ai
+ * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
+ * Version:           0.1.0
+ * Requires at least: 6.0
+ * Requires PHP:      7.4
+ * Author:            Webshopschool
+ * Author URI:        https://webshopschool.nl
+ * License:           GPL-2.0-or-later
+ * Text Domain:       wss-ai
+ * Update URI:        https://github.com/Ecomscene/wss-ai
+ *
+ * ---------------------------------------------------------------------------
+ * DE REGEL VOOR DEZE PLUGIN: HOU HEM DUN.
+ *
+ * Alles wat rekent, met een AI-model praat of geld kost hoort op de server van
+ * Webshopschool, niet hier. Deze plugin is een schermpje dat die server belt.
+ *
+ * Twee redenen, en ze zijn allebei uit ervaring:
+ *  1. Een fout op onze server is binnen een minuut gerepareerd. Een fout in deze
+ *     plugin moet langs tientallen webshops die allemaal moeten bijwerken.
+ *  2. Deze code draait in de PHP van een klant. Wat hier stukgaat, gaat op zijn
+ *     winkel stuk -- en dat is twee keer eerder gebeurd.
+ *
+ * Dus: geen zware verwerking, geen schrijfacties buiten onze eigen instellingen,
+ * en alles wat mis kan gaan in een try/catch met een nette melding.
+ * ---------------------------------------------------------------------------
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+define( 'WSS_AI_VERSIE', '0.1.0' );
+define( 'WSS_AI_BESTAND', __FILE__ );
+define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
+
+require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
+
+/**
+ * Het menu-item in wp-admin.
+ *
+ * Positie 58 zet hem net onder WooCommerce en boven Weergave -- in het blok waar
+ * de dingen staan waar je iets mee doet, niet tussen de instellingen. Wie de
+ * plugin installeert moet hem kunnen vinden zonder ernaar te zoeken.
+ */
+function wss_ai_menu() {
+	add_menu_page(
+		__( 'WSS AI', 'wss-ai' ),
+		__( 'WSS AI', 'wss-ai' ),
+		'manage_options',
+		'wss-ai',
+		'wss_ai_pagina',
+		wss_ai_icoon(),
+		58
+	);
+}
+add_action( 'admin_menu', 'wss_ai_menu' );
+
+/**
+ * Het icoon in het menu.
+ *
+ * WordPress kleurt een menu-icoon zelf mee met het gekozen kleurenschema, maar
+ * alleen als het een SVG is die op `currentColor` staat en als data-URI wordt
+ * meegegeven. Een PNG zou in de donkere balk grijs blijven terwijl de rest
+ * oplicht, en dan valt hij op als het buitenbeentje dat hij niet moet zijn.
+ */
+function wss_ai_icoon() {
+	$svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">'
+		. '<path d="M10 1.6l1.5 4.1a3.2 3.2 0 0 0 1.9 1.9l4.1 1.5-4.1 1.5a3.2 3.2 0 0 0-1.9 1.9L10 16.6l-1.5-4.1a3.2 3.2 0 0 0-1.9-1.9L2.5 9.1l4.1-1.5a3.2 3.2 0 0 0 1.9-1.9L10 1.6z"/>'
+		. '<path d="M16.1 13.4l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6.6-1.7z"/>'
+		. '</svg>';
+
+	return 'data:image/svg+xml;base64,' . base64_encode( $svg );
+}
+
+/**
+ * De pagina zelf.
+ *
+ * Bewust nog leeg op de inhoud na die vertelt wat er komt. Wat er wél staat is
+ * het versienummer en of automatisch bijwerken werkt: dat is precies wat je moet
+ * kunnen zien voordat je hier iets echts op zet.
+ */
+function wss_ai_pagina() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'Je hebt geen toegang tot deze pagina.', 'wss-ai' ) );
+	}
+
+	$stand = WSS_AI_Updater::stand();
+	?>
+	<div class="wrap wss-ai">
+		<h1><?php esc_html_e( 'WSS AI', 'wss-ai' ); ?></h1>
+
+		<div class="wss-ai-kaart">
+			<h2><?php esc_html_e( 'Hier komt je AI-gereedschap', 'wss-ai' ); ?></h2>
+			<p>
+				<?php
+				esc_html_e(
+					'Deze plugin is net geïnstalleerd en doet nog niets. Zodra de eerste onderdelen klaar zijn verschijnen ze hier vanzelf — je hoeft niets te doen, de plugin werkt zichzelf bij.',
+					'wss-ai'
+				);
+				?>
+			</p>
+			<p class="wss-ai-mut">
+				<?php esc_html_e( 'Wat eraan komt: een AI-medewerker die je vragen over je shop beantwoordt, een fotostudio voor betere productfoto\'s, en teksten die je met één knop vult.', 'wss-ai' ); ?>
+			</p>
+		</div>
+
+		<div class="wss-ai-kaart">
+			<h2><?php esc_html_e( 'Over deze plugin', 'wss-ai' ); ?></h2>
+			<table class="widefat striped wss-ai-tabel">
+				<tbody>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Versie', 'wss-ai' ); ?></th>
+						<td><?php echo esc_html( WSS_AI_VERSIE ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Automatisch bijwerken', 'wss-ai' ); ?></th>
+						<td>
+							<?php
+							/* Nooit een groen vinkje als we het niet weten. Zolang de
+							   controle niet is gelukt hoort er te staan dát hij niet is
+							   gelukt -- anders denk je dat updates binnenkomen terwijl
+							   er niets gebeurt. */
+							if ( 'ok' === $stand['soort'] ) {
+								echo '<span class="wss-ai-goed">' . esc_html__( 'Werkt', 'wss-ai' ) . '</span> ';
+								echo esc_html( $stand['tekst'] );
+							} elseif ( 'nieuw' === $stand['soort'] ) {
+								echo '<span class="wss-ai-let-op">' . esc_html__( 'Update beschikbaar', 'wss-ai' ) . '</span> ';
+								echo esc_html( $stand['tekst'] );
+							} else {
+								echo '<span class="wss-ai-onbekend">' . esc_html__( 'Niet gecontroleerd', 'wss-ai' ) . '</span> ';
+								echo esc_html( $stand['tekst'] );
+							}
+							?>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<p>
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=wss-ai&wss_ai_check=1' ), 'wss_ai_check' ) ); ?>" class="button">
+					<?php esc_html_e( 'Nu op updates controleren', 'wss-ai' ); ?>
+				</a>
+			</p>
+		</div>
+	</div>
+	<?php
+}
+
+/**
+ * Handmatig op updates controleren.
+ *
+ * De automatische controle draait maar een paar keer per dag. Wil je na een
+ * nieuwe release meteen zien of hij aankomt, dan is wachten geen optie.
+ */
+function wss_ai_handmatige_controle() {
+	if ( ! isset( $_GET['wss_ai_check'] ) || ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'wss_ai_check' ) ) {
+		return;
+	}
+	WSS_AI_Updater::vergeet_cache();
+	delete_site_transient( 'update_plugins' );
+	wp_safe_redirect( admin_url( 'admin.php?page=wss-ai&wss_ai_gecheckt=1' ) );
+	exit;
+}
+add_action( 'admin_init', 'wss_ai_handmatige_controle' );
+
+/** Een beetje opmaak. Bewust weinig: dit moet bij wp-admin passen, niet opvallen. */
+function wss_ai_stijl( $hook ) {
+	if ( 'toplevel_page_wss-ai' !== $hook ) {
+		return;
+	}
+	$css = '.wss-ai-kaart{background:#fff;border:1px solid #c3c4c7;border-radius:6px;padding:16px 20px;margin:16px 0;max-width:760px}'
+		. '.wss-ai-kaart h2{margin-top:0}'
+		. '.wss-ai-mut{color:#646970}'
+		. '.wss-ai-tabel{max-width:640px}'
+		. '.wss-ai-tabel th{width:220px}'
+		. '.wss-ai-goed{color:#00701a;font-weight:600}'
+		. '.wss-ai-let-op{color:#8a6100;font-weight:600}'
+		. '.wss-ai-onbekend{color:#646970;font-weight:600}';
+	wp_register_style( 'wss-ai', false, array(), WSS_AI_VERSIE );
+	wp_enqueue_style( 'wss-ai' );
+	wp_add_inline_style( 'wss-ai', $css );
+}
+add_action( 'admin_enqueue_scripts', 'wss_ai_stijl' );
+
+/* De updater aanzetten. Zie includes/class-wss-ai-updater.php. */
+WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
