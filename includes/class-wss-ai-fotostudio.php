@@ -49,6 +49,7 @@ class WSS_AI_Fotostudio {
 		add_action( 'admin_footer', array( __CLASS__, 'paneel' ) );
 
 		add_action( 'wp_ajax_wss_ai_foto_genereer', array( __CLASS__, 'ajax_genereer' ) );
+		add_action( 'wp_ajax_wss_ai_foto_bijwerken', array( __CLASS__, 'ajax_bijwerken' ) );
 		add_action( 'wp_ajax_wss_ai_foto_toepassen', array( __CLASS__, 'ajax_toepassen' ) );
 		add_action( 'wp_ajax_wss_ai_foto_stijl', array( __CLASS__, 'ajax_stijl' ) );
 	}
@@ -171,6 +172,9 @@ class WSS_AI_Fotostudio {
 					'plekKop'    => __( 'Waar moet je product komen te staan?', 'wss-ai' ),
 					'plekUit'    => __( 'Beschrijf kort een plek of situatie. Bijvoorbeeld: op een bank in een woonkamer, op een houten bureau, op een plank in de badkamer. Wil je nog een variant? Noem dan een andere plek.', 'wss-ai' ),
 					'plekLeeg'   => __( 'Vertel eerst waar je product moet komen te staan.', 'wss-ai' ),
+					'bijwerkBezig' => __( 'Bezig met aanpassen…', 'wss-ai' ),
+					'bijwerkLeeg'  => __( 'Vertel wat er anders moet aan deze foto.', 'wss-ai' ),
+					'bijgewerkt'   => __( 'Aangepast. Nog niet goed? Je kunt het nog een keer proberen.', 'wss-ai' ),
 				),
 			)
 		);
@@ -199,6 +203,22 @@ class WSS_AI_Fotostudio {
 						<figcaption><?php esc_html_e( 'Wat eruit kwam', 'wss-ai' ); ?></figcaption>
 						<img class="wss-ai-nieuw" src="" alt="">
 					</figure>
+				</div>
+
+				<?php
+				/* Bijschaven kan pas als er iets ligt om te schaven. Bijna goed is
+				   het vervelendste resultaat: opnieuw maken kost je ook alles wat
+				   wel klopte. */
+				?>
+				<div class="wss-ai-bijwerk-vak" hidden>
+					<label for="wss-ai-bijwerk"><strong><?php esc_html_e( 'Nog iets aanpassen aan deze foto?', 'wss-ai' ); ?></strong></label><br>
+					<span class="wss-ai-mut wss-ai-klein">
+						<?php esc_html_e( 'Alleen dit ene ding verandert; de rest van de foto blijft staan. Bijvoorbeeld: haal het takje links weg, of maak de achtergrond wat lichter.', 'wss-ai' ); ?>
+					</span>
+					<div class="wss-ai-bijwerk-rij">
+						<input type="text" id="wss-ai-bijwerk" class="regular-text" placeholder="<?php esc_attr_e( 'haal het takje links weg', 'wss-ai' ); ?>">
+						<button type="button" class="button wss-ai-bijwerk-knop"><?php esc_html_e( 'Pas aan', 'wss-ai' ); ?></button>
+					</div>
 				</div>
 
 				<fieldset class="wss-ai-taken">
@@ -440,6 +460,57 @@ class WSS_AI_Fotostudio {
 				   koos, dan hoort hij dat te lezen. Stilzwijgend afwijken van een
 				   instelling is hetzelfde als die instelling negeren. */
 				'uitgeweken' => isset( $uit['uitgeweken'] ) ? sanitize_text_field( (string) $uit['uitgeweken'] ) : '',
+			)
+		);
+	}
+
+	/**
+	 * Een gemaakte foto bijschaven.
+	 *
+	 * Er gaat geen beeld mee: de foto staat al bij Webshopschool en wordt daar
+	 * opgezocht met het nummer en de sleutel uit het adres. Zo hoeft er geen
+	 * megabyte heen en weer voor het weghalen van een takje.
+	 */
+	public static function ajax_bijwerken() {
+		check_ajax_referer( 'wss_ai_foto', 'nonce' );
+
+		$post_id = isset( $_POST['post'] ) ? absint( $_POST['post'] ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( array( 'error' => __( 'Je mag dit product niet bewerken.', 'wss-ai' ) ) );
+		}
+
+		$opdracht = isset( $_POST['opdracht'] ) ? sanitize_textarea_field( wp_unslash( $_POST['opdracht'] ) ) : '';
+		if ( '' === trim( $opdracht ) ) {
+			wp_send_json_error( array( 'error' => __( 'Vertel wat er anders moet.', 'wss-ai' ) ) );
+		}
+
+		$id  = isset( $_POST['id'] ) ? sanitize_text_field( wp_unslash( $_POST['id'] ) ) : '';
+		$url = isset( $_POST['url'] ) ? esc_url_raw( wp_unslash( $_POST['url'] ) ) : '';
+		if ( ! $id || 0 !== strpos( $url, WSS_AI_Koppeling::api() . '/foto/bestand/' ) ) {
+			wp_send_json_error( array( 'error' => __( 'Die foto kennen we niet meer.', 'wss-ai' ) ) );
+		}
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 180 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+
+		$uit = WSS_AI_Koppeling::vraag(
+			'/foto/' . rawurlencode( $id ) . '/bijwerken',
+			array(
+				'sleutel'  => self::sleutel_uit( $url ),
+				'opdracht' => mb_substr( $opdracht, 0, 500 ),
+			),
+			120
+		);
+		if ( is_wp_error( $uit ) ) {
+			wp_send_json_error( array( 'error' => $uit->get_error_message() ) );
+		}
+
+		wp_send_json_success(
+			array(
+				'id'   => isset( $uit['id'] ) ? (string) $uit['id'] : '',
+				'url'  => isset( $uit['url'] ) ? esc_url_raw( (string) $uit['url'] ) : '',
+				'mime' => isset( $uit['mime'] ) ? sanitize_text_field( (string) $uit['mime'] ) : 'image/jpeg',
 			)
 		);
 	}

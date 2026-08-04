@@ -28,7 +28,7 @@
 		}
 		$p.data('doel', doel).data('handmatig', false);
 		vulBronkiezer(doel);
-		$p.find('.wss-ai-nieuw-vak').prop('hidden', true);
+		$p.find('.wss-ai-nieuw-vak, .wss-ai-bijwerk-vak').prop('hidden', true);
 		$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', true);
 		$p.find('.wss-ai-maak').prop('hidden', false).prop('disabled', false);
 		$p.find('.wss-ai-paneel-melding').removeClass('wss-ai-fout').text('');
@@ -200,6 +200,7 @@
 		}
 
 		$p.find('.wss-ai-maak, .wss-ai-gebruik, .wss-ai-opnieuw').prop('disabled', true);
+		$p.find('.wss-ai-bijwerk-vak').prop('hidden', true);
 		melding(T.bezig || 'Bezig…');
 
 		$.post(C.ajax, {
@@ -217,15 +218,68 @@
 					melding((res && res.data && res.data.error) || T.mislukt, true);
 					return;
 				}
-				$p.data('foto', res.data);
-				$p.find('.wss-ai-nieuw').attr('src', res.data.url);
-				$p.find('.wss-ai-nieuw-vak').prop('hidden', false);
+				toonResultaat(res.data);
 				$p.find('.wss-ai-maak').prop('hidden', true);
 				$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', false);
 				melding(res.data.uitgeweken || '');
 			})
 			.fail(function () {
 				$p.find('.wss-ai-maak, .wss-ai-gebruik, .wss-ai-opnieuw').prop('disabled', false);
+				melding(T.mislukt, true);
+			});
+	}
+
+	/** Het resultaat in beeld zetten, met het bijschaafveld eronder. */
+	function toonResultaat(data) {
+		var $p = paneel();
+		$p.data('foto', data);
+		$p.find('.wss-ai-nieuw').attr('src', data.url);
+		$p.find('.wss-ai-nieuw-vak').prop('hidden', false);
+		$p.find('.wss-ai-bijwerk-vak').prop('hidden', false);
+		$p.find('#wss-ai-bijwerk').val('');
+	}
+
+	/**
+	 * Eén ding aan de gemaakte foto veranderen.
+	 *
+	 * Het resultaat vervangt wat er stond, en je kunt meteen weer verder
+	 * schaven. De vorige versie raak je daarmee kwijt in beeld; hij staat nog
+	 * wel bij Webshopschool, maar niemand gaat hier een geschiedenis van
+	 * pogingen zitten doorbladeren.
+	 */
+	function bijwerken() {
+		var $p = paneel();
+		var foto = $p.data('foto');
+		var opdracht = $.trim($p.find('#wss-ai-bijwerk').val() || '');
+		if (!foto || !opdracht) {
+			melding(T.bijwerkLeeg || '', true);
+			$p.find('#wss-ai-bijwerk').trigger('focus');
+			return;
+		}
+
+		var $knoppen = $p.find('.wss-ai-maak, .wss-ai-gebruik, .wss-ai-opnieuw, .wss-ai-bijwerk-knop');
+		$knoppen.prop('disabled', true);
+		melding(T.bijwerkBezig || 'Bezig…');
+
+		$.post(C.ajax, {
+			action: 'wss_ai_foto_bijwerken',
+			nonce: C.nonce,
+			post: C.post,
+			id: foto.id,
+			url: foto.url,
+			opdracht: opdracht,
+		})
+			.done(function (res) {
+				$knoppen.prop('disabled', false);
+				if (!res || !res.success || !res.data || !res.data.url) {
+					melding((res && res.data && res.data.error) || T.mislukt, true);
+					return;
+				}
+				toonResultaat(res.data);
+				melding(T.bijgewerkt || '');
+			})
+			.fail(function () {
+				$knoppen.prop('disabled', false);
 				melding(T.mislukt, true);
 			});
 	}
@@ -263,7 +317,7 @@
 					   op Bijwerken. */
 					zetGalerijBij(res.data);
 					melding('Toegevoegd. Je kunt er meteen nog een maken.');
-					$p.find('.wss-ai-nieuw-vak').prop('hidden', true);
+					$p.find('.wss-ai-nieuw-vak, .wss-ai-bijwerk-vak').prop('hidden', true);
 					$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', true);
 					$p.find('.wss-ai-maak').prop('hidden', false);
 					vulBronkiezer('galerij');
@@ -442,5 +496,12 @@
 		$(document).on('click', '.wss-ai-maak', maak);
 		$(document).on('click', '.wss-ai-opnieuw', maak);
 		$(document).on('click', '.wss-ai-gebruik', gebruik);
+		$(document).on('click', '.wss-ai-bijwerk-knop', bijwerken);
+		$(document).on('keydown', '#wss-ai-bijwerk', function (e) {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+				bijwerken();
+			}
+		});
 	});
 })(jQuery);
