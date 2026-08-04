@@ -128,9 +128,10 @@ class WSS_AI_Fotostudio {
 		$post = get_post();
 		$op_product = in_array( $hook, array( 'post.php', 'post-new.php' ), true )
 			&& $post && 'product' === $post->post_type;
-		$op_pagina = ( 'toplevel_page_wss-ai' === $hook );
+		$op_pagina = ( 'wss-ai_page_wss-ai-afbeeldingen' === $hook );
+		$op_bulk = ( 'wss-ai_page_' . WSS_AI_Bulk::SLUG === $hook );
 
-		if ( ! $op_product && ! $op_pagina ) {
+		if ( ! $op_product && ! $op_pagina && ! $op_bulk ) {
 			return;
 		}
 
@@ -178,6 +179,20 @@ class WSS_AI_Fotostudio {
 				),
 			)
 		);
+
+		/* Het bulkscherm stuurt dezelfde acties aan, dus het heeft bovenstaande
+		   gegevens nodig. Vandaar dat het hier wordt aangehaakt en niet in zijn
+		   eigen klasse: twee plekken die een nonce klaarzetten is één te veel. */
+		if ( $op_bulk ) {
+			wp_enqueue_script(
+				'wss-ai-bulk',
+				plugins_url( 'assets/bulk.js', WSS_AI_BESTAND ),
+				array( 'jquery', 'wss-ai-foto' ),
+				WSS_AI_VERSIE,
+				true
+			);
+			wp_localize_script( 'wss-ai-bulk', 'wssAiBulk', WSS_AI_Bulk::scriptgegevens() );
+		}
 	}
 
 	/** Het paneel staat één keer in de voettekst en is standaard verborgen. */
@@ -400,10 +415,12 @@ class WSS_AI_Fotostudio {
 		$extra = mb_substr( $extra, 0, 800 );
 		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
 
-		/* Alleen bij vernieuwen onthouden. Daar gaat de tekst over het product en
-		   blijft hij gelden. Bij een variant is het de plek waar hij komt te
-		   staan, en die wil je de volgende keer juist anders hebben. */
-		if ( 'variant' !== $taak ) {
+		/* Alleen bij vernieuwen onthouden, en niet bij bulk. Daar gaat de tekst
+		   over het product en blijft hij gelden. Bij een variant is het de plek
+		   waar hij komt te staan, en die wil je de volgende keer juist anders
+		   hebben; bij bulk geldt hij voor de hele serie en hoort hij niet bij
+		   elk product afzonderlijk te blijven plakken. */
+		if ( 'variant' !== $taak && empty( $_POST['bulk'] ) ) {
 			if ( '' === $extra ) {
 				delete_post_meta( $post_id, self::PROMPT_META );
 			} else {

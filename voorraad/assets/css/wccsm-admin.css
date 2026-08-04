@@ -1,0 +1,366 @@
+/* ==========================================================================
+   WC Central Stock Manager — Admin Styles
+   ========================================================================== */
+
+.wccsm-wrap {
+    max-width: 100%;
+}
+
+/* ---------- Filters ---------- */
+.wccsm-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+}
+
+.wccsm-filter-input {
+    min-width: 220px;
+    padding: 6px 10px;
+}
+
+.wccsm-filter-select {
+    min-width: 140px;
+    padding: 4px 8px;
+}
+
+/* ---------- Table ---------- */
+.wccsm-table-wrap {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+}
+
+.wccsm-table {
+    border: 0;
+    margin: 0;
+    border-spacing: 0;
+    width: 100%;
+}
+
+.wccsm-table thead th {
+    padding: 10px 8px;
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    background: #f0f0f1;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.wccsm-table tbody td {
+    padding: 6px 8px;
+    vertical-align: middle;
+    font-size: 13px;
+}
+
+.wccsm-table tbody tr:hover {
+    background-color: #f6f7f7;
+}
+
+/* Column widths */
+.wccsm-col-name     { min-width: 200px; }
+.wccsm-col-sku      { min-width: 100px; }
+.wccsm-col-ean      { min-width: 100px; }
+.wccsm-col-supplier { min-width: 100px; }
+.wccsm-col-purchase,
+.wccsm-col-regular,
+.wccsm-col-sale,
+.wccsm-col-stock    { min-width: 80px; width: 90px; }
+.wccsm-col-components { min-width: 140px; }
+.wccsm-col-actions  { min-width: 80px; width: 90px; }
+
+/* Variation row indent */
+.wccsm-row-variation .wccsm-cell-name {
+    padding-left: 24px;
+    color: #50575e;
+}
+
+.wccsm-row-variation .wccsm-cell-name::before {
+    content: "└ ";
+    color: #a7aaad;
+}
+
+/* Parent (variable) row */
+.wccsm-row-parent {
+    background: #f9f9f9 !important;
+    font-weight: 600;
+}
+
+.wccsm-row-parent td {
+    border-top: 2px solid #dcdcde;
+}
+
+/* Editable inputs */
+.wccsm-inline-input {
+    width: 100%;
+    max-width: 90px;
+    padding: 3px 6px;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    font-size: 13px;
+    background: #fff;
+    transition: border-color 0.15s;
+}
+
+.wccsm-inline-input:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.wccsm-inline-input.wccsm-saved {
+    border-color: #00a32a;
+    background: #f0faf0;
+}
+
+.wccsm-inline-input.wccsm-error {
+    border-color: #d63638;
+    background: #fef0f0;
+}
+
+.wccsm-inline-input.wccsm-input-wide {
+    max-width: 130px;
+}
+
+/* Stock field where management is not yet enabled */
+.wccsm-inline-input.wccsm-stock-unmanaged {
+    border-style: dashed;
+    border-color: #c3c4c7;
+    background: #f6f7f7;
+}
+
+.wccsm-inline-input.wccsm-stock-unmanaged::placeholder {
+    color: #8c8f94;
+    font-style: italic;
+}
+
+/* Stock colors */
+.wccsm-stock-out {
+    color: #d63638;
+    font-weight: 600;
+}
+
+.wccsm-stock-low {
+    color: #dba617;
+    font-weight: 600;
+}
+
+.wccsm-stock-ok {
+    color: #00a32a;
+}
+
+/* Out-of-stock row highlighting */
+.wccsm-row-outofstock {
+    background-color: #fef0f0 !important;
+}
+
+.wccsm-row-outofstock:hover {
+    background-color: #fde8e8 !important;
+}
+
+/* Composed product computed stock badge */
+.wccsm-computed-stock {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: default;
+    border: 1px solid #dcdcde;
+    background: #f6f7f7;
+}
+
+.wccsm-computed-stock.wccsm-stock-out {
+    background: #fef0f0;
+    border-color: #d63638;
+}
+
+.wccsm-computed-stock.wccsm-stock-low {
+    background: #fef8e7;
+    border-color: #dba617;
+}
+
+.wccsm-computed-stock.wccsm-stock-ok {
+    background: #f0faf0;
+    border-color: #00a32a;
+}
+
+/* Loading */
+.wccsm-loading {
+    text-align: center;
+    padding: 40px !important;
+    color: #646970;
+}
+
+/* ---------- Pagination ---------- */
+.wccsm-pagination {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+    margin: 16px 0;
+}
+
+.wccsm-pagination .button {
+    min-width: 36px;
+    text-align: center;
+}
+
+.wccsm-pagination .button.current {
+    background: #2271b1;
+    color: #fff;
+    border-color: #2271b1;
+}
+
+.wccsm-page-info {
+    margin: 0 8px;
+    color: #646970;
+    font-size: 13px;
+}
+
+/* ---------- Components badge ---------- */
+.wccsm-comp-badge {
+    display: inline-block;
+    background: #e8f0fe;
+    color: #1a56db;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin: 1px 2px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.wccsm-comp-badge.wccsm-comp-out {
+    background: #fef0f0;
+    color: #d63638;
+    border-color: #d63638;
+    font-weight: 600;
+}
+
+.wccsm-comp-badge.wccsm-comp-low {
+    background: #fef8e7;
+    color: #8a6d0b;
+    border-color: #dba617;
+}
+
+/* ---------- Action buttons ---------- */
+.wccsm-btn-small {
+    padding: 2px 8px !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    min-height: auto !important;
+}
+
+/* ---------- Modal ---------- */
+.wccsm-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wccsm-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.wccsm-modal-content {
+    position: relative;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    width: 540px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.wccsm-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.wccsm-modal-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.wccsm-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #646970;
+    padding: 0;
+    line-height: 1;
+}
+
+.wccsm-modal-close:hover {
+    color: #d63638;
+}
+
+.wccsm-modal-body {
+    padding: 16px 20px;
+}
+
+.wccsm-modal-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #dcdcde;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Bulk preview table */
+#wccsm-bulk-preview table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+#wccsm-bulk-preview th,
+#wccsm-bulk-preview td {
+    padding: 4px 8px;
+    border: 1px solid #dcdcde;
+    text-align: left;
+}
+
+#wccsm-bulk-preview th {
+    background: #f0f0f1;
+}
+
+.wccsm-price-changed {
+    color: #2271b1;
+    font-weight: 600;
+}
+
+/* ---------- Responsive ---------- */
+@media screen and (max-width: 960px) {
+    .wccsm-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .wccsm-filter-input,
+    .wccsm-filter-select {
+        width: 100%;
+    }
+}

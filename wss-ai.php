@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.10.0
+ * Version:           0.11.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.10.0' );
+define( 'WSS_AI_VERSIE', '0.11.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -42,26 +42,10 @@ require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-fotostudio.php';
-
-/**
- * Het menu-item in wp-admin.
- *
- * Positie 58 zet hem net onder WooCommerce en boven Weergave -- in het blok waar
- * de dingen staan waar je iets mee doet, niet tussen de instellingen. Wie de
- * plugin installeert moet hem kunnen vinden zonder ernaar te zoeken.
- */
-function wss_ai_menu() {
-	add_menu_page(
-		__( 'WSS AI', 'wss-ai' ),
-		__( 'WSS AI', 'wss-ai' ),
-		'manage_options',
-		'wss-ai',
-		'wss_ai_pagina',
-		wss_ai_icoon(),
-		58
-	);
-}
-add_action( 'admin_menu', 'wss_ai_menu' );
+require_once WSS_AI_MAP . 'includes/class-wss-ai-bulk.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-verzoek.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-voorraad.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-menu.php';
 
 /**
  * Het icoon in het menu.
@@ -78,123 +62,6 @@ function wss_ai_icoon() {
 		. '</svg>';
 
 	return 'data:image/svg+xml;base64,' . base64_encode( $svg );
-}
-
-/**
- * De pagina zelf.
- *
- * Bewust nog leeg op de inhoud na die vertelt wat er komt. Wat er wél staat is
- * het versienummer en of automatisch bijwerken werkt: dat is precies wat je moet
- * kunnen zien voordat je hier iets echts op zet.
- */
-function wss_ai_pagina() {
-	if ( ! current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'Je hebt geen toegang tot deze pagina.', 'wss-ai' ) );
-	}
-
-	$stand = WSS_AI_Updater::stand();
-	?>
-	<div class="wrap wss-ai">
-		<h1><?php esc_html_e( 'WSS AI', 'wss-ai' ); ?></h1>
-
-		<?php if ( isset( $_GET['wss_ai_bewaard'] ) ) : ?>
-			<div class="notice notice-success is-dismissible">
-				<p><?php esc_html_e( 'Opgeslagen. De volgende tekst wordt zo geschreven.', 'wss-ai' ); ?></p>
-			</div>
-		<?php endif; ?>
-
-		<div class="wss-ai-kaart">
-			<h2><?php esc_html_e( 'Teksten schrijven met AI', 'wss-ai' ); ?></h2>
-			<p>
-				<?php
-				esc_html_e(
-					'Open een product in je webshop. Onder de productgegevens staat het blok "WSS AI - teksten schrijven" met drie knoppen: een productomschrijving, een SEO-titel en een SEO-omschrijving.',
-					'wss-ai'
-				);
-				?>
-			</p>
-			<p class="wss-ai-mut">
-				<?php
-				esc_html_e(
-					'Hoe meer er van een product is ingevuld en opgeslagen, hoe beter de tekst wordt. Weet je het even niet? Tik dan ruw in het omschrijvingsveld wat je erover kunt vertellen - steekwoorden, halve zinnen, typefouten maken niet uit. Dat is voer voor de AI.',
-					'wss-ai'
-				);
-				?>
-			</p>
-			<p class="wss-ai-mut">
-				<?php esc_html_e( 'Wat eraan komt: een AI-medewerker die je vragen over je webshop beantwoordt.', 'wss-ai' ); ?>
-			</p>
-		</div>
-
-		<?php WSS_AI_Instellingen::kaart(); ?>
-
-		<?php WSS_AI_Fotostudio::kaart(); ?>
-
-		<div class="wss-ai-kaart">
-			<h2><?php esc_html_e( 'Koppeling met Webshopschool', 'wss-ai' ); ?></h2>
-			<table class="widefat striped wss-ai-tabel">
-				<tbody>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Status', 'wss-ai' ); ?></th>
-						<td>
-							<?php
-							if ( WSS_AI_Koppeling::is_actief() ) {
-								echo '<span class="wss-ai-goed">' . esc_html__( 'Gekoppeld', 'wss-ai' ) . '</span> ';
-							} else {
-								echo '<span class="wss-ai-let-op">' . esc_html__( 'Nog niet aan', 'wss-ai' ) . '</span> ';
-							}
-							echo esc_html( WSS_AI_Koppeling::uitleg() );
-							?>
-						</td>
-					</tr>
-				</tbody>
-			</table>
-			<p>
-				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=wss-ai&wss_ai_koppel=1' ), 'wss_ai_koppel' ) ); ?>" class="button">
-					<?php esc_html_e( 'Opnieuw koppelen', 'wss-ai' ); ?>
-				</a>
-			</p>
-		</div>
-
-		<div class="wss-ai-kaart">
-			<h2><?php esc_html_e( 'Over deze plugin', 'wss-ai' ); ?></h2>
-			<table class="widefat striped wss-ai-tabel">
-				<tbody>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Versie', 'wss-ai' ); ?></th>
-						<td><?php echo esc_html( WSS_AI_VERSIE ); ?></td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Automatisch bijwerken', 'wss-ai' ); ?></th>
-						<td>
-							<?php
-							/* Nooit een groen vinkje als we het niet weten. Zolang de
-							   controle niet is gelukt hoort er te staan dát hij niet is
-							   gelukt -- anders denk je dat updates binnenkomen terwijl
-							   er niets gebeurt. */
-							if ( 'ok' === $stand['soort'] ) {
-								echo '<span class="wss-ai-goed">' . esc_html__( 'Werkt', 'wss-ai' ) . '</span> ';
-								echo esc_html( $stand['tekst'] );
-							} elseif ( 'nieuw' === $stand['soort'] ) {
-								echo '<span class="wss-ai-let-op">' . esc_html__( 'Update beschikbaar', 'wss-ai' ) . '</span> ';
-								echo esc_html( $stand['tekst'] );
-							} else {
-								echo '<span class="wss-ai-onbekend">' . esc_html__( 'Niet gecontroleerd', 'wss-ai' ) . '</span> ';
-								echo esc_html( $stand['tekst'] );
-							}
-							?>
-						</td>
-					</tr>
-				</tbody>
-			</table>
-			<p>
-				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=wss-ai&wss_ai_check=1' ), 'wss_ai_check' ) ); ?>" class="button">
-					<?php esc_html_e( 'Nu op updates controleren', 'wss-ai' ); ?>
-				</a>
-			</p>
-		</div>
-	</div>
-	<?php
 }
 
 /**
@@ -218,24 +85,47 @@ function wss_ai_handmatige_controle() {
 add_action( 'admin_init', 'wss_ai_handmatige_controle' );
 
 /**
- * Een beetje opmaak. Bewust weinig: dit moet bij wp-admin passen, niet opvallen.
+ * Op welke schermen onze opmaak nodig is.
  *
- * Op twee schermen: onze eigen pagina en het productscherm, want daar staat het
- * blok met de knoppen. Dat laatste stond er eerst niet bij, waardoor die knoppen
- * onder elkaar vielen in plaats van naast elkaar.
+ * Onze eigen pagina's, het productscherm (daar staan de knoppen) en het
+ * productenoverzicht (daar zit de bulkactie). Een pagina vergeten betekent geen
+ * foutmelding maar een blok zonder opmaak, en dat merk je pas als een klant het
+ * ziet: precies wat er gebeurde toen het productscherm er niet bij stond.
  */
-function wss_ai_stijl( $hook ) {
-	$eigen_pagina = ( 'toplevel_page_wss-ai' === $hook );
-	$productscherm = false;
+function wss_ai_eigen_scherm( $hook ) {
+	if ( 'toplevel_page_wss-ai' === $hook || 0 === strpos( $hook, 'wss-ai_page_' ) ) {
+		return true;
+	}
 	if ( in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
 		$post = get_post();
-		$productscherm = ( $post && 'product' === $post->post_type );
+		return $post && 'product' === $post->post_type;
 	}
-	if ( ! $eigen_pagina && ! $productscherm ) {
+	if ( 'edit.php' === $hook ) {
+		return isset( $_GET['post_type'] ) && 'product' === $_GET['post_type'];
+	}
+	return false;
+}
+
+/**
+ * Een beetje opmaak. Bewust weinig: dit moet bij wp-admin passen, niet opvallen.
+ */
+function wss_ai_stijl( $hook ) {
+	if ( ! wss_ai_eigen_scherm( $hook ) ) {
 		return;
 	}
 	$css ='.wss-ai-kaart{background:#fff;border:1px solid #c3c4c7;border-radius:6px;padding:16px 20px;margin:16px 0;max-width:760px}'
 		. '.wss-ai-kaart h2{margin-top:0}'
+		. '.wss-ai-inleiding{max-width:760px;font-size:14px}'
+		/* De tegels op de overzichtspagina. Een hele kaart is klikbaar, niet
+		   alleen de titel: je richt niet op een woord van drie letters. */
+		. '.wss-ai-tegels{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));'
+		. 'gap:14px;max-width:1040px;margin:18px 0}'
+		. '.wss-ai-tegel{display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid #c3c4c7;'
+		. 'border-radius:6px;padding:16px 18px;text-decoration:none;color:inherit}'
+		. '.wss-ai-tegel:hover{border-color:#2271b1;box-shadow:0 1px 6px rgba(0,0,0,.08)}'
+		. '.wss-ai-tegel:focus{outline:2px solid #2271b1;outline-offset:1px}'
+		. '.wss-ai-tegel .dashicons{color:#2271b1;font-size:26px;width:26px;height:26px}'
+		. '.wss-ai-tegel strong{font-size:15px}'
 		. '.wss-ai-mut{color:#646970}'
 		. '.wss-ai-tabel{max-width:640px}'
 		. '.wss-ai-tabel th{width:220px}'
@@ -376,3 +266,11 @@ WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
 WSS_AI_Instellingen::init();
 WSS_AI_SEO::init();
 WSS_AI_Fotostudio::init();
+WSS_AI_Bulk::init();
+WSS_AI_Verzoek::init();
+WSS_AI_Voorraad::init();
+WSS_AI_Menu::init();
+
+/* Het voorraadbeheer raakt geen orders aan, maar WooCommerce waarschuwt de klant
+   over elke plugin die niets zegt over de nieuwe orderopslag. */
+add_action( 'before_woocommerce_init', array( 'WSS_AI_Voorraad', 'hpos' ) );
