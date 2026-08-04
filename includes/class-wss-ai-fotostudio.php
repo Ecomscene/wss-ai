@@ -27,7 +27,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class WSS_AI_Fotostudio {
 
-	const MODEL   = 'wss_ai_foto_model';
+	/**
+	 * Welke AI het werk doet. Eén keer kiezen, want dat is geen vraag die je bij
+	 * elk product opnieuw wilt beantwoorden. WAT er moet gebeuren kies je wel per
+	 * product; dat staat in het paneel.
+	 */
+	const MOTOR   = 'wss_ai_foto_motor';
 	const STIJL   = 'wss_ai_foto_stijl';
 	const BRONNEN = 'wss_ai_foto_bronnen';
 
@@ -50,8 +55,8 @@ class WSS_AI_Fotostudio {
 
 	/* ---------------- instellingen ---------------- */
 
-	public static function model() {
-		$m = get_option( self::MODEL, '' );
+	public static function motor() {
+		$m = get_option( self::MOTOR, '' );
 		return is_string( $m ) ? $m : '';
 	}
 
@@ -80,8 +85,8 @@ class WSS_AI_Fotostudio {
 		}
 		check_admin_referer( 'wss_ai_foto_instellingen' );
 
-		$model = isset( $_POST['model'] ) ? sanitize_key( wp_unslash( $_POST['model'] ) ) : '';
-		update_option( self::MODEL, $model );
+		$motor = isset( $_POST['motor'] ) ? sanitize_key( wp_unslash( $_POST['motor'] ) ) : '';
+		update_option( self::MOTOR, $motor );
 
 		/* De beschrijving mag met de hand aangepast worden. Het recept dat naar
 		   het model gaat blijft dan staan zoals het was: dat is Engels en
@@ -187,6 +192,33 @@ class WSS_AI_Fotostudio {
 					</figure>
 				</div>
 
+				<fieldset class="wss-ai-taken">
+					<legend><strong><?php esc_html_e( 'Wat moet er gebeuren?', 'wss-ai' ); ?></strong></legend>
+					<?php
+					$taken = WSS_AI_Koppeling::fototaken();
+					if ( empty( $taken ) ) {
+						/* De lijst kon niet opgehaald worden. Dan tonen we de twee die er
+						   altijd zijn, in plaats van een leeg blok waarin niets te kiezen
+						   valt. De server beslist alsnog wat hij ermee doet. */
+						$taken = array(
+							array( 'key' => 'vernieuwen', 'label' => __( 'Foto vernieuwen', 'wss-ai' ), 'hint' => __( 'Zelfde product, nieuwe omgeving en beter licht', 'wss-ai' ), 'gebruiktStijl' => true ),
+							array( 'key' => 'achtergrond', 'label' => __( 'Achtergrond weghalen', 'wss-ai' ), 'hint' => __( 'Je product vrijstaand, met een doorzichtige achtergrond', 'wss-ai' ), 'gebruiktStijl' => false ),
+						);
+					}
+					foreach ( $taken as $i => $t ) :
+						?>
+						<label class="wss-ai-taak">
+							<input type="radio" name="wss-ai-taak" value="<?php echo esc_attr( $t['key'] ); ?>"
+								data-stijl="<?php echo empty( $t['gebruiktStijl'] ) ? '0' : '1'; ?>"
+								<?php checked( 0, $i ); ?>>
+							<span>
+								<strong><?php echo esc_html( $t['label'] ); ?></strong><br>
+								<span class="wss-ai-mut wss-ai-klein"><?php echo esc_html( isset( $t['hint'] ) ? $t['hint'] : '' ); ?></span>
+							</span>
+						</label>
+					<?php endforeach; ?>
+				</fieldset>
+
 				<p class="wss-ai-mut wss-ai-klein wss-ai-stijlregel">
 					<?php
 					if ( ! empty( $stijl['beschrijving'] ) || ! empty( $stijl['eigen'] ) ) {
@@ -206,7 +238,7 @@ class WSS_AI_Fotostudio {
 					?>
 				</p>
 
-				<p>
+				<p class="wss-ai-extra-vak">
 					<label for="wss-ai-extra"><strong><?php esc_html_e( 'Iets erbij voor dit product', 'wss-ai' ); ?></strong></label><br>
 					<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Optioneel. Bijvoorbeeld: op een houten plank, met een takje eucalyptus ernaast.', 'wss-ai' ); ?></span>
 					<textarea id="wss-ai-extra" rows="2" class="large-text"></textarea>
@@ -313,11 +345,14 @@ class WSS_AI_Fotostudio {
 			@set_time_limit( 180 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 		}
 
+		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
+
 		$uit = WSS_AI_Koppeling::vraag(
 			'/foto/genereer',
 			array(
 				'bron'      => $beeld,
-				'model'     => self::model(),
+				'taak'      => $taak,
+				'motor'     => self::motor(),
 				'stijl'     => $recept,
 				'extra'     => $extra,
 				'productId' => $post_id,
@@ -330,8 +365,9 @@ class WSS_AI_Fotostudio {
 
 		wp_send_json_success(
 			array(
-				'id'  => isset( $uit['id'] ) ? (string) $uit['id'] : '',
-				'url' => isset( $uit['url'] ) ? esc_url_raw( (string) $uit['url'] ) : '',
+				'id'   => isset( $uit['id'] ) ? (string) $uit['id'] : '',
+				'url'  => isset( $uit['url'] ) ? esc_url_raw( (string) $uit['url'] ) : '',
+				'mime' => isset( $uit['mime'] ) ? sanitize_text_field( (string) $uit['mime'] ) : 'image/jpeg',
 			)
 		);
 	}
@@ -368,8 +404,16 @@ class WSS_AI_Fotostudio {
 			wp_send_json_error( array( 'error' => __( 'De foto kon niet opgehaald worden. Probeer het zo nog eens.', 'wss-ai' ) ) );
 		}
 
+		/* De extensie volgt het soort bestand dat we terugkrijgen. Een foto met een
+		   doorzichtige achtergrond is een png; die .jpg noemen levert een bestand
+		   op waarvan de naam liegt, en WordPress weigert hem of maakt de
+		   doorzichtige delen zwart. */
+		$mime = isset( $_POST['mime'] ) ? sanitize_text_field( wp_unslash( $_POST['mime'] ) ) : 'image/jpeg';
+		$extensies = array( 'image/png' => 'png', 'image/webp' => 'webp', 'image/jpeg' => 'jpg' );
+		$ext = isset( $extensies[ $mime ] ) ? $extensies[ $mime ] : 'jpg';
+
 		$naam = sanitize_file_name( get_the_title( $post_id ) );
-		$naam = ( $naam ? $naam : 'product' ) . '-' . gmdate( 'Ymd-His' ) . '.jpg';
+		$naam = ( $naam ? $naam : 'product' ) . '-' . gmdate( 'Ymd-His' ) . '.' . $ext;
 
 		$id = media_handle_sideload(
 			array( 'name' => $naam, 'tmp_name' => $tijdelijk ),
@@ -489,12 +533,12 @@ class WSS_AI_Fotostudio {
 	public static function kaart() {
 		$stijl = self::stijl();
 		$bronnen = self::bronnen();
-		$modellen = WSS_AI_Koppeling::fotomodellen();
+		$motoren = WSS_AI_Koppeling::fotomotoren();
 		?>
 		<div class="wss-ai-kaart" id="wss-ai-fotos">
 			<h2><?php esc_html_e( 'Foto\'s maken', 'wss-ai' ); ?></h2>
 			<p class="wss-ai-mut">
-				<?php esc_html_e( 'Bij een product staat straks een knop bij de hoofdfoto en bij de galerij. Die maakt een nieuwe foto op basis van de foto die er al staat. Hieronder bepaal je hoe die eruit moeten zien.', 'wss-ai' ); ?>
+				<?php esc_html_e( 'Bij een product staat een knop bij de hoofdfoto en bij de galerij. Daar kies je per keer wat er moet gebeuren: de foto vernieuwen, of de achtergrond weghalen. Hieronder staat wat voor al je foto\'s geldt.', 'wss-ai' ); ?>
 			</p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -502,19 +546,36 @@ class WSS_AI_Fotostudio {
 				<?php wp_nonce_field( 'wss_ai_foto_instellingen' ); ?>
 
 				<p>
-					<label for="wss_ai_foto_model"><strong><?php esc_html_e( 'Manier van werken', 'wss-ai' ); ?></strong></label><br>
-					<?php if ( empty( $modellen ) ) : ?>
+					<label for="wss_ai_foto_motor"><strong><?php esc_html_e( 'Welke AI maakt je foto\'s?', 'wss-ai' ); ?></strong></label><br>
+					<span class="wss-ai-mut wss-ai-klein">
+						<?php esc_html_e( 'Ze doen alle vier hetzelfde werk, alleen net even anders. Twijfel je? Laat hem op onze keuze staan.', 'wss-ai' ); ?>
+					</span><br>
+					<?php if ( empty( $motoren ) ) : ?>
 						<span class="wss-ai-onbekend"><?php esc_html_e( 'Niet opgehaald', 'wss-ai' ); ?></span>
-						<span class="wss-ai-mut"><?php esc_html_e( 'De lijst met mogelijkheden kon niet bij Webshopschool opgehaald worden. Je kunt wel gewoon foto\'s maken; er wordt dan de standaardmanier gebruikt.', 'wss-ai' ); ?></span>
+						<span class="wss-ai-mut"><?php esc_html_e( 'De lijst kon niet bij Webshopschool opgehaald worden. Je kunt wel gewoon foto\'s maken; er wordt dan onze standaardkeuze gebruikt.', 'wss-ai' ); ?></span>
 					<?php else : ?>
-						<select id="wss_ai_foto_model" name="model">
-							<?php foreach ( $modellen as $m ) : ?>
-								<option value="<?php echo esc_attr( $m['key'] ); ?>" <?php selected( self::model(), $m['key'] ); ?>>
-									<?php echo esc_html( $m['label'] ); ?><?php echo empty( $m['hint'] ) ? '' : esc_html( ' - ' . $m['hint'] ); ?>
+						<select id="wss_ai_foto_motor" name="motor">
+							<?php foreach ( $motoren as $m ) : ?>
+								<option value="<?php echo esc_attr( $m['key'] ); ?>" <?php selected( self::motor(), $m['key'] ); ?>>
+									<?php
+									echo esc_html( $m['label'] );
+									if ( ! empty( $m['hint'] ) ) {
+										echo esc_html( ' - ' . $m['hint'] );
+									}
+									/* Zeggen wanneer we iets NIET zelf vergeleken hebben. Een
+									   keuzelijst waarin alles even zelfverzekerd staat, doet
+									   alsof we van alle vier evenveel weten. */
+									if ( empty( $m['gemeten'] ) ) {
+										echo esc_html__( ' (nog niet door ons vergeleken)', 'wss-ai' );
+									}
+									?>
 								</option>
 							<?php endforeach; ?>
 						</select>
 					<?php endif; ?>
+				</p>
+				<p class="wss-ai-mut wss-ai-klein">
+					<?php esc_html_e( 'Achtergrond weghalen staat hier niet tussen: daar wordt niets getekend maar geknipt, en daar is één gereedschap voor.', 'wss-ai' ); ?>
 				</p>
 
 				<hr>

@@ -37,8 +37,23 @@
 		$p.find('.wss-ai-paneel-kop').text(
 			doel === 'galerij' ? 'Foto voor de galerij' : 'Nieuwe hoofdfoto'
 		);
+		$p.find('input[name="wss-ai-taak"]').first().prop('checked', true);
+		toonBijTaak();
 		$p.prop('hidden', false);
-		$p.find('#wss-ai-extra').trigger('focus');
+	}
+
+	/**
+	 * Bij het knippen van een achtergrond valt er niets te beschrijven.
+	 *
+	 * Het opdrachtveld en de stijlregel gaan dan weg. Ze laten staan zou een veld
+	 * tonen dat je wel kunt invullen maar dat niets doet, en dat is de soort
+	 * knop waarvan je gaat denken dat je iets verkeerd doet.
+	 */
+	function toonBijTaak() {
+		var $p = paneel();
+		var $gekozen = $p.find('input[name="wss-ai-taak"]:checked');
+		var metStijl = $gekozen.data('stijl') !== 0 && $gekozen.data('stijl') !== '0';
+		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(metStijl);
 	}
 
 	function sluit() {
@@ -73,6 +88,7 @@
 			action: 'wss_ai_foto_genereer',
 			nonce: C.nonce,
 			post: C.post,
+			taak: $p.find('input[name="wss-ai-taak"]:checked').val() || 'vernieuwen',
 			extra: $p.find('#wss-ai-extra').val() || '',
 		})
 			.done(function (res) {
@@ -110,6 +126,7 @@
 			doel: $p.data('doel') || 'hoofd',
 			id: foto.id,
 			url: foto.url,
+			mime: foto.mime || 'image/jpeg',
 		})
 			.done(function (res) {
 				$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('disabled', false);
@@ -250,6 +267,7 @@
 				sluit();
 			}
 		});
+		$(document).on('change', 'input[name="wss-ai-taak"]', toonBijTaak);
 		$(document).on('click', '.wss-ai-maak', maak);
 		$(document).on('click', '.wss-ai-opnieuw', maak);
 		$(document).on('click', '.wss-ai-gebruik', gebruik);

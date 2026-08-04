@@ -134,23 +134,24 @@ class WSS_AI_Koppeling {
 	}
 
 	/**
-	 * De manieren van werken die de fotostudio aanbiedt.
+	 * Wat de fotostudio kan: welke taken er zijn en welke AI ze kan uitvoeren.
 	 *
-	 * Die lijst staat bij Webshopschool en niet in deze plugin, zodat een nieuw
+	 * Die lijsten staan bij Webshopschool en niet in deze plugin, zodat een nieuw
 	 * of beter model bij iedereen tegelijk verschijnt zonder dat er een update
 	 * langs alle webshops moet.
 	 *
-	 * Een uur onthouden. Lukt het ophalen niet, dan geven we een LEGE lijst terug
-	 * en niet een verzonnen standaardlijst: de beheerpagina hoort te zeggen dat
-	 * het niet gelukt is, in plaats van keuzes te tonen die er misschien niet zijn.
+	 * Een uur onthouden. Lukt het ophalen niet, dan komen er LEGE lijsten terug
+	 * en geen verzonnen standaardlijst: de beheerpagina hoort te zeggen dat het
+	 * niet gelukt is, in plaats van keuzes te tonen die er misschien niet zijn.
 	 */
-	public static function fotomodellen() {
-		$onthouden = get_transient( 'wss_ai_fotomodellen' );
+	private static function foto_opties() {
+		$onthouden = get_transient( 'wss_ai_foto_opties' );
 		if ( is_array( $onthouden ) ) {
 			return $onthouden;
 		}
+		$leeg = array( 'taken' => array(), 'motoren' => array() );
 		if ( ! self::is_actief() ) {
-			return array();
+			return $leeg;
 		}
 
 		$antwoord = wp_remote_get(
@@ -161,24 +162,39 @@ class WSS_AI_Koppeling {
 			)
 		);
 		if ( is_wp_error( $antwoord ) ) {
-			return array();
+			return $leeg;
 		}
 		$data = json_decode( wp_remote_retrieve_body( $antwoord ), true );
-		if ( ! is_array( $data ) || empty( $data['ok'] ) || empty( $data['data']['modellen'] ) ) {
-			return array();
+		if ( ! is_array( $data ) || empty( $data['ok'] ) || empty( $data['data'] ) ) {
+			return $leeg;
 		}
 
-		$lijst = array();
-		foreach ( (array) $data['data']['modellen'] as $m ) {
-			if ( ! empty( $m['key'] ) ) {
-				$lijst[] = array(
-					'key'   => sanitize_key( $m['key'] ),
-					'label' => isset( $m['label'] ) ? sanitize_text_field( $m['label'] ) : $m['key'],
-					'hint'  => isset( $m['hint'] ) ? sanitize_text_field( $m['hint'] ) : '',
+		$uit = array( 'taken' => array(), 'motoren' => array() );
+		foreach ( array( 'taken', 'motoren' ) as $soort ) {
+			foreach ( (array) ( isset( $data['data'][ $soort ] ) ? $data['data'][ $soort ] : array() ) as $m ) {
+				if ( empty( $m['key'] ) ) {
+					continue;
+				}
+				$uit[ $soort ][] = array(
+					'key'           => sanitize_key( $m['key'] ),
+					'label'         => isset( $m['label'] ) ? sanitize_text_field( $m['label'] ) : $m['key'],
+					'hint'          => isset( $m['hint'] ) ? sanitize_text_field( $m['hint'] ) : '',
+					'gemeten'       => ! empty( $m['gemeten'] ),
+					'gebruiktStijl' => ! empty( $m['gebruiktStijl'] ),
 				);
 			}
 		}
-		set_transient( 'wss_ai_fotomodellen', $lijst, HOUR_IN_SECONDS );
-		return $lijst;
+		set_transient( 'wss_ai_foto_opties', $uit, HOUR_IN_SECONDS );
+		return $uit;
+	}
+
+	public static function fototaken() {
+		$o = self::foto_opties();
+		return $o['taken'];
+	}
+
+	public static function fotomotoren() {
+		$o = self::foto_opties();
+		return $o['motoren'];
 	}
 }
