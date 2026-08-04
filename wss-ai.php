@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.1.0
+ * Version:           0.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,11 +33,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.1.0' );
+define( 'WSS_AI_VERSIE', '0.2.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
 require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
 
 /**
  * Het menu-item in wp-admin.
@@ -94,17 +96,51 @@ function wss_ai_pagina() {
 		<h1><?php esc_html_e( 'WSS AI', 'wss-ai' ); ?></h1>
 
 		<div class="wss-ai-kaart">
-			<h2><?php esc_html_e( 'Hier komt je AI-gereedschap', 'wss-ai' ); ?></h2>
+			<h2><?php esc_html_e( 'Teksten schrijven met AI', 'wss-ai' ); ?></h2>
 			<p>
 				<?php
 				esc_html_e(
-					'Deze plugin is net geïnstalleerd en doet nog niets. Zodra de eerste onderdelen klaar zijn verschijnen ze hier vanzelf — je hoeft niets te doen, de plugin werkt zichzelf bij.',
+					'Open een product in je webshop. Onder de productgegevens staat het blok "WSS AI — teksten schrijven" met drie knoppen: een productomschrijving, een SEO-titel en een SEO-omschrijving.',
+					'wss-ai'
+				);
+				?>
+			</p>
+			<p class="wss-ai-mut">
+				<?php
+				esc_html_e(
+					'Hoe meer er van een product is ingevuld en opgeslagen, hoe beter de tekst wordt. Weet je het even niet? Tik dan ruw in het omschrijvingsveld wat je erover kunt vertellen — steekwoorden, halve zinnen, typefouten maken niet uit. Dat is voer voor de AI.',
 					'wss-ai'
 				);
 				?>
 			</p>
 			<p class="wss-ai-mut">
 				<?php esc_html_e( 'Wat eraan komt: een AI-medewerker die je vragen over je shop beantwoordt, een fotostudio voor betere productfoto\'s, en teksten die je met één knop vult.', 'wss-ai' ); ?>
+			</p>
+		</div>
+
+		<div class="wss-ai-kaart">
+			<h2><?php esc_html_e( 'Koppeling met Webshopschool', 'wss-ai' ); ?></h2>
+			<table class="widefat striped wss-ai-tabel">
+				<tbody>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Status', 'wss-ai' ); ?></th>
+						<td>
+							<?php
+							if ( WSS_AI_Koppeling::is_actief() ) {
+								echo '<span class="wss-ai-goed">' . esc_html__( 'Gekoppeld', 'wss-ai' ) . '</span> ';
+							} else {
+								echo '<span class="wss-ai-let-op">' . esc_html__( 'Nog niet aan', 'wss-ai' ) . '</span> ';
+							}
+							echo esc_html( WSS_AI_Koppeling::uitleg() );
+							?>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<p>
+				<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?page=wss-ai&wss_ai_koppel=1' ), 'wss_ai_koppel' ) ); ?>" class="button">
+					<?php esc_html_e( 'Opnieuw koppelen', 'wss-ai' ); ?>
+				</a>
 			</p>
 		</div>
 
@@ -181,12 +217,59 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-tabel th{width:220px}'
 		. '.wss-ai-goed{color:#00701a;font-weight:600}'
 		. '.wss-ai-let-op{color:#8a6100;font-weight:600}'
-		. '.wss-ai-onbekend{color:#646970;font-weight:600}';
+		. '.wss-ai-onbekend{color:#646970;font-weight:600}'
+		. '.wss-ai-seo .wss-ai-knoppen{display:flex;gap:8px;flex-wrap:wrap;align-items:center}'
+		. '.wss-ai-seo .wss-ai-melding{color:#646970;font-size:13px}'
+		. '.wss-ai-seo .wss-ai-fout{color:#b32d2e}'
+		. '.wss-ai-seo .wss-ai-klein{font-size:12px;margin-bottom:0}'
+		. '.wss-ai-uitkomst textarea{width:100%;margin:6px 0}';
 	wp_register_style( 'wss-ai', false, array(), WSS_AI_VERSIE );
 	wp_enqueue_style( 'wss-ai' );
 	wp_add_inline_style( 'wss-ai', $css );
 }
 add_action( 'admin_enqueue_scripts', 'wss_ai_stijl' );
 
+/* ---------------------------------------------------------------------------
+ * Aanmelden bij Webshopschool
+ *
+ * Bij het activeren, en daarna dagelijks. Dat tweede is niet overbodig: een site
+ * die op 'wacht' stond en later wordt aangezet hoort dat vanzelf te merken,
+ * zonder dat iemand de plugin uit en aan moet zetten.
+ * --------------------------------------------------------------------------- */
+register_activation_hook(
+	__FILE__,
+	function () {
+		WSS_AI_Koppeling::meld_aan();
+		if ( ! wp_next_scheduled( 'wss_ai_dagelijks' ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wss_ai_dagelijks' );
+		}
+	}
+);
+register_deactivation_hook(
+	__FILE__,
+	function () {
+		wp_clear_scheduled_hook( 'wss_ai_dagelijks' );
+	}
+);
+add_action( 'wss_ai_dagelijks', array( 'WSS_AI_Koppeling', 'meld_aan' ) );
+
+/* Opnieuw aanmelden vanaf de beheerpagina. Nodig zodra Joey een site aanzet die
+   op wachten stond, en handig als er iets is misgegaan. */
+add_action(
+	'admin_init',
+	function () {
+		if ( ! isset( $_GET['wss_ai_koppel'] ) || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'wss_ai_koppel' ) ) {
+			return;
+		}
+		WSS_AI_Koppeling::meld_aan();
+		wp_safe_redirect( admin_url( 'admin.php?page=wss-ai' ) );
+		exit;
+	}
+);
+
 /* De updater aanzetten. Zie includes/class-wss-ai-updater.php. */
 WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
+WSS_AI_SEO::init();
