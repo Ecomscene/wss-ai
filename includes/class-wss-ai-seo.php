@@ -199,9 +199,15 @@ class WSS_AI_SEO {
 			wp_send_json_error( array( 'error' => $uit->get_error_message() ) );
 		}
 
+		/* De HTML komt van onze eigen server en is daar al ontdaan van tekens die
+		   iets betekenen. Toch gaat hij hier nog een keer door wp_kses_post: wat
+		   in de editor van een klant belandt hoort niet op vertrouwen te rusten. */
+		$html = isset( $uit['html'] ) ? wp_kses_post( (string) $uit['html'] ) : '';
+
 		wp_send_json_success(
 			array(
 				'tekst' => isset( $uit['tekst'] ) ? (string) $uit['tekst'] : '',
+				'html'  => $html,
 				'mager' => ! empty( $uit['mager'] ),
 			)
 		);
