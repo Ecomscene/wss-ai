@@ -124,6 +124,10 @@
 				nonce: window.wssAi.nonce,
 				post: postId,
 				soort: soort,
+				/* De lengte gaat altijd mee, maar de server gebruikt hem alleen
+				   bij de omschrijving. De SEO-velden hebben een lengte die Google
+				   bepaalt. */
+				lengte: $blok.find('.wss-ai-lengte-keuze').val() || '',
 				/* De ruwe aantekeningen gaan altijd mee, ook bij de SEO-velden:
 				   daar staat vaak precies waar het product over gaat. */
 				ruw: huidigeOmschrijving(),

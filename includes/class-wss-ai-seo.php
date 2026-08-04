@@ -37,7 +37,7 @@ class WSS_AI_SEO {
 		}
 		add_meta_box(
 			'wss-ai-teksten',
-			__( 'WSS AI — teksten schrijven', 'wss-ai' ),
+			__( 'WSS AI - teksten schrijven', 'wss-ai' ),
 			array( __CLASS__, 'toon' ),
 			'product',
 			'normal',
@@ -66,7 +66,7 @@ class WSS_AI_SEO {
 				<br>
 				<?php
 				esc_html_e(
-					'Weet je het even niet? Tik dan gewoon ruw in het omschrijvingsveld wat je erover kunt vertellen — steekwoorden, halve zinnen, typefouten, het maakt niet uit. Dat is voer voor de AI; hij maakt er nette tekst van.',
+					'Weet je het even niet? Tik dan gewoon ruw in het omschrijvingsveld wat je erover kunt vertellen - steekwoorden, halve zinnen, typefouten, het maakt niet uit. Dat is voer voor de AI; hij maakt er nette tekst van.',
 					'wss-ai'
 				);
 				?>
@@ -76,6 +76,16 @@ class WSS_AI_SEO {
 				<button type="button" class="button button-primary" data-wss-ai="omschrijving" <?php disabled( ! $actief ); ?>>
 					<?php esc_html_e( 'Genereer productomschrijving', 'wss-ai' ); ?>
 				</button>
+				<label class="wss-ai-lengte">
+					<?php esc_html_e( 'lengte', 'wss-ai' ); ?>
+					<select class="wss-ai-lengte-keuze" <?php disabled( ! $actief ); ?>>
+						<?php foreach ( WSS_AI_Instellingen::lengtes() as $waarde => $label ) : ?>
+							<option value="<?php echo esc_attr( $waarde ); ?>" <?php selected( WSS_AI_Instellingen::lengte(), $waarde ); ?>>
+								<?php echo esc_html( $label ); ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
+				</label>
 				<button type="button" class="button" data-wss-ai="seo-titel" <?php disabled( ! $actief ); ?>>
 					<?php esc_html_e( 'Genereer SEO-titel', 'wss-ai' ); ?>
 				</button>
@@ -89,6 +99,18 @@ class WSS_AI_SEO {
 
 			<p class="wss-ai-mut wss-ai-klein">
 				<?php esc_html_e( 'Er wordt niets gepubliceerd. De tekst komt in het veld te staan; jij bepaalt of je opslaat.', 'wss-ai' ); ?>
+				<?php if ( WSS_AI_Instellingen::stijl() ) : ?>
+					<br><?php esc_html_e( 'Er wordt geschreven in de stijl die je bij WSS AI hebt ingesteld.', 'wss-ai' ); ?>
+				<?php else : ?>
+					<br>
+					<?php
+					printf(
+						/* translators: %s wordt de link naar de instellingenpagina. */
+						esc_html__( 'Wil je dat er in jouw eigen stijl geschreven wordt? Dat stel je in bij %s.', 'wss-ai' ),
+						'<a href="' . esc_url( admin_url( 'admin.php?page=wss-ai' ) ) . '">' . esc_html__( 'WSS AI', 'wss-ai' ) . '</a>'
+					);
+					?>
+				<?php endif; ?>
 			</p>
 		</div>
 		<?php
@@ -155,7 +177,24 @@ class WSS_AI_SEO {
 			wp_send_json_error( array( 'error' => $product->get_error_message() ) );
 		}
 
-		$uit = WSS_AI_Koppeling::vraag( '/seo', array( 'soort' => $soort, 'product' => $product ) );
+		/* De lengte kiest de winkelier per product; valt hij buiten de lijst, dan
+		   pakken we zijn eigen standaard. De schrijfstijl komt NIET uit het scherm
+		   maar uit de instellingen van deze site: die hoort niet uit een formulier
+		   te komen dat iemand anders kan meesturen. */
+		$lengte = isset( $_POST['lengte'] ) ? sanitize_key( wp_unslash( $_POST['lengte'] ) ) : '';
+		if ( ! array_key_exists( $lengte, WSS_AI_Instellingen::lengtes() ) ) {
+			$lengte = WSS_AI_Instellingen::lengte();
+		}
+
+		$uit = WSS_AI_Koppeling::vraag(
+			'/seo',
+			array(
+				'soort'   => $soort,
+				'lengte'  => $lengte,
+				'stijl'   => WSS_AI_Instellingen::stijl(),
+				'product' => $product,
+			)
+		);
 		if ( is_wp_error( $uit ) ) {
 			wp_send_json_error( array( 'error' => $uit->get_error_message() ) );
 		}

@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.2.0
+ * Version:           0.3.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,12 +33,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.2.0' );
+define( 'WSS_AI_VERSIE', '0.3.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
 require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
 
 /**
@@ -95,12 +96,18 @@ function wss_ai_pagina() {
 	<div class="wrap wss-ai">
 		<h1><?php esc_html_e( 'WSS AI', 'wss-ai' ); ?></h1>
 
+		<?php if ( isset( $_GET['wss_ai_bewaard'] ) ) : ?>
+			<div class="notice notice-success is-dismissible">
+				<p><?php esc_html_e( 'Opgeslagen. De volgende tekst wordt zo geschreven.', 'wss-ai' ); ?></p>
+			</div>
+		<?php endif; ?>
+
 		<div class="wss-ai-kaart">
 			<h2><?php esc_html_e( 'Teksten schrijven met AI', 'wss-ai' ); ?></h2>
 			<p>
 				<?php
 				esc_html_e(
-					'Open een product in je webshop. Onder de productgegevens staat het blok "WSS AI — teksten schrijven" met drie knoppen: een productomschrijving, een SEO-titel en een SEO-omschrijving.',
+					'Open een product in je webshop. Onder de productgegevens staat het blok "WSS AI - teksten schrijven" met drie knoppen: een productomschrijving, een SEO-titel en een SEO-omschrijving.',
 					'wss-ai'
 				);
 				?>
@@ -108,7 +115,7 @@ function wss_ai_pagina() {
 			<p class="wss-ai-mut">
 				<?php
 				esc_html_e(
-					'Hoe meer er van een product is ingevuld en opgeslagen, hoe beter de tekst wordt. Weet je het even niet? Tik dan ruw in het omschrijvingsveld wat je erover kunt vertellen — steekwoorden, halve zinnen, typefouten maken niet uit. Dat is voer voor de AI.',
+					'Hoe meer er van een product is ingevuld en opgeslagen, hoe beter de tekst wordt. Weet je het even niet? Tik dan ruw in het omschrijvingsveld wat je erover kunt vertellen - steekwoorden, halve zinnen, typefouten maken niet uit. Dat is voer voor de AI.',
 					'wss-ai'
 				);
 				?>
@@ -117,6 +124,8 @@ function wss_ai_pagina() {
 				<?php esc_html_e( 'Wat eraan komt: een AI-medewerker die je vragen over je shop beantwoordt, een fotostudio voor betere productfoto\'s, en teksten die je met één knop vult.', 'wss-ai' ); ?>
 			</p>
 		</div>
+
+		<?php WSS_AI_Instellingen::kaart(); ?>
 
 		<div class="wss-ai-kaart">
 			<h2><?php esc_html_e( 'Koppeling met Webshopschool', 'wss-ai' ); ?></h2>
@@ -205,12 +214,24 @@ function wss_ai_handmatige_controle() {
 }
 add_action( 'admin_init', 'wss_ai_handmatige_controle' );
 
-/** Een beetje opmaak. Bewust weinig: dit moet bij wp-admin passen, niet opvallen. */
+/**
+ * Een beetje opmaak. Bewust weinig: dit moet bij wp-admin passen, niet opvallen.
+ *
+ * Op twee schermen: onze eigen pagina en het productscherm, want daar staat het
+ * blok met de knoppen. Dat laatste stond er eerst niet bij, waardoor die knoppen
+ * onder elkaar vielen in plaats van naast elkaar.
+ */
 function wss_ai_stijl( $hook ) {
-	if ( 'toplevel_page_wss-ai' !== $hook ) {
+	$eigen_pagina = ( 'toplevel_page_wss-ai' === $hook );
+	$productscherm = false;
+	if ( in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
+		$post = get_post();
+		$productscherm = ( $post && 'product' === $post->post_type );
+	}
+	if ( ! $eigen_pagina && ! $productscherm ) {
 		return;
 	}
-	$css = '.wss-ai-kaart{background:#fff;border:1px solid #c3c4c7;border-radius:6px;padding:16px 20px;margin:16px 0;max-width:760px}'
+	$css ='.wss-ai-kaart{background:#fff;border:1px solid #c3c4c7;border-radius:6px;padding:16px 20px;margin:16px 0;max-width:760px}'
 		. '.wss-ai-kaart h2{margin-top:0}'
 		. '.wss-ai-mut{color:#646970}'
 		. '.wss-ai-tabel{max-width:640px}'
@@ -220,12 +241,27 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-onbekend{color:#646970;font-weight:600}'
 		. '.wss-ai-seo .wss-ai-knoppen{display:flex;gap:8px;flex-wrap:wrap;align-items:center}'
 		. '.wss-ai-seo .wss-ai-melding{color:#646970;font-size:13px}'
+		. '.wss-ai-seo .wss-ai-lengte{display:inline-flex;align-items:center;gap:6px;color:#646970;font-size:13px}'
 		. '.wss-ai-seo .wss-ai-fout{color:#b32d2e}'
-		. '.wss-ai-seo .wss-ai-klein{font-size:12px;margin-bottom:0}'
+		. '.wss-ai-klein{font-size:12px}'
+		. '.wss-ai-seo .wss-ai-klein{margin-bottom:0}'
+		. '.wss-ai-voorbeeld{margin-right:12px}'
 		. '.wss-ai-uitkomst textarea{width:100%;margin:6px 0}';
 	wp_register_style( 'wss-ai', false, array(), WSS_AI_VERSIE );
 	wp_enqueue_style( 'wss-ai' );
 	wp_add_inline_style( 'wss-ai', $css );
+
+	/* De voorbeeldknoppen vullen alleen het tekstvak. Geen opslaan, geen ajax:
+	   wie op "Warm en persoonlijk" klikt hoort daarna nog zelf te kunnen redigeren. */
+	$js = '(function(){document.addEventListener("click",function(e){'
+		. 'var b=e.target&&e.target.closest?e.target.closest(".wss-ai-voorbeeld"):null;'
+		. 'if(!b){return;}e.preventDefault();'
+		. 'var v=document.getElementById("wss_ai_stijl");'
+		. 'if(v){v.value=b.getAttribute("data-tekst");v.focus();}'
+		. '});})();';
+	wp_register_script( 'wss-ai-admin', '', array(), WSS_AI_VERSIE, true );
+	wp_enqueue_script( 'wss-ai-admin' );
+	wp_add_inline_script( 'wss-ai-admin', $js );
 }
 add_action( 'admin_enqueue_scripts', 'wss_ai_stijl' );
 
@@ -272,4 +308,5 @@ add_action(
 
 /* De updater aanzetten. Zie includes/class-wss-ai-updater.php. */
 WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
+WSS_AI_Instellingen::init();
 WSS_AI_SEO::init();
