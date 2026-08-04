@@ -26,7 +26,7 @@
 		if (!$p.length) {
 			return;
 		}
-		$p.data('doel', doel);
+		$p.data('doel', doel).data('handmatig', false);
 		vulBronkiezer(doel);
 		$p.find('.wss-ai-nieuw-vak').prop('hidden', true);
 		$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', true);
@@ -51,8 +51,22 @@
 	function toonBijTaak() {
 		var $p = paneel();
 		var $gekozen = $p.find('input[name="wss-ai-taak"]:checked');
-		var metStijl = $gekozen.data('stijl') !== 0 && $gekozen.data('stijl') !== '0';
-		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(metStijl);
+		var aan = function (naam) {
+			return $gekozen.data(naam) !== 0 && $gekozen.data(naam) !== '0';
+		};
+		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(aan('stijl'));
+		$p.find('.wss-ai-soorten').prop('hidden', !aan('soorten'));
+
+		/* Een variant hoort van de hoofdfoto uit te gaan: dat is de foto waarop
+		   het product het duidelijkst te zien is, en hier is de bronfoto alleen
+		   een voorbeeld en geen beginpunt. Heeft de winkelier zelf een foto
+		   aangeklikt, dan laten we zijn keuze staan. */
+		if (aan('soorten') && !$p.data('handmatig')) {
+			var fotos = beschikbareFotos();
+			if (fotos.length) {
+				kiesBron(fotos[0]);
+			}
+		}
 	}
 
 	function sluit() {
@@ -150,6 +164,7 @@
 			nonce: C.nonce,
 			post: C.post,
 			taak: $p.find('input[name="wss-ai-taak"]:checked').val() || 'vernieuwen',
+			soort: $p.find('input[name="wss-ai-soort"]:checked').val() || '',
 			doel: $p.data('doel') || 'hoofd',
 			bron: $p.data('bron') || 0,
 			extra: $p.find('#wss-ai-extra').val() || '',
@@ -165,7 +180,7 @@
 				$p.find('.wss-ai-nieuw-vak').prop('hidden', false);
 				$p.find('.wss-ai-maak').prop('hidden', true);
 				$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', false);
-				melding('');
+				melding(res.data.uitgeweken || '');
 			})
 			.fail(function () {
 				$p.find('.wss-ai-maak, .wss-ai-gebruik, .wss-ai-opnieuw').prop('disabled', false);
@@ -197,11 +212,27 @@
 					melding((res && res.data && res.data.error) || T.mislukt, true);
 					return;
 				}
+				if ($p.data('doel') === 'galerij') {
+					/* Bij de galerij werken we het scherm bij in plaats van te
+					   herladen, zodat je er meteen nog een kunt maken. Dat moet
+					   ook wel: het verborgen veld van WooCommerce wint bij het
+					   opslaan van het product, dus laten we dat achter met de
+					   oude lijst, dan verdwijnt onze foto bij de volgende klik
+					   op Bijwerken. */
+					zetGalerijBij(res.data);
+					melding('Toegevoegd. Je kunt er meteen nog een maken.');
+					$p.find('.wss-ai-nieuw-vak').prop('hidden', true);
+					$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('hidden', true);
+					$p.find('.wss-ai-maak').prop('hidden', false);
+					vulBronkiezer('galerij');
+					return;
+				}
+
 				melding(T.geplaatst || '');
-				/* Het scherm laten kloppen met wat er nu op het product staat.
-				   Herladen is hier eerlijker dan het plaatje in beeld vervangen:
-				   WooCommerce houdt zijn galerij in een verborgen veld bij, en
-				   dat wil je niet met de hand bijwerken. */
+				/* De hoofdfoto zit in een blok van WordPress zelf, met een eigen
+				   verborgen veld en eigen knoppen. Dat halfslachtig bijwerken
+				   levert een scherm op dat iets anders toont dan er is
+				   opgeslagen; herladen is daar de eerlijke keuze. */
 				window.setTimeout(function () {
 					window.location.reload();
 				}, 900);
@@ -210,6 +241,37 @@
 				$p.find('.wss-ai-gebruik, .wss-ai-opnieuw').prop('disabled', false);
 				melding(T.mislukt, true);
 			});
+	}
+
+	/**
+	 * De galerij op het scherm laten kloppen met wat er is opgeslagen.
+	 *
+	 * Precies de opbouw die WooCommerce zelf gebruikt als je via "Foto's aan de
+	 * productgalerij toevoegen" iets kiest: een li met data-attachment_id, en het
+	 * verborgen veld met alle nummers. Dat veld is het belangrijkste stuk, want
+	 * dat is wat er wordt opgeslagen als de winkelier op Bijwerken klikt.
+	 */
+	function zetGalerijBij(data) {
+		var $veld = $('#product_image_gallery');
+		var $lijst = $('#product_images_container ul.product_images');
+		if (!$veld.length || !$lijst.length) {
+			return;
+		}
+		$veld.val((data.galerij || []).join(','));
+
+		if (!data.attachment || $lijst.find('[data-attachment_id="' + data.attachment + '"]').length) {
+			return;
+		}
+		$lijst.append(
+			$('<li class="image"/>')
+				.attr('data-attachment_id', data.attachment)
+				.append($('<img alt=""/>').attr('src', data.thumb || ''))
+				.append(
+					$('<ul class="actions"/>').append(
+						$('<li/>').append($('<a href="#" class="delete"/>').text('Verwijderen'))
+					)
+				)
+		);
 	}
 
 	/* ---------------- de stijlkiezer op de beheerpagina ---------------- */
@@ -332,7 +394,11 @@
 		});
 		$(document).on('change', 'input[name="wss-ai-taak"]', toonBijTaak);
 		$(document).on('click', '.wss-ai-bronknop', function () {
+			paneel().data('handmatig', true);
 			kiesBron($(this).data('foto'));
+		});
+		$(document).on('change', 'input[name="wss-ai-soort"]', function () {
+			paneel().find('.wss-ai-paneel-melding').text('');
 		});
 		$(document).on('click', '.wss-ai-maak', maak);
 		$(document).on('click', '.wss-ai-opnieuw', maak);

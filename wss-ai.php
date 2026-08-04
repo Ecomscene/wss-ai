@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.7.0
+ * Version:           0.8.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.7.0' );
+define( 'WSS_AI_VERSIE', '0.8.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -280,6 +280,12 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-taak{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid #dcdcde;'
 		. 'border-radius:4px;margin-bottom:6px;cursor:pointer}'
 		. '.wss-ai-taak input{margin-top:3px}'
+		. '.wss-ai-soorten{border:0;padding:0;margin:4px 0 12px}'
+		. '.wss-ai-soorten legend{padding:0;margin-bottom:6px}'
+		. '.wss-ai-soortrij{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px}'
+		. '.wss-ai-soort{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid #dcdcde;'
+		. 'border-radius:4px;cursor:pointer}'
+		. '.wss-ai-soort input{margin-top:3px}'
 		/* Een doorzichtige achtergrond op een witte kaart is niet te zien. Het
 		   ruitjespatroon maakt zichtbaar wat er weggeknipt is. */
 		. '.wss-ai-nieuw-vak img{background-image:linear-gradient(45deg,#e7e7e7 25%,transparent 25%),'

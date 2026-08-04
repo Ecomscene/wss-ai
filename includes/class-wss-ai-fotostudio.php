@@ -202,7 +202,8 @@ class WSS_AI_Fotostudio {
 						   altijd zijn, in plaats van een leeg blok waarin niets te kiezen
 						   valt. De server beslist alsnog wat hij ermee doet. */
 						$taken = array(
-							array( 'key' => 'vernieuwen', 'label' => __( 'Foto vernieuwen', 'wss-ai' ), 'hint' => __( 'Zelfde product, nieuwe omgeving en beter licht', 'wss-ai' ), 'gebruiktStijl' => true ),
+							array( 'key' => 'vernieuwen', 'label' => __( 'Foto vernieuwen', 'wss-ai' ), 'hint' => __( 'Dezelfde opname, mooiere omgeving en beter licht', 'wss-ai' ), 'gebruiktStijl' => true ),
+							array( 'key' => 'variant', 'label' => __( 'Variant maken', 'wss-ai' ), 'hint' => __( 'Een tweede foto vanuit een ander standpunt', 'wss-ai' ), 'gebruiktStijl' => true, 'heeftSoorten' => true ),
 							array( 'key' => 'achtergrond', 'label' => __( 'Achtergrond weghalen', 'wss-ai' ), 'hint' => __( 'Je product vrijstaand, met een doorzichtige achtergrond', 'wss-ai' ), 'gebruiktStijl' => false ),
 						);
 					}
@@ -211,6 +212,7 @@ class WSS_AI_Fotostudio {
 						<label class="wss-ai-taak">
 							<input type="radio" name="wss-ai-taak" value="<?php echo esc_attr( $t['key'] ); ?>"
 								data-stijl="<?php echo empty( $t['gebruiktStijl'] ) ? '0' : '1'; ?>"
+								data-soorten="<?php echo empty( $t['heeftSoorten'] ) ? '0' : '1'; ?>"
 								<?php checked( 0, $i ); ?>>
 							<span>
 								<strong><?php echo esc_html( $t['label'] ); ?></strong><br>
@@ -218,6 +220,40 @@ class WSS_AI_Fotostudio {
 							</span>
 						</label>
 					<?php endforeach; ?>
+				</fieldset>
+
+				<?php
+				/* Bij een variant kiest de winkelier ook WAT voor opname. "Maak eens
+				   iets anders" laat een model zelf verzinnen wat anders betekent, en
+				   dan komt er meestal weer hetzelfde uit met een andere achtergrond. */
+				$soorten = WSS_AI_Koppeling::fotovarianten();
+				if ( empty( $soorten ) ) {
+					$soorten = array(
+						array( 'key' => 'hoek', 'label' => __( 'Van een andere kant', 'wss-ai' ) ),
+						array( 'key' => 'detail', 'label' => __( 'Detail van dichtbij', 'wss-ai' ) ),
+						array( 'key' => 'boven', 'label' => __( 'Van bovenaf', 'wss-ai' ) ),
+						array( 'key' => 'sfeer', 'label' => __( 'Sfeerbeeld', 'wss-ai' ) ),
+					);
+				}
+				?>
+				<fieldset class="wss-ai-soorten" hidden>
+					<legend><strong><?php esc_html_e( 'Wat voor opname?', 'wss-ai' ); ?></strong></legend>
+					<div class="wss-ai-soortrij">
+						<?php foreach ( $soorten as $i => $s ) : ?>
+							<label class="wss-ai-soort">
+								<input type="radio" name="wss-ai-soort" value="<?php echo esc_attr( $s['key'] ); ?>" <?php checked( 0, $i ); ?>>
+								<span>
+									<strong><?php echo esc_html( $s['label'] ); ?></strong>
+									<?php if ( ! empty( $s['hint'] ) ) : ?>
+										<br><span class="wss-ai-mut wss-ai-klein"><?php echo esc_html( $s['hint'] ); ?></span>
+									<?php endif; ?>
+								</span>
+							</label>
+						<?php endforeach; ?>
+					</div>
+					<p class="wss-ai-mut wss-ai-klein">
+						<?php esc_html_e( 'De foto hierboven wordt als voorbeeld gebruikt om te zien hoe je product eruitziet. Er komt een nieuwe opname uit, geen bewerking van die foto.', 'wss-ai' ); ?>
+					</p>
 				</fieldset>
 
 				<p class="wss-ai-mut wss-ai-klein wss-ai-stijlregel">
@@ -387,12 +423,14 @@ class WSS_AI_Fotostudio {
 
 		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
 		$doel = isset( $_POST['doel'] ) ? sanitize_key( wp_unslash( $_POST['doel'] ) ) : 'hoofd';
+		$soort = isset( $_POST['soort'] ) ? sanitize_key( wp_unslash( $_POST['soort'] ) ) : '';
 
 		$uit = WSS_AI_Koppeling::vraag(
 			'/foto/genereer',
 			array(
 				'bron'      => $beeld,
 				'taak'      => $taak,
+				'variant'   => $soort,
 				/* Voor de galerij vragen we om een ander standpunt: die foto komt
 				   náást de bestaande te staan, dus nog een keer vrijwel hetzelfde
 				   beeld voegt daar niets aan toe. */
@@ -413,6 +451,10 @@ class WSS_AI_Fotostudio {
 				'id'   => isset( $uit['id'] ) ? (string) $uit['id'] : '',
 				'url'  => isset( $uit['url'] ) ? esc_url_raw( (string) $uit['url'] ) : '',
 				'mime' => isset( $uit['mime'] ) ? sanitize_text_field( (string) $uit['mime'] ) : 'image/jpeg',
+				/* Heeft de server een andere AI moeten gebruiken dan de klant
+				   koos, dan hoort hij dat te lezen. Stilzwijgend afwijken van een
+				   instelling is hetzelfde als die instelling negeren. */
+				'uitgeweken' => isset( $uit['uitgeweken'] ) ? sanitize_text_field( (string) $uit['uitgeweken'] ) : '',
 			)
 		);
 	}
@@ -498,11 +540,20 @@ class WSS_AI_Fotostudio {
 			array( 'sleutel' => self::sleutel_uit( $url ) )
 		);
 
+		/* De hele galerijlijst terug, zodat het scherm precies kan gaan tonen wat
+		   er nu is opgeslagen.
+
+		   Dat is niet alleen netjes maar noodzakelijk: het productscherm houdt de
+		   galerij bij in een verborgen veld, en slaat de klant daarna het product
+		   op, dan wint dat veld. Zonder bijwerken zou onze net toegevoegde foto
+		   bij de eerstvolgende klik op Bijwerken weer verdwijnen. */
 		wp_send_json_success(
 			array(
 				'attachment' => (int) $id,
 				'thumb'      => wp_get_attachment_image_url( $id, 'thumbnail' ),
 				'doel'       => $doel,
+				'galerij'    => array_map( 'intval', $galerij ),
+				'hoofd'      => (int) get_post_thumbnail_id( $post_id ),
 			)
 		);
 	}

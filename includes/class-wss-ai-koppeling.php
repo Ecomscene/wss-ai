@@ -169,8 +169,8 @@ class WSS_AI_Koppeling {
 			return $leeg;
 		}
 
-		$uit = array( 'taken' => array(), 'motoren' => array() );
-		foreach ( array( 'taken', 'motoren' ) as $soort ) {
+		$uit = array( 'taken' => array(), 'motoren' => array(), 'varianten' => array() );
+		foreach ( array( 'taken', 'motoren', 'varianten' ) as $soort ) {
 			foreach ( (array) ( isset( $data['data'][ $soort ] ) ? $data['data'][ $soort ] : array() ) as $m ) {
 				if ( empty( $m['key'] ) ) {
 					continue;
@@ -181,6 +181,7 @@ class WSS_AI_Koppeling {
 					'hint'          => isset( $m['hint'] ) ? sanitize_text_field( $m['hint'] ) : '',
 					'gemeten'       => ! empty( $m['gemeten'] ),
 					'gebruiktStijl' => ! empty( $m['gebruiktStijl'] ),
+					'heeftSoorten'  => ! empty( $m['heeftSoorten'] ),
 				);
 			}
 		}
@@ -196,5 +197,10 @@ class WSS_AI_Koppeling {
 	public static function fotomotoren() {
 		$o = self::foto_opties();
 		return $o['motoren'];
+	}
+
+	public static function fotovarianten() {
+		$o = self::foto_opties();
+		return isset( $o['varianten'] ) ? $o['varianten'] : array();
 	}
 }
