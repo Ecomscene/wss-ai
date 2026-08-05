@@ -73,6 +73,31 @@ class WSS_AI_Koppeling {
 	}
 
 	/**
+	 * Vers ophalen zodra iemand op een WSS-scherm kijkt.
+	 *
+	 * WAAROM DIT ERBIJ MOEST
+	 * De schakelaars kwamen alleen mee bij de dagelijkse aanmelding. Zette Joey
+	 * in het paneel iets aan, dan moest hij daarna op de webshop nog op "Opnieuw
+	 * koppelen" drukken, en zonder die stap leek het alsof er niets gebeurde.
+	 * Twee keer achter elkaar is dat misgegaan; dan is het geen bedieningsfout
+	 * meer maar een ontwerpfout.
+	 *
+	 * Hooguit één keer per tien minuten, en alleen op onze eigen schermen. Een
+	 * beheerder die daar staat te kijken wacht toch al op ons; een bezoeker van
+	 * de winkel merkt hier niets van.
+	 */
+	public static function vers_ophalen( $hook ) {
+		if ( ! function_exists( 'wss_ai_eigen_scherm' ) || ! wss_ai_eigen_scherm( $hook ) ) {
+			return;
+		}
+		if ( get_transient( 'wss_ai_vers' ) ) {
+			return;
+		}
+		set_transient( 'wss_ai_vers', 1, 10 * MINUTE_IN_SECONDS );
+		self::meld_aan();
+	}
+
+	/**
 	 * Aanmelden bij Webshopschool.
 	 *
 	 * Draait bij het activeren en daarna dagelijks. Dat tweede is niet overbodig:

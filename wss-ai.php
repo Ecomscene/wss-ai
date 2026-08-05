@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.15.0
+ * Version:           0.15.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.15.0' );
+define( 'WSS_AI_VERSIE', '0.15.1' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -209,6 +209,11 @@ function wss_ai_stijl( $hook ) {
 }
 add_action( 'admin_enqueue_scripts', 'wss_ai_stijl' );
 
+/* De schakelaars vers ophalen als iemand op een WSS-scherm staat. Zie de uitleg
+   bij vers_ophalen(): zonder dit moest je na elke wijziging in het paneel op de
+   webshop nog op "Opnieuw koppelen" drukken. */
+add_action( 'admin_enqueue_scripts', array( 'WSS_AI_Koppeling', 'vers_ophalen' ), 5 );
+
 /* ---------------------------------------------------------------------------
  * Aanmelden bij Webshopschool
  *
@@ -221,7 +226,7 @@ register_activation_hook(
 	function () {
 		WSS_AI_Koppeling::meld_aan();
 		if ( ! wp_next_scheduled( 'wss_ai_dagelijks' ) ) {
-			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'wss_ai_dagelijks' );
+			wp_schedule_event( time() + 5 * MINUTE_IN_SECONDS, 'hourly', 'wss_ai_dagelijks' );
 		}
 	}
 );
@@ -270,6 +275,17 @@ add_action(
 		}
 		update_option( 'wss_ai_draaiende_versie', WSS_AI_VERSIE );
 		WSS_AI_Koppeling::vergeet_opties();
+
+		/* Het ritme van de aanmelding opnieuw zetten.
+		   Op bestaande webshops staat die taak al ingepland, en wp_schedule_event
+		   doet niets als er al een staat. Zonder dit zou een shop die vandaag
+		   bijwerkt tot in lengte van dagen op het oude ritme blijven lopen. */
+		wp_clear_scheduled_hook( 'wss_ai_dagelijks' );
+		wp_schedule_event( time() + 5 * MINUTE_IN_SECONDS, 'hourly', 'wss_ai_dagelijks' );
+
+		/* En meteen één keer, want wie net heeft bijgewerkt wil niet nog een uur
+		   wachten voordat hij ziet wat er voor hem aanstaat. */
+		WSS_AI_Koppeling::meld_aan();
 	}
 );
 
