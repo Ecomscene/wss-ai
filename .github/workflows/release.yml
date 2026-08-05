@@ -1,0 +1,114 @@
+# De release wordt door GitHub zelf gemaakt zodra er een tag wordt gepusht.
+#
+# WAAROM DIT ER MOEST KOMEN
+# De release werd hiervoor met de hand via de API aangemaakt. Twee keer ging dat
+# mis op dezelfde manier: de push kwam niet door, de release wel, en die wees dus
+# naar code die nooit gepusht was. Een release met een nieuw nummer en oude
+# inhoud, precies het ergste geval, want niemand vertrouwt daarna nog een
+# versienummer.
+#
+# Zo kan dat niet meer. De tag komt uit de push; is er geen push, dan is er geen
+# tag en dus geen release. En de controle hieronder weigert een release waarvan
+# het versienummer in de code niet overeenkomt met de tag.
+#
+# Overgenomen van wccsm, waar dit al werkte.
+name: Release plugin zip
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Versienummer uit de tag halen
+        id: meta
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Controleren of de code hetzelfde nummer zegt
+        run: |
+          HEADER=$(grep -oP '^\s*\*\s*Version:\s*\K[0-9A-Za-z.\-]+' wss-ai.php | head -1)
+          CONST=$(grep -oP "WSS_AI_VERSIE',\s*'\K[0-9A-Za-z.\-]+" wss-ai.php | head -1)
+          README=$(grep -oP '^Stable tag:\s*\K[0-9A-Za-z.\-]+' readme.txt | head -1)
+          echo "Kop:      $HEADER"
+          echo "Constante: $CONST"
+          echo "Readme:   $README"
+          echo "Tag:      ${{ steps.meta.outputs.version }}"
+          if [ "$HEADER" != "${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::De kop van de plugin ($HEADER) komt niet overeen met de tag (${{ steps.meta.outputs.version }})"
+            exit 1
+          fi
+          if [ "$CONST" != "${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::WSS_AI_VERSIE ($CONST) komt niet overeen met de tag (${{ steps.meta.outputs.version }})"
+            exit 1
+          fi
+          if [ "$README" != "${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::Stable tag in readme.txt ($README) komt niet overeen met de tag (${{ steps.meta.outputs.version }})"
+            exit 1
+          fi
+
+      - name: De PHP nalopen
+        run: |
+          FOUT=0
+          for f in $(find . -name '*.php' -not -path './.git/*' -not -path './.github/*'); do
+            php -l "$f" > /dev/null || { echo "::error::$f bevat een syntaxfout"; FOUT=1; }
+          done
+          exit $FOUT
+
+      - name: Zip bouwen
+        run: |
+          mkdir -p build/wss-ai
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='*.zip' \
+            --exclude='build' \
+            --exclude='node_modules' \
+            ./ build/wss-ai/
+          cd build
+          zip -r ../wss-ai.zip wss-ai
+          cd ..
+          ls -la wss-ai.zip
+
+      - name: Wijzigingen sinds de vorige tag
+        id: changelog
+        run: |
+          VORIGE=$(git describe --tags --abbrev=0 --exclude="${{ steps.meta.outputs.tag }}" 2>/dev/null || echo "")
+          {
+            echo "changelog<<__EOF__"
+            if [ -n "$VORIGE" ]; then
+              echo "**Wat er is veranderd sinds $VORIGE:**"
+              echo ""
+              git log "$VORIGE..${{ steps.meta.outputs.tag }}" --pretty=format:"- %s"
+            else
+              echo "**Eerste release.**"
+            fi
+            echo ""
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Release aanmaken
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: WSS Tools ${{ steps.meta.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: wss-ai.zip
+          draft: false
+          prerelease: false
