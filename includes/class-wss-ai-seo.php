@@ -37,7 +37,7 @@ class WSS_AI_SEO {
 		}
 		add_meta_box(
 			'wss-ai-teksten',
-			__( 'WSS AI - teksten schrijven', 'wss-ai' ),
+			__( 'WSS Tools - teksten schrijven', 'wss-ai' ),
 			array( __CLASS__, 'toon' ),
 			'product',
 			'normal',
@@ -100,14 +100,14 @@ class WSS_AI_SEO {
 			<p class="wss-ai-mut wss-ai-klein">
 				<?php esc_html_e( 'Er wordt niets gepubliceerd. De tekst komt in het veld te staan; jij bepaalt of je opslaat.', 'wss-ai' ); ?>
 				<?php if ( WSS_AI_Instellingen::stijl() ) : ?>
-					<br><?php esc_html_e( 'Er wordt geschreven in de stijl die je bij WSS AI hebt ingesteld.', 'wss-ai' ); ?>
+					<br><?php esc_html_e( 'Er wordt geschreven in de stijl die je bij WSS Tools hebt ingesteld.', 'wss-ai' ); ?>
 				<?php else : ?>
 					<br>
 					<?php
 					printf(
 						/* translators: %s wordt de link naar de instellingenpagina. */
 						esc_html__( 'Wil je dat er in jouw eigen stijl geschreven wordt? Dat stel je in bij %s.', 'wss-ai' ),
-						'<a href="' . esc_url( admin_url( 'admin.php?page=wss-ai' ) ) . '">' . esc_html__( 'WSS AI', 'wss-ai' ) . '</a>'
+						'<a href="' . esc_url( admin_url( 'admin.php?page=wss-ai' ) ) . '">' . esc_html__( 'WSS Tools', 'wss-ai' ) . '</a>'
 					);
 					?>
 				<?php endif; ?>

@@ -40,8 +40,8 @@ class WSS_AI_Menu {
 	 */
 	public static function menu() {
 		add_menu_page(
-			__( 'WSS AI', 'wss-ai' ),
-			__( 'WSS AI', 'wss-ai' ),
+			__( 'WSS Tools', 'wss-ai' ),
+			__( 'WSS Tools', 'wss-ai' ),
 			'manage_options',
 			self::HOOFD,
 			array( __CLASS__, 'toon_hoofd' ),
@@ -128,11 +128,11 @@ class WSS_AI_Menu {
 	}
 
 	public static function toon_hoofd() {
-		self::kop( __( 'WSS AI', 'wss-ai' ) );
+		self::kop( __( 'WSS Tools', 'wss-ai' ) );
 		$stand = WSS_AI_Updater::stand();
 		?>
 		<p class="wss-ai-inleiding">
-			<?php esc_html_e( 'WSS AI is het gereedschap van Webshopschool in je eigen webshop. Je schrijft er teksten mee, je maakt er betere productfoto\'s mee, en je bereikt ons ermee als er iets is. Het rekenwerk gebeurt bij ons; jij ziet alleen het resultaat en beslist zelf wat je ermee doet.', 'wss-ai' ); ?>
+			<?php esc_html_e( 'WSS Tools is het gereedschap van Webshopschool in je eigen webshop. Je schrijft er teksten mee, je maakt er betere productfoto\'s mee, en je bereikt ons ermee als er iets is. Het rekenwerk gebeurt bij ons; jij ziet alleen het resultaat en beslist zelf wat je ermee doet.', 'wss-ai' ); ?>
 		</p>
 
 		<div class="wss-ai-tegels">
@@ -150,7 +150,16 @@ class WSS_AI_Menu {
 				</a>
 			<?php endforeach; ?>
 
-			<?php if ( WSS_AI_Voorraad::beschikbaar() ) : ?>
+			<?php if ( WSS_AI_Mailer::beschikbaar() ) : ?>
+					<a class="wss-ai-tegel" href="<?php echo esc_url( admin_url( 'admin.php?page=wsfm-dashboard' ) ); ?>">
+						<span class="dashicons dashicons-email-alt"></span>
+						<strong><?php esc_html_e( 'Nieuwsbrief', 'wss-ai' ); ?></strong>
+						<span class="wss-ai-mut"><?php esc_html_e( 'Automatische mails: een herinnering bij een vergeten winkelwagen, een berichtje na een bestelling.', 'wss-ai' ); ?></span>
+						<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Je stelt de flows en de teksten zelf in.', 'wss-ai' ); ?></span>
+					</a>
+				<?php endif; ?>
+
+				<?php if ( WSS_AI_Voorraad::beschikbaar() ) : ?>
 				<a class="wss-ai-tegel" href="<?php echo esc_url( admin_url( 'admin.php?page=' . WSS_AI_Voorraad::SLUG ) ); ?>">
 					<span class="dashicons dashicons-archive"></span>
 					<strong><?php esc_html_e( 'Voorraadbeheer', 'wss-ai' ); ?></strong>
@@ -219,7 +228,7 @@ class WSS_AI_Menu {
 		self::kop( __( 'Teksten', 'wss-ai' ) );
 		?>
 		<p class="wss-ai-inleiding">
-			<?php esc_html_e( 'Open een product in je webshop. Onder de productgegevens staat het blok "WSS AI - teksten schrijven" met drie knoppen: een productomschrijving, een SEO-titel en een SEO-omschrijving.', 'wss-ai' ); ?>
+			<?php esc_html_e( 'Open een product in je webshop. Onder de productgegevens staat het blok "WSS Tools - teksten schrijven" met drie knoppen: een productomschrijving, een SEO-titel en een SEO-omschrijving.', 'wss-ai' ); ?>
 		</p>
 		<p class="wss-ai-mut">
 			<?php esc_html_e( 'Hoe meer er van een product is ingevuld en opgeslagen, hoe beter de tekst wordt. Weet je het even niet? Tik dan ruw in het omschrijvingsveld wat je erover kunt vertellen: steekwoorden, halve zinnen, typefouten maken niet uit. Dat is voer voor de AI.', 'wss-ai' ); ?>

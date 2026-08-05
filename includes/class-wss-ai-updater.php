@@ -226,7 +226,7 @@ class WSS_AI_Updater {
 		}
 
 		$info               = new stdClass();
-		$info->name         = 'WSS AI';
+		$info->name         = 'WSS Tools';
 		$info->slug         = self::$repo;
 		$info->version      = $release['versie'];
 		$info->author       = '<a href="https://webshopschool.nl">Webshopschool</a>';

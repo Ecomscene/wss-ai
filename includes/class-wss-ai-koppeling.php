@@ -21,6 +21,7 @@ class WSS_AI_Koppeling {
 	const OPTIE_STATUS = 'wss_ai_status';
 	const OPTIE_UITLEG = 'wss_ai_uitleg';
 	const OPTIE_UIT    = 'wss_ai_modules_uit';
+	const OPTIE_AAN    = 'wss_ai_modules_aan';
 
 	/** Waar de server staat. Eén plek, zodat testen op een andere server kan. */
 	public static function api() {
@@ -54,6 +55,21 @@ class WSS_AI_Koppeling {
 	public static function module_aan( $naam ) {
 		$uit = get_option( self::OPTIE_UIT, array() );
 		return ! ( is_array( $uit ) && in_array( $naam, $uit, true ) );
+	}
+
+	/**
+	 * Een module die andersom werkt: uit, tenzij hij met zoveel woorden aanstaat.
+	 *
+	 * De gewone modules zijn "aan tenzij", want die doen niets tot iemand op een
+	 * knop drukt. Voor iets dat uit zichzelf gegevens verzamelt en post verstuurt
+	 * is dat de verkeerde kant op. Weten we het niet, dan is het antwoord nee.
+	 *
+	 * Dat betekent ook: kunnen we Webshopschool niet bereiken, dan blijft hij uit
+	 * in plaats van aan te springen. Dat is met opzet de veilige kant.
+	 */
+	public static function module_aan_optin( $naam ) {
+		$aan = get_option( self::OPTIE_AAN, array() );
+		return is_array( $aan ) && in_array( $naam, $aan, true );
 	}
 
 	/**
@@ -103,6 +119,22 @@ class WSS_AI_Koppeling {
 			? array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesUit'] ) ) )
 			: array();
 		update_option( self::OPTIE_UIT, $uit );
+
+		/* En de andere kant op: onderdelen die alleen draaien als ze met zoveel
+		   woorden zijn aangezet. Zegt de server er niets over, dan blijft het
+		   lijstje leeg en staat er dus niets aan. Dat is de veilige kant. */
+		$was = get_option( self::OPTIE_AAN, array() );
+		$aan = isset( $data['data']['modulesAan'] ) && is_array( $data['data']['modulesAan'] )
+			? array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesAan'] ) ) )
+			: array();
+		update_option( self::OPTIE_AAN, $aan );
+
+		/* Gaat de nieuwsbrief uit, dan moet de terugkerende verzendtaak ook echt
+		   stoppen. Die blijft anders staan in Action Scheduler en verstuurt over
+		   vijf minuten gewoon weer een ronde. */
+		if ( is_array( $was ) && in_array( 'nieuwsbrief', $was, true ) && ! in_array( 'nieuwsbrief', $aan, true ) ) {
+			WSS_AI_Mailer::stilzetten();
+		}
 		return true;
 	}
 

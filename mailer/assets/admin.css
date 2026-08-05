@@ -1,0 +1,198 @@
+/* WS Flow Mailer admin styles */
+
+/* --- Settings --- */
+
+.wsfm-settings .wsfm-provider-fields {
+	margin-top: 1em;
+}
+
+.wsfm-settings #wsfm-test-connection {
+	margin-left: 8px;
+	vertical-align: middle;
+}
+
+#wsfm-test-result,
+#wsfm-template-result {
+	display: inline-block;
+	margin-left: 12px;
+	font-weight: 600;
+	vertical-align: middle;
+}
+
+.wsfm-test-pending {
+	color: #646970;
+}
+
+.wsfm-test-success {
+	color: #00a32a;
+}
+
+.wsfm-test-error {
+	color: #d63638;
+}
+
+.wsfm-sns-help {
+	max-width: 720px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 12px 16px;
+	margin: 12px 0;
+}
+
+.wsfm-sns-help summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.wsfm-sns-help ol {
+	margin: 12px 0 4px 20px;
+}
+
+.wsfm-sns-help li {
+	margin-bottom: 8px;
+}
+
+/* --- Dashboard cards --- */
+
+.wsfm-cards {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin: 16px 0 24px;
+}
+
+.wsfm-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 16px 24px;
+	min-width: 160px;
+}
+
+.wsfm-card-warn {
+	border-left: 4px solid #d63638;
+}
+
+.wsfm-card-number {
+	display: block;
+	font-size: 28px;
+	font-weight: 600;
+	line-height: 1.2;
+	color: #1d2327;
+}
+
+.wsfm-card-label {
+	color: #646970;
+}
+
+/* --- Badges --- */
+
+.wsfm-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	background: #dcdcde;
+	color: #3c434a;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+}
+
+.wsfm-badge-active {
+	background: #d5e8d4;
+	color: #00681c;
+}
+
+.wsfm-badge-error {
+	background: #f8d7da;
+	color: #a02222;
+}
+
+/* --- Flow status toggle --- */
+
+.wsfm-toggle {
+	position: relative;
+	width: 40px;
+	height: 22px;
+	border: none;
+	border-radius: 11px;
+	background: #c3c4c7;
+	cursor: pointer;
+	vertical-align: middle;
+	transition: background 0.15s ease;
+	padding: 0;
+}
+
+.wsfm-toggle-on {
+	background: #00a32a;
+}
+
+.wsfm-toggle-knob {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: #fff;
+	transition: left 0.15s ease;
+}
+
+.wsfm-toggle-on .wsfm-toggle-knob {
+	left: 20px;
+}
+
+.wsfm-toggle-label {
+	margin-left: 8px;
+	vertical-align: middle;
+}
+
+/* --- Flow steps builder --- */
+
+.wsfm-step {
+	margin-bottom: 8px;
+}
+
+.wsfm-step-inner {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	padding: 12px 16px;
+}
+
+.wsfm-step-number {
+	font-weight: 600;
+	min-width: 56px;
+	color: #1d2327;
+}
+
+.wsfm-step-stop {
+	color: #646970;
+}
+
+.wsfm-step .wsfm-remove-step {
+	margin-left: auto;
+}
+
+/* --- Template editor cheatsheet --- */
+
+.wsfm-tag-list {
+	margin: 0;
+}
+
+.wsfm-tag-list li {
+	margin-bottom: 8px;
+}
+
+.wsfm-tag-list .wsfm-insert-tag {
+	font-family: Consolas, Monaco, monospace;
+	margin-right: 6px;
+}
+
+.wsfm-tag-list .description {
+	display: block;
+	margin-top: 2px;
+}

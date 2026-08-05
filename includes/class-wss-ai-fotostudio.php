@@ -284,7 +284,7 @@ class WSS_AI_Fotostudio {
 						printf(
 							/* translators: %s wordt de link naar de instellingen. */
 							esc_html__( 'Je hebt nog geen fotostijl ingesteld. Dat doe je bij %s.', 'wss-ai' ),
-							'<a href="' . esc_url( admin_url( 'admin.php?page=wss-ai#wss-ai-fotos' ) ) . '">' . esc_html__( 'WSS AI', 'wss-ai' ) . '</a>'
+							'<a href="' . esc_url( admin_url( 'admin.php?page=wss-ai#wss-ai-fotos' ) ) . '">' . esc_html__( 'WSS Tools', 'wss-ai' ) . '</a>'
 						);
 					}
 					?>

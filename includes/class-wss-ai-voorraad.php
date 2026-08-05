@@ -73,9 +73,9 @@ class WSS_AI_Voorraad {
 		if ( ! current_user_can( 'activate_plugins' ) ) {
 			return;
 		}
-		echo '<div class="notice notice-warning"><p><strong>WSS AI:</strong> ';
+		echo '<div class="notice notice-warning"><p><strong>WSS Tools:</strong> ';
 		echo esc_html__(
-			'het voorraadbeheer zit nu in deze plugin, maar de losse plugin "WC Central Stock Manager" staat nog aan. Zolang die aanstaat blijft die de baas en verandert er niets voor je. Zet hem uit om het voorraadbeheer van WSS AI te gebruiken; je gegevens blijven staan, het is dezelfde tabel.',
+			'het voorraadbeheer zit nu in deze plugin, maar de losse plugin "WC Central Stock Manager" staat nog aan. Zolang die aanstaat blijft die de baas en verandert er niets voor je. Zet hem uit om het voorraadbeheer van WSS Tools te gebruiken; je gegevens blijven staan, het is dezelfde tabel.',
 			'wss-ai'
 		);
 		echo '</p></div>';
