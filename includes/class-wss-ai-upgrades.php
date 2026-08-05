@@ -49,12 +49,21 @@ class WSS_AI_Upgrades {
 	/* ---------------- de lijst ophalen ---------------- */
 
 	/**
-	 * De upgrades, een uur onthouden.
+	 * De upgrades, kort onthouden.
 	 *
 	 * Kunnen we ze niet ophalen, dan tonen we dat en niet een lege lijst. "Er is
 	 * niets" en "we konden het niet ophalen" zijn twee verschillende dingen, en
 	 * het eerste tonen terwijl het tweede waar is verkoopt niets en verklaart
 	 * niets.
+	 *
+	 * WAAROM EEN LEGE LIJST BIJNA NIET ONTHOUDEN WORDT
+	 * Dit stond eerst een uur, ook als er niets terugkwam. Gevolg: een webshop
+	 * die toevallig keek voordat er een upgrade bestond, bleef een uur lang "er
+	 * staat niets klaar" tonen terwijl er net iets was aangemaakt. Juist die
+	 * lege stand verandert het vaakst en is het goedkoopst opnieuw op te halen,
+	 * dus die bewaren we maar een minuut. Een gevulde lijst tien minuten: lang
+	 * genoeg om niet bij elke schermopening te bellen, kort genoeg om een
+	 * prijswijziging dezelfde ochtend te zien.
 	 */
 	public static function lijst() {
 		$onthouden = get_transient( 'wss_ai_upgrades' );
@@ -68,7 +77,11 @@ class WSS_AI_Upgrades {
 		}
 
 		$lijst = isset( $uit['upgrades'] ) && is_array( $uit['upgrades'] ) ? $uit['upgrades'] : array();
-		set_transient( 'wss_ai_upgrades', $lijst, HOUR_IN_SECONDS );
+		set_transient(
+			'wss_ai_upgrades',
+			$lijst,
+			$lijst ? 10 * MINUTE_IN_SECONDS : MINUTE_IN_SECONDS
+		);
 		return $lijst;
 	}
 
