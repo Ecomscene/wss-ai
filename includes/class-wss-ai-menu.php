@@ -51,12 +51,17 @@ class WSS_AI_Menu {
 			array( 'wss-ai-teksten', __( 'Teksten', 'wss-ai' ), array( __CLASS__, 'toon_teksten' ), 'teksten' ),
 			array( 'wss-ai-afbeeldingen', __( 'Afbeeldingen', 'wss-ai' ), array( __CLASS__, 'toon_afbeeldingen' ), 'afbeeldingen' ),
 			array( 'wss-ai-verzoeken', __( 'Tickets & verzoeken', 'wss-ai' ), array( __CLASS__, 'toon_verzoeken' ), 'verzoeken' ),
+			/* De titel in het menu is hier anders dan de titel van de pagina: in
+			   het menu staat er opmaak omheen zodat hij opvalt. Bovenaan de
+			   pagina zou diezelfde opmaak alleen maar schreeuwen. */
+			array( WSS_AI_Upgrades::SLUG, __( 'Upgrades', 'wss-ai' ), array( __CLASS__, 'toon_upgrades' ), 'upgrades', WSS_AI_Upgrades::menutitel() ),
 		);
 		foreach ( $paginas as $p ) {
 			if ( $p[3] && ! WSS_AI_Koppeling::module_aan( $p[3] ) ) {
 				continue;
 			}
-			add_submenu_page( self::HOOFD, $p[1], $p[1], 'manage_options', $p[0], $p[2] );
+			$menutitel = isset( $p[4] ) ? $p[4] : $p[1];
+			add_submenu_page( self::HOOFD, $p[1], $menutitel, 'manage_options', $p[0], $p[2] );
 		}
 	}
 
@@ -78,6 +83,14 @@ class WSS_AI_Menu {
 				'kort'   => __( 'Betere productfoto\'s: een foto vernieuwen, een variant maken of de achtergrond weghalen.', 'wss-ai' ),
 				'waar'   => __( 'Je vindt de knoppen bij een product, bij de hoofdfoto en bij de galerij. Meerdere producten tegelijk kan via het productenoverzicht.', 'wss-ai' ),
 				'icoon'  => 'format-image',
+			),
+			array(
+				'slug'   => WSS_AI_Upgrades::SLUG,
+				'module' => 'upgrades',
+				'naam'   => __( 'Upgrades', 'wss-ai' ),
+				'kort'   => __( 'Dingen die we voor je kunnen doen naast wat er in deze plugin zit.', 'wss-ai' ),
+				'waar'   => __( 'Je vraagt ze hier aan; wij nemen contact met je op.', 'wss-ai' ),
+				'icoon'  => 'star-filled',
 			),
 			array(
 				'slug'   => 'wss-ai-verzoeken',
@@ -227,6 +240,12 @@ class WSS_AI_Menu {
 		</p>
 		<?php
 		WSS_AI_Fotostudio::kaart();
+		self::voet();
+	}
+
+	public static function toon_upgrades() {
+		self::kop( __( 'Upgrades', 'wss-ai' ) );
+		WSS_AI_Upgrades::pagina();
 		self::voet();
 	}
 

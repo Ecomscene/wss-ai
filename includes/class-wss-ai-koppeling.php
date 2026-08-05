@@ -168,9 +168,48 @@ class WSS_AI_Koppeling {
 	 * knop niet verschijnen die er wel is, en denkt dat de update niet werkte.
 	 * Dat is precies wat er gebeurde bij het uitbrengen van "Variant maken".
 	 */
+	/**
+	 * Iets ophalen bij Webshopschool.
+	 *
+	 * Geeft de inhoud terug, of een WP_Error met een uitlegbare reden. Nooit een
+	 * lege lijst bij een fout: "er is niets" en "we konden het niet ophalen" zijn
+	 * twee verschillende dingen, en het eerste tonen terwijl het tweede waar is
+	 * verklaart niets en verkoopt niets.
+	 */
+	public static function vraag_get( $pad, $wachttijd = 20 ) {
+		if ( ! self::is_actief() ) {
+			return new WP_Error( 'niet-actief', self::uitleg() ? self::uitleg() : __( 'Je webshop is nog niet gekoppeld.', 'wss-ai' ) );
+		}
+
+		$antwoord = wp_remote_get(
+			self::api() . $pad,
+			array(
+				'timeout' => max( 10, (int) $wachttijd ),
+				'headers' => array(
+					'Authorization' => 'Bearer ' . self::token(),
+					'X-WSS-Versie'  => WSS_AI_VERSIE,
+				),
+			)
+		);
+		if ( is_wp_error( $antwoord ) ) {
+			return new WP_Error( 'onbereikbaar', __( 'We konden Webshopschool even niet bereiken.', 'wss-ai' ) );
+		}
+
+		$data = json_decode( wp_remote_retrieve_body( $antwoord ), true );
+		if ( ! is_array( $data ) || empty( $data['ok'] ) ) {
+			$fout = is_array( $data ) && ! empty( $data['error'] )
+				? (string) $data['error']
+				: __( 'Er kwam een onverwacht antwoord terug.', 'wss-ai' );
+			return new WP_Error( 'antwoord', $fout );
+		}
+
+		return isset( $data['data'] ) && is_array( $data['data'] ) ? $data['data'] : array();
+	}
+
 	public static function vergeet_opties() {
 		delete_transient( 'wss_ai_foto_opties' );
 		delete_transient( 'wss_ai_fotomodellen' );
+		delete_transient( 'wss_ai_upgrades' );
 	}
 
 	/**

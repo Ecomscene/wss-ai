@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.12.1
+ * Version:           0.13.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.12.1' );
+define( 'WSS_AI_VERSIE', '0.13.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -43,6 +43,7 @@ require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-fotostudio.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-bulk.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-upgrades.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-verzoek.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-voorraad.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-menu.php';
@@ -131,6 +132,10 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-tegel:focus{outline:2px solid #2271b1;outline-offset:1px}'
 		. '.wss-ai-tegel .dashicons{color:#2271b1;font-size:26px;width:26px;height:26px}'
 		. '.wss-ai-tegel strong{font-size:15px}'
+		. '.wss-ai-upgrades{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:1040px}'
+		. '.wss-ai-upgrade{margin:0}'
+		. '.wss-ai-upgrade h2{font-size:16px}'
+		. '.wss-ai-prijs{font-size:18px;font-weight:600;margin:0 0 8px}'
 		. '.wss-ai-mut{color:#646970}'
 		. '.wss-ai-tabel{max-width:640px}'
 		. '.wss-ai-tabel th{width:220px}'
@@ -272,6 +277,7 @@ WSS_AI_Instellingen::init();
 WSS_AI_SEO::init();
 WSS_AI_Fotostudio::init();
 WSS_AI_Bulk::init();
+WSS_AI_Upgrades::init();
 WSS_AI_Verzoek::init();
 WSS_AI_Voorraad::init();
 WSS_AI_Menu::init();
