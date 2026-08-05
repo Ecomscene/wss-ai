@@ -32,7 +32,7 @@ class WSS_AI_SEO {
 	}
 
 	public static function blok() {
-		if ( ! post_type_exists( 'product' ) ) {
+		if ( ! post_type_exists( 'product' ) || ! WSS_AI_Koppeling::module_aan( 'teksten' ) ) {
 			return;
 		}
 		add_meta_box(

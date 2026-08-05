@@ -43,13 +43,19 @@ class WSS_AI_Menu {
 			58
 		);
 
+		/* Een onderdeel dat Webshopschool heeft uitgezet krijgt geen pagina. Een
+		   menu-item dat naar een lege pagina leidt is vervelender dan een
+		   menu-item dat er niet is. */
 		$paginas = array(
-			array( self::HOOFD, __( 'Overzicht', 'wss-ai' ), array( __CLASS__, 'toon_hoofd' ) ),
-			array( 'wss-ai-teksten', __( 'Teksten', 'wss-ai' ), array( __CLASS__, 'toon_teksten' ) ),
-			array( 'wss-ai-afbeeldingen', __( 'Afbeeldingen', 'wss-ai' ), array( __CLASS__, 'toon_afbeeldingen' ) ),
-			array( 'wss-ai-verzoeken', __( 'Tickets & verzoeken', 'wss-ai' ), array( __CLASS__, 'toon_verzoeken' ) ),
+			array( self::HOOFD, __( 'Overzicht', 'wss-ai' ), array( __CLASS__, 'toon_hoofd' ), '' ),
+			array( 'wss-ai-teksten', __( 'Teksten', 'wss-ai' ), array( __CLASS__, 'toon_teksten' ), 'teksten' ),
+			array( 'wss-ai-afbeeldingen', __( 'Afbeeldingen', 'wss-ai' ), array( __CLASS__, 'toon_afbeeldingen' ), 'afbeeldingen' ),
+			array( 'wss-ai-verzoeken', __( 'Tickets & verzoeken', 'wss-ai' ), array( __CLASS__, 'toon_verzoeken' ), 'verzoeken' ),
 		);
 		foreach ( $paginas as $p ) {
+			if ( $p[3] && ! WSS_AI_Koppeling::module_aan( $p[3] ) ) {
+				continue;
+			}
 			add_submenu_page( self::HOOFD, $p[1], $p[1], 'manage_options', $p[0], $p[2] );
 		}
 	}
@@ -59,6 +65,7 @@ class WSS_AI_Menu {
 		return array(
 			array(
 				'slug'   => 'wss-ai-teksten',
+				'module' => 'teksten',
 				'naam'   => __( 'Teksten', 'wss-ai' ),
 				'kort'   => __( 'Productomschrijvingen en SEO-teksten met één knop, in jouw schrijfstijl.', 'wss-ai' ),
 				'waar'   => __( 'Je vindt de knoppen bij een product, onder de productgegevens.', 'wss-ai' ),
@@ -66,6 +73,7 @@ class WSS_AI_Menu {
 			),
 			array(
 				'slug'   => 'wss-ai-afbeeldingen',
+				'module' => 'afbeeldingen',
 				'naam'   => __( 'Afbeeldingen', 'wss-ai' ),
 				'kort'   => __( 'Betere productfoto\'s: een foto vernieuwen, een variant maken of de achtergrond weghalen.', 'wss-ai' ),
 				'waar'   => __( 'Je vindt de knoppen bij een product, bij de hoofdfoto en bij de galerij. Meerdere producten tegelijk kan via het productenoverzicht.', 'wss-ai' ),
@@ -73,6 +81,7 @@ class WSS_AI_Menu {
 			),
 			array(
 				'slug'   => 'wss-ai-verzoeken',
+				'module' => 'verzoeken',
 				'naam'   => __( 'Tickets & verzoeken', 'wss-ai' ),
 				'kort'   => __( 'Een vraag, een idee of iets dat niet werkt? Stuur het hiervandaan naar Webshopschool.', 'wss-ai' ),
 				'waar'   => __( 'Je krijgt antwoord op het e-mailadres van je website.', 'wss-ai' ),
@@ -108,7 +117,12 @@ class WSS_AI_Menu {
 		</p>
 
 		<div class="wss-ai-tegels">
-			<?php foreach ( self::onderdelen() as $o ) : ?>
+			<?php
+			foreach ( self::onderdelen() as $o ) :
+				if ( ! WSS_AI_Koppeling::module_aan( $o['module'] ) ) {
+					continue;
+				}
+				?>
 				<a class="wss-ai-tegel" href="<?php echo esc_url( admin_url( 'admin.php?page=' . $o['slug'] ) ); ?>">
 					<span class="dashicons dashicons-<?php echo esc_attr( $o['icoon'] ); ?>"></span>
 					<strong><?php echo esc_html( $o['naam'] ); ?></strong>

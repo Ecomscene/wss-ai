@@ -20,6 +20,7 @@ class WSS_AI_Koppeling {
 	const OPTIE_TOKEN  = 'wss_ai_token';
 	const OPTIE_STATUS = 'wss_ai_status';
 	const OPTIE_UITLEG = 'wss_ai_uitleg';
+	const OPTIE_UIT    = 'wss_ai_modules_uit';
 
 	/** Waar de server staat. Eén plek, zodat testen op een andere server kan. */
 	public static function api() {
@@ -41,6 +42,18 @@ class WSS_AI_Koppeling {
 
 	public static function is_actief() {
 		return 'actief' === self::status() && '' !== self::token();
+	}
+
+	/**
+	 * Staat dit onderdeel aan voor deze webshop?
+	 *
+	 * Alles staat aan tenzij Webshopschool het heeft uitgezet. Komt er later een
+	 * onderdeel bij, dan is het er dus gewoon, in plaats van overal uit te staan
+	 * tot iemand 97 webshops langs is geweest.
+	 */
+	public static function module_aan( $naam ) {
+		$uit = get_option( self::OPTIE_UIT, array() );
+		return ! ( is_array( $uit ) && in_array( $naam, $uit, true ) );
 	}
 
 	/**
@@ -82,6 +95,14 @@ class WSS_AI_Koppeling {
 		update_option( self::OPTIE_TOKEN, (string) $data['data']['token'] );
 		update_option( self::OPTIE_STATUS, (string) $data['data']['status'] );
 		update_option( self::OPTIE_UITLEG, (string) $data['data']['uitleg'] );
+
+		/* Welke onderdelen Webshopschool voor deze webshop heeft uitgezet. We
+		   verbergen die dan; de echte weigering staat op de server. Zou dat hier
+		   het enige slot zijn, dan was het geen slot maar een gordijn. */
+		$uit = isset( $data['data']['modulesUit'] ) && is_array( $data['data']['modulesUit'] )
+			? array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesUit'] ) ) )
+			: array();
+		update_option( self::OPTIE_UIT, $uit );
 		return true;
 	}
 

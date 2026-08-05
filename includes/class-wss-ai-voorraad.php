@@ -48,6 +48,9 @@ class WSS_AI_Voorraad {
 		if ( ! class_exists( 'WooCommerce' ) ) {
 			return;
 		}
+		if ( ! WSS_AI_Koppeling::module_aan( 'voorraad' ) ) {
+			return;
+		}
 
 		if ( defined( 'WCCSM_VERSION' ) || class_exists( 'WCCSM_Core' ) ) {
 			/* De losse plugin staat nog aan. Niets laden, wel zeggen waarom het

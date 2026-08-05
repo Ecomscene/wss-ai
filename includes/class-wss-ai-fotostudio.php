@@ -43,6 +43,12 @@ class WSS_AI_Fotostudio {
 	const MAX_ZIJDE = 1536;
 
 	public static function init() {
+		/* Staat het onderdeel uit, dan haken we nergens aan: geen knop bij een
+		   product, geen paneel, geen ajax. De server weigert het ook, maar een
+		   knop die je mag indrukken en dan een weigering geeft is geen knop. */
+		if ( ! WSS_AI_Koppeling::module_aan( 'afbeeldingen' ) ) {
+			return;
+		}
 		add_action( 'admin_post_wss_ai_foto_instellingen', array( __CLASS__, 'opslaan' ) );
 		add_filter( 'admin_post_thumbnail_html', array( __CLASS__, 'knop_bij_hoofdfoto' ), 20, 2 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'scripts' ) );

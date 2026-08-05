@@ -39,7 +39,7 @@ class WSS_AI_Bulk {
 	}
 
 	public static function actie_toevoegen( $acties ) {
-		if ( WSS_AI_Koppeling::is_actief() ) {
+		if ( WSS_AI_Koppeling::is_actief() && WSS_AI_Koppeling::module_aan( 'afbeeldingen' ) ) {
 			$acties['wss_ai_fotos'] = __( 'Bulk afbeeldingen', 'wss-ai' );
 		}
 		return $acties;
