@@ -72,17 +72,48 @@ class WSS_AI_Bulk {
 	 *
 	 * Je komt hier via de bulkactie, met een mandje producten. Een menu-item zou
 	 * je op een leeg scherm laten uitkomen met de vraag wat je hier doet.
+	 *
+	 * WAAROM EEN LEGE OUDER EN GEEN remove_submenu_page
+	 * Dat laatste stond hier eerst, en het gaf "Je hebt geen toestemming om deze
+	 * pagina te bekijken". WordPress bepaalt de toegang namelijk AAN DE HAND VAN
+	 * het menu: user_can_access_admin_page() zoekt de pagina op onder een naam
+	 * die het van de ouder afleidt. Haal je hem uit het menu, dan is die ouder
+	 * niet meer te vinden, wordt er gezocht naar "admin_page_wss-ai-bulk" terwijl
+	 * hij geregistreerd staat als "wss-ai_page_wss-ai-bulk", en ben je buiten.
+	 *
+	 * Met een lege ouder komt hij nergens in het menu terecht en zoekt WordPress
+	 * hem op onder dezelfde naam als waaronder hij geregistreerd is. Het recht
+	 * blijft gewoon gelden: add_submenu_page weigert bij te weinig rechten en
+	 * legt dat vast, en de controle kijkt daar ook naar. De controle in toon()
+	 * hieronder blijft er niettemin staan.
+	 *
+	 * Nagegaan door de menufuncties van WordPress zelf te draaien met alle drie
+	 * de varianten, in plaats van het nog een keer te gokken.
 	 */
 	public static function pagina() {
-		add_submenu_page(
-			'wss-ai',
+		self::$haak = add_submenu_page(
+			'',
 			__( 'Bulk afbeeldingen', 'wss-ai' ),
 			__( 'Bulk afbeeldingen', 'wss-ai' ),
 			'edit_products',
 			self::SLUG,
 			array( __CLASS__, 'toon' )
 		);
-		remove_submenu_page( 'wss-ai', self::SLUG );
+	}
+
+	/**
+	 * De naam waaronder WordPress dit scherm kent.
+	 *
+	 * Bewust overgenomen van WordPress zelf in plaats van hem uit te schrijven.
+	 * Die naam hangt af van de ouder, en die is hier net veranderd: hij ging van
+	 * "wss-ai_page_wss-ai-bulk" naar "admin_page_wss-ai-bulk". Overal waar die
+	 * naam met de hand stond zou de stijl en de JavaScript stilletjes wegblijven,
+	 * en dan heb je een scherm dat er is maar niets doet.
+	 */
+	private static $haak = '';
+
+	public static function is_scherm( $haak ) {
+		return self::$haak && $haak === self::$haak;
 	}
 
 	private static function producten() {

@@ -135,7 +135,7 @@ class WSS_AI_Fotostudio {
 		$op_product = in_array( $hook, array( 'post.php', 'post-new.php' ), true )
 			&& $post && 'product' === $post->post_type;
 		$op_pagina = ( 'wss-ai_page_wss-ai-afbeeldingen' === $hook );
-		$op_bulk = ( 'wss-ai_page_' . WSS_AI_Bulk::SLUG === $hook );
+		$op_bulk = WSS_AI_Bulk::is_scherm( $hook );
 
 		if ( ! $op_product && ! $op_pagina && ! $op_bulk ) {
 			return;

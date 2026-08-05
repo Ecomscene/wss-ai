@@ -3,7 +3,7 @@
  * Plugin Name:       WSS AI
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       AI-gereedschap voor je webshop: een medewerker die meedenkt, betere productfoto's en teksten die vindbaar zijn. Beheerd door Webshopschool.
- * Version:           0.12.0
+ * Version:           0.12.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.12.0' );
+define( 'WSS_AI_VERSIE', '0.12.1' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -94,6 +94,11 @@ add_action( 'admin_init', 'wss_ai_handmatige_controle' );
  */
 function wss_ai_eigen_scherm( $hook ) {
 	if ( 'toplevel_page_wss-ai' === $hook || 0 === strpos( $hook, 'wss-ai_page_' ) ) {
+		return true;
+	}
+	/* Het bulkscherm staat niet in het menu en heet daardoor anders. Zie de
+	   uitleg in class-wss-ai-bulk.php. */
+	if ( WSS_AI_Bulk::is_scherm( $hook ) ) {
 		return true;
 	}
 	if ( in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
