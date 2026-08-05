@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.16.1
+ * Version:           0.17.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.16.1' );
+define( 'WSS_AI_VERSIE', '0.17.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -95,7 +95,11 @@ add_action( 'admin_init', 'wss_ai_handmatige_controle' );
  * ziet: precies wat er gebeurde toen het productscherm er niet bij stond.
  */
 function wss_ai_eigen_scherm( $hook ) {
-	if ( 'toplevel_page_wss-ai' === $hook || 0 === strpos( $hook, 'wss-ai_page_' ) ) {
+	/* Onze eigen pagina's herkennen we aan wat WordPress ons teruggaf, niet aan
+	   een naam die we zelf in elkaar zetten. Zie de uitleg in
+	   class-wss-ai-menu.php: die naam hangt af van de menutitel, en veranderde
+	   stilletjes mee toen de plugin WSS Tools ging heten. */
+	if ( WSS_AI_Menu::is_eigen_scherm( $hook ) ) {
 		return true;
 	}
 	/* Het bulkscherm staat niet in het menu en heet daardoor anders. Zie de
@@ -133,11 +137,38 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-tegel:focus{outline:2px solid #2271b1;outline-offset:1px}'
 		. '.wss-ai-tegel .dashicons{color:#2271b1;font-size:26px;width:26px;height:26px}'
 		. '.wss-ai-tegel strong{font-size:15px}'
-		. '.wss-ai-upgrades{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:1040px}'
-		. '.wss-ai-upgrade{margin:0}'
-		. '.wss-ai-upgrade h2{font-size:16px;display:flex;align-items:center;gap:8px}'
-		. '.wss-ai-upgrade h2 .dashicons{color:#2271b1;font-size:22px;width:22px;height:22px}'
-		. '.wss-ai-prijs{font-size:18px;font-weight:600;margin:0 0 8px}'
+		/* De upgradekaarten. Rustig maar niet vlak: een zachte rand, een lichte
+		   schaduw die bij aanwijzen iets opkomt, en een gekleurd vlakje om het
+		   icoon zodat de kaart een aanknopingspunt heeft. Alles in de kleuren
+		   die wp-admin zelf gebruikt, zodat het erbij hoort en niet naast staat. */
+		. '.wss-ai-upgrades{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));'
+		. 'gap:20px;max-width:1100px;margin:20px 0}'
+		. '.wss-ai-upgrade{display:flex;flex-direction:column;background:#fff;'
+		. 'border:1px solid #dcdcde;border-radius:10px;padding:22px 24px 20px;'
+		. 'box-shadow:0 1px 2px rgba(0,0,0,.04);transition:box-shadow .15s ease,border-color .15s ease}'
+		. '.wss-ai-upgrade:hover{border-color:#c3c4c7;box-shadow:0 4px 16px rgba(0,0,0,.08)}'
+		. '.wss-ai-upgrade-kop{display:flex;gap:14px;align-items:flex-start}'
+		. '.wss-ai-upgrade-icoon{flex:0 0 auto;width:42px;height:42px;border-radius:10px;'
+		. 'background:#f0f6fc;display:flex;align-items:center;justify-content:center}'
+		. '.wss-ai-upgrade-icoon .dashicons{color:#2271b1;font-size:22px;width:22px;height:22px}'
+		. '.wss-ai-upgrade-titels{min-width:0}'
+		. '.wss-ai-upgrade h2{margin:0;font-size:16px;line-height:1.35;font-weight:600}'
+		. '.wss-ai-prijs{display:block;margin-top:2px;font-size:20px;font-weight:700;color:#1d2327;'
+		. 'letter-spacing:-.01em}'
+		/* De tekst duwt de knop naar beneden, zodat kaarten naast elkaar hun
+		   knoppen op dezelfde hoogte houden ook als de ene tekst langer is. */
+		. '.wss-ai-upgrade-tekst{flex:1 1 auto;margin:14px 0 0;color:#50575e;line-height:1.55}'
+		. '.wss-ai-upgrade-voet{margin-top:18px;padding-top:16px;border-top:1px solid #f0f0f1}'
+		. '.wss-ai-upgrade-veld{display:block;margin-bottom:12px}'
+		. '.wss-ai-upgrade-veld span{display:block;font-size:12px;color:#646970;margin-bottom:4px}'
+		. '.wss-ai-upgrade-veld textarea{width:100%;border:1px solid #dcdcde;border-radius:6px;'
+		. 'padding:8px 10px;font-size:13px;resize:vertical;box-shadow:none}'
+		. '.wss-ai-upgrade-veld textarea:focus{border-color:#2271b1;outline:2px solid transparent;'
+		. 'box-shadow:0 0 0 1px #2271b1}'
+		. '.wss-ai-upgrade-knop{width:100%;border:0;border-radius:6px;background:#2271b1;color:#fff;'
+		. 'padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s ease}'
+		. '.wss-ai-upgrade-knop:hover{background:#135e96}'
+		. '.wss-ai-upgrade-knop:focus{outline:2px solid #2271b1;outline-offset:2px}'
 		. '.wss-ai-mut{color:#646970}'
 		. '.wss-ai-tabel{max-width:640px}'
 		. '.wss-ai-tabel th{width:220px}'

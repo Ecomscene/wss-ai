@@ -174,37 +174,42 @@ class WSS_AI_Upgrades {
 				: ( ! empty( $u['vanaf'] ) ? __( 'vanaf', 'wss-ai' ) . ' ' : '' )
 					. '€ ' . number_format_i18n( (float) $u['prijs'], 2 );
 			?>
-			<div class="wss-ai-kaart wss-ai-upgrade">
-				<h2>
-					<?php
-					/* sanitize_html_class laat alleen door wat een klassenaam mag zijn.
-					   De server kiest uit een vaste lijst, maar wat hier in de pagina
-					   van een klant belandt hoort niet op vertrouwen te rusten. */
-					$icoon = ! empty( $u['icoon'] ) ? sanitize_html_class( (string) $u['icoon'] ) : 'star-filled';
-					?>
-					<span class="dashicons dashicons-<?php echo esc_attr( $icoon ); ?>"></span>
-					<?php echo esc_html( $titel ); ?>
-				</h2>
-				<p class="wss-ai-prijs"><?php echo esc_html( $prijs ); ?></p>
+			<?php
+			/* sanitize_html_class laat alleen door wat een klassenaam mag zijn.
+			   De server kiest uit een vaste lijst, maar wat hier in de pagina
+			   van een klant belandt hoort niet op vertrouwen te rusten. */
+			$icoon = ! empty( $u['icoon'] ) ? sanitize_html_class( (string) $u['icoon'] ) : 'star-filled';
+			$id    = isset( $u['id'] ) ? (string) $u['id'] : '';
+			?>
+			<div class="wss-ai-upgrade">
+				<div class="wss-ai-upgrade-kop">
+					<span class="wss-ai-upgrade-icoon">
+						<span class="dashicons dashicons-<?php echo esc_attr( $icoon ); ?>"></span>
+					</span>
+					<div class="wss-ai-upgrade-titels">
+						<h2><?php echo esc_html( $titel ); ?></h2>
+						<span class="wss-ai-prijs"><?php echo esc_html( $prijs ); ?></span>
+					</div>
+				</div>
+
 				<?php if ( ! empty( $u['tekst'] ) ) : ?>
-					<p><?php echo nl2br( esc_html( (string) $u['tekst'] ) ); ?></p>
+					<p class="wss-ai-upgrade-tekst"><?php echo nl2br( esc_html( (string) $u['tekst'] ) ); ?></p>
 				<?php endif; ?>
 
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wss-ai-upgrade-voet">
 					<input type="hidden" name="action" value="wss_ai_upgrade">
-					<input type="hidden" name="upgrade" value="<?php echo esc_attr( isset( $u['id'] ) ? $u['id'] : '' ); ?>">
+					<input type="hidden" name="upgrade" value="<?php echo esc_attr( $id ); ?>">
 					<?php wp_nonce_field( 'wss_ai_upgrade' ); ?>
-					<p>
-						<label class="wss-ai-mut wss-ai-klein" for="bericht-<?php echo esc_attr( isset( $u['id'] ) ? $u['id'] : '' ); ?>">
-							<?php esc_html_e( 'Wil je er iets bij zeggen? (niet verplicht)', 'wss-ai' ); ?>
-						</label><br>
-						<textarea id="bericht-<?php echo esc_attr( isset( $u['id'] ) ? $u['id'] : '' ); ?>" name="bericht" rows="2" class="large-text"></textarea>
-					</p>
-					<p>
-						<button type="submit" class="button button-primary">
-							<?php echo esc_html( ! empty( $u['knop'] ) ? (string) $u['knop'] : __( 'Aanvragen', 'wss-ai' ) ); ?>
-						</button>
-					</p>
+
+					<label class="wss-ai-upgrade-veld" for="bericht-<?php echo esc_attr( $id ); ?>">
+						<span><?php esc_html_e( 'Wil je er iets bij zeggen?', 'wss-ai' ); ?></span>
+						<textarea id="bericht-<?php echo esc_attr( $id ); ?>" name="bericht" rows="2"
+							placeholder="<?php esc_attr_e( 'Niet verplicht', 'wss-ai' ); ?>"></textarea>
+					</label>
+
+					<button type="submit" class="wss-ai-upgrade-knop">
+						<?php echo esc_html( ! empty( $u['knop'] ) ? (string) $u['knop'] : __( 'Aanvragen', 'wss-ai' ) ); ?>
+					</button>
 				</form>
 			</div>
 			<?php

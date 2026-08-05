@@ -134,7 +134,8 @@ class WSS_AI_Fotostudio {
 		$post = get_post();
 		$op_product = in_array( $hook, array( 'post.php', 'post-new.php' ), true )
 			&& $post && 'product' === $post->post_type;
-		$op_pagina = ( 'wss-ai_page_wss-ai-afbeeldingen' === $hook );
+		/* Ook hier de haaknaam overnemen in plaats van uitschrijven. */
+		$op_pagina = ( $hook && $hook === WSS_AI_Menu::haak_van( 'wss-ai-afbeeldingen' ) );
 		$op_bulk = WSS_AI_Bulk::is_scherm( $hook );
 
 		if ( ! $op_product && ! $op_pagina && ! $op_bulk ) {

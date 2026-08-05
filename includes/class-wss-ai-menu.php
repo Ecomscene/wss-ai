@@ -38,8 +38,33 @@ class WSS_AI_Menu {
 	 * Berichten. Dat is waar dit hoort: je klant moet er tegenaan lopen, niet
 	 * ernaar zoeken tussen de dingen die hij nooit gebruikt.
 	 */
+	/**
+	 * De haaknamen van onze eigen schermen, zoals WordPress ze teruggeeft.
+	 *
+	 * WAAROM WE ZE OPSCHRIJVEN EN NIET UITREKENEN
+	 * Zo'n naam is niet "wss-ai_page_..." maar wordt afgeleid van de MENUTITEL:
+	 * add_menu_page doet sanitize_title() over de titel en gebruikt dat als
+	 * voorvoegsel. Toen de plugin van "WSS AI" naar "WSS Tools" ging, werd elke
+	 * subpagina dus ineens "wss-tools_page_...". Alles wat op de oude naam
+	 * controleerde viel stil: geen opmaak op de subpagina's, geen JavaScript op
+	 * het fotoscherm. Dat zag je aan upgrades zonder kaart.
+	 *
+	 * Overnemen wat WordPress teruggeeft kan niet scheef lopen bij de volgende
+	 * naamswijziging.
+	 */
+	private static $haken = array();
+
+	public static function is_eigen_scherm( $haak ) {
+		return in_array( $haak, self::$haken, true );
+	}
+
+	/** De haaknaam van één pagina, of leeg als die er niet is. */
+	public static function haak_van( $slug ) {
+		return isset( self::$haken[ $slug ] ) ? self::$haken[ $slug ] : '';
+	}
+
 	public static function menu() {
-		add_menu_page(
+		self::$haken[ self::HOOFD ] = add_menu_page(
 			__( 'WSS Tools', 'wss-ai' ),
 			__( 'WSS Tools', 'wss-ai' ),
 			'manage_options',
@@ -61,7 +86,7 @@ class WSS_AI_Menu {
 			if ( $p[3] && ! WSS_AI_Koppeling::module_aan( $p[3] ) ) {
 				continue;
 			}
-			add_submenu_page( self::HOOFD, $p[1], $p[1], 'manage_options', $p[0], $p[2] );
+			self::$haken[ $p[0] ] = add_submenu_page( self::HOOFD, $p[1], $p[1], 'manage_options', $p[0], $p[2] );
 		}
 
 		self::verwijzingen();
@@ -78,7 +103,7 @@ class WSS_AI_Menu {
 				continue;
 			}
 			$menutitel = isset( $p[4] ) ? $p[4] : $p[1];
-			add_submenu_page( self::HOOFD, $p[1], $menutitel, 'manage_options', $p[0], $p[2] );
+			self::$haken[ $p[0] ] = add_submenu_page( self::HOOFD, $p[1], $menutitel, 'manage_options', $p[0], $p[2] );
 		}
 	}
 
