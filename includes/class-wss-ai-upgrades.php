@@ -175,7 +175,16 @@ class WSS_AI_Upgrades {
 					. '€ ' . number_format_i18n( (float) $u['prijs'], 2 );
 			?>
 			<div class="wss-ai-kaart wss-ai-upgrade">
-				<h2><?php echo esc_html( $titel ); ?></h2>
+				<h2>
+					<?php
+					/* sanitize_html_class laat alleen door wat een klassenaam mag zijn.
+					   De server kiest uit een vaste lijst, maar wat hier in de pagina
+					   van een klant belandt hoort niet op vertrouwen te rusten. */
+					$icoon = ! empty( $u['icoon'] ) ? sanitize_html_class( (string) $u['icoon'] ) : 'star-filled';
+					?>
+					<span class="dashicons dashicons-<?php echo esc_attr( $icoon ); ?>"></span>
+					<?php echo esc_html( $titel ); ?>
+				</h2>
 				<p class="wss-ai-prijs"><?php echo esc_html( $prijs ); ?></p>
 				<?php if ( ! empty( $u['tekst'] ) ) : ?>
 					<p><?php echo nl2br( esc_html( (string) $u['tekst'] ) ); ?></p>

@@ -31,6 +31,12 @@ class WSS_AI_Menu {
 	 * Op prioriteit 9, dus vóór de standaard. Het voorraadbeheer meldt zich op de
 	 * gewone prioriteit aan en komt daardoor netjes ná ons in de lijst, in plaats
 	 * van ertussen te schuiven op een plek die per WordPress-versie verschilt.
+	 *
+	 * POSITIE 3, DUS DIRECT ONDER DASHBOARD
+	 * WordPress zet Dashboard op 2 en een scheidingslijn op 4 (nagelopen in
+	 * wp-admin/menu.php). Alles daartussen komt er dus tussen te staan, boven
+	 * Berichten. Dat is waar dit hoort: je klant moet er tegenaan lopen, niet
+	 * ernaar zoeken tussen de dingen die hij nooit gebruikt.
 	 */
 	public static function menu() {
 		add_menu_page(
@@ -40,7 +46,7 @@ class WSS_AI_Menu {
 			self::HOOFD,
 			array( __CLASS__, 'toon_hoofd' ),
 			wss_ai_icoon(),
-			58
+			3
 		);
 
 		/* Een onderdeel dat Webshopschool heeft uitgezet krijgt geen pagina. Een
