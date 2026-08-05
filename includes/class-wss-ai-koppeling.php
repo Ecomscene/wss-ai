@@ -106,6 +106,11 @@ class WSS_AI_Koppeling {
 				'headers' => array(
 					'Content-Type'  => 'application/json',
 					'Authorization' => 'Bearer ' . self::token(),
+					/* Zodat het beheerpaneel bij Webshopschool weet op welke versie
+					   deze webshop draait. Het aanmelden gebeurt maar één keer per
+					   dag, dus zonder dit stond daar na een update nog dagenlang de
+					   oude versie. */
+					'X-WSS-Versie'  => WSS_AI_VERSIE,
 				),
 				'body'    => wp_json_encode( $body ),
 			)
