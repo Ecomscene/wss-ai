@@ -56,18 +56,67 @@ class WSS_AI_Menu {
 			array( self::HOOFD, __( 'Overzicht', 'wss-ai' ), array( __CLASS__, 'toon_hoofd' ), '' ),
 			array( 'wss-ai-teksten', __( 'Teksten', 'wss-ai' ), array( __CLASS__, 'toon_teksten' ), 'teksten' ),
 			array( 'wss-ai-afbeeldingen', __( 'Afbeeldingen', 'wss-ai' ), array( __CLASS__, 'toon_afbeeldingen' ), 'afbeeldingen' ),
+		);
+		foreach ( $paginas as $p ) {
+			if ( $p[3] && ! WSS_AI_Koppeling::module_aan( $p[3] ) ) {
+				continue;
+			}
+			add_submenu_page( self::HOOFD, $p[1], $p[1], 'manage_options', $p[0], $p[2] );
+		}
+
+		self::verwijzingen();
+
+		$rest = array(
 			array( 'wss-ai-verzoeken', __( 'Tickets & verzoeken', 'wss-ai' ), array( __CLASS__, 'toon_verzoeken' ), 'verzoeken' ),
 			/* De titel in het menu is hier anders dan de titel van de pagina: in
 			   het menu staat er opmaak omheen zodat hij opvalt. Bovenaan de
 			   pagina zou diezelfde opmaak alleen maar schreeuwen. */
 			array( WSS_AI_Upgrades::SLUG, __( 'Upgrades', 'wss-ai' ), array( __CLASS__, 'toon_upgrades' ), 'upgrades', WSS_AI_Upgrades::menutitel() ),
 		);
-		foreach ( $paginas as $p ) {
+		foreach ( $rest as $p ) {
 			if ( $p[3] && ! WSS_AI_Koppeling::module_aan( $p[3] ) ) {
 				continue;
 			}
 			$menutitel = isset( $p[4] ) ? $p[4] : $p[1];
 			add_submenu_page( self::HOOFD, $p[1], $menutitel, 'manage_options', $p[0], $p[2] );
+		}
+	}
+
+	/**
+	 * Voorraadbeheer en de nieuwsbrief: hier alleen een LINK, geen pagina.
+	 *
+	 * Allebei hebben ze een eigen hoofdmenu-item onder Producten, want dat is
+	 * waar je ze zoekt als je aan voorraad of aan mail denkt. Onder WSS Tools
+	 * staan ze er ook bij, zodat je vanaf één plek alles kunt vinden.
+	 *
+	 * WAAROM DIT RECHTSTREEKS IN $submenu GAAT
+	 * Met add_submenu_page zou dezelfde slug twee ouders krijgen. WordPress
+	 * leidt de naam waaronder hij een pagina opzoekt af van die ouder, en met
+	 * twee ouders hangt het van de volgorde af welke hij pakt. Dan krijg je een
+	 * lege pagina op een deel van de klikken. Precies die val kostte eerder het
+	 * bulkscherm.
+	 *
+	 * Een regel met "admin.php?page=..." erin wordt door WordPress als adres
+	 * gebruikt in plaats van als paginanaam (nagelopen in menu-header.php). Zo
+	 * is het een gewone link en blijft er één plek waar die pagina hoort.
+	 */
+	private static function verwijzingen() {
+		global $submenu;
+
+		if ( WSS_AI_Voorraad::beschikbaar() ) {
+			$submenu[ self::HOOFD ][] = array(
+				__( 'Voorraadbeheer', 'wss-ai' ),
+				'manage_woocommerce',
+				'admin.php?page=' . WSS_AI_Voorraad::SLUG,
+			);
+		}
+
+		if ( WSS_AI_Mailer::beschikbaar() ) {
+			$submenu[ self::HOOFD ][] = array(
+				__( 'Nieuwsbrief & Flows', 'wss-ai' ),
+				'manage_woocommerce',
+				'admin.php?page=ws-flow-mailer',
+			);
 		}
 	}
 
@@ -151,11 +200,11 @@ class WSS_AI_Menu {
 			<?php endforeach; ?>
 
 			<?php if ( WSS_AI_Mailer::beschikbaar() ) : ?>
-					<a class="wss-ai-tegel" href="<?php echo esc_url( admin_url( 'admin.php?page=wsfm-dashboard' ) ); ?>">
+					<a class="wss-ai-tegel" href="<?php echo esc_url( admin_url( 'admin.php?page=ws-flow-mailer' ) ); ?>">
 						<span class="dashicons dashicons-email-alt"></span>
 						<strong><?php esc_html_e( 'Nieuwsbrief', 'wss-ai' ); ?></strong>
 						<span class="wss-ai-mut"><?php esc_html_e( 'Automatische mails: een herinnering bij een vergeten winkelwagen, een berichtje na een bestelling.', 'wss-ai' ); ?></span>
-						<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Je stelt de flows en de teksten zelf in.', 'wss-ai' ); ?></span>
+						<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Staat in het menu links, net onder Voorraadbeheer.', 'wss-ai' ); ?></span>
 					</a>
 				<?php endif; ?>
 

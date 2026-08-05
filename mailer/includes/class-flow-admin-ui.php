@@ -35,13 +35,27 @@ class WSFM_Flow_Admin_UI {
 	 * (the settings submenu is registered by WSFM_Admin_Settings).
 	 */
 	public function register_menu() {
-		/* Bij de overname in WSS Tools: dit was een eigen hoofdmenu-item.
-		   Nu een subpagina, want anders staat er een tweede blok in het menu
-		   voor iets wat bij dezelfde gereedschapskist hoort. De slugs blijven
-		   wat ze waren, zodat opgeslagen links en formulieren blijven werken. */
-		add_submenu_page( 'wss-ai', __( 'Nieuwsbrief', 'ws-flow-mailer' ), __( 'Nieuwsbrief', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_DASHBOARD, array( $this, 'render_dashboard' ) );
-		add_submenu_page( 'wss-ai', __( 'Flows', 'ws-flow-mailer' ), __( 'Flows', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_FLOWS, array( $this, 'render_flows' ) );
-		add_submenu_page( 'wss-ai', __( 'Templates', 'ws-flow-mailer' ), __( 'Templates', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_TEMPLATES, array( $this, 'render_templates' ) );
+		/* Een eigen hoofdmenu-item, net onder Voorraadbeheer.
+		   Onder WSS Tools staat alleen een LINK hierheen. Dat is met opzet geen
+		   tweede registratie van dezelfde pagina: twee ouders voor een slug maakt
+		   de haaknaam die WordPress opzoekt afhankelijk van welke ouder hij
+		   toevallig vindt, en dan krijg je een lege pagina op de helft van de
+		   klikken. Diezelfde val kostte eerder het bulkscherm.
+
+		   Positie 56.2, dus direct onder het voorraadbeheer op 56.1, en daarmee
+		   allebei onder Producten. */
+		add_menu_page(
+			__( 'Nieuwsbrief & Flows', 'ws-flow-mailer' ),
+			__( 'Nieuwsbrief & Flows', 'ws-flow-mailer' ),
+			self::CAPABILITY,
+			self::SLUG_DASHBOARD,
+			array( $this, 'render_dashboard' ),
+			'dashicons-email-alt',
+			'56.2'
+		);
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Overzicht', 'ws-flow-mailer' ), __( 'Overzicht', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_DASHBOARD, array( $this, 'render_dashboard' ) );
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Flows', 'ws-flow-mailer' ), __( 'Flows', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_FLOWS, array( $this, 'render_flows' ) );
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Templates', 'ws-flow-mailer' ), __( 'Templates', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_TEMPLATES, array( $this, 'render_templates' ) );
 	}
 
 	/**
