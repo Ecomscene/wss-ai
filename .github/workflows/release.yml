@@ -69,6 +69,23 @@ jobs:
           done
           exit $FOUT
 
+      # Een insert naar een kolom die niet in de CREATE TABLE staat is schone
+      # PHP en werkende code, tot het moment dat hij echt draait. Dat kwam bij
+      # de nieuwsbrief bijna mee in een release.
+      - name: Kolommen tegen het schema houden
+        run: php tools/check-schema.php
+
+      # Het leesteken dat hier nergens mag staan. Het glipt er zo weer in via
+      # code die van elders komt, en het staat dan in mail aan klanten.
+      - name: Het verboden leesteken zoeken
+        run: |
+          TREFFERS=$(grep -rn "$(printf '—')" --include='*.php' --include='*.js' --include='*.css' --include='*.txt' . || true)
+          if [ -n "$TREFFERS" ]; then
+            echo "$TREFFERS"
+            echo "::error::Het kastlijntje staat nog in de code. Vervang het door een gewoon streepje."
+            exit 1
+          fi
+
       - name: Zip bouwen
         run: |
           mkdir -p build/wss-ai

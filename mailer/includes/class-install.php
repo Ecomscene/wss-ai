@@ -74,6 +74,7 @@ class WSFM_Install {
 		$sql_queue = "CREATE TABLE {$prefix}wsfm_queue (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			flow_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			newsletter_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 			step_index INT UNSIGNED NOT NULL DEFAULT 0,
 			order_id BIGINT UNSIGNED NULL DEFAULT NULL,
 			cart_hash VARCHAR(64) NULL DEFAULT NULL,
@@ -85,6 +86,7 @@ class WSFM_Install {
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),
 			KEY flow_id (flow_id),
+			KEY newsletter_id (newsletter_id),
 			KEY customer_email (customer_email),
 			KEY status_scheduled (status, scheduled_at)
 		) $charset_collate;";
@@ -224,7 +226,13 @@ class WSFM_Install {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'wsfm_templates';
-		$dash  = json_decode( '"—"' );
+		/* Als tekencode geschreven en niet als het teken zelf. Anders staat het
+		   verboden leesteken in het enige bestand dat het weghaalt, en dan blijft
+		   een zoekactie er altijd op afketsen. */
+		/* Als tekencode geschreven en niet als het teken zelf. Anders staat het
+		   verboden leesteken in het enige bestand dat het weghaalt, en struikelt
+		   de controle in de release over zijn eigen oplossing. */
+		$dash  = json_decode( '"\u2014"' );
 
 		foreach ( array( 'name', 'subject', 'html_body' ) as $column ) {
 			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET {$column} = REPLACE({$column}, %s, %s) WHERE {$column} LIKE %s", $dash, '-', '%' . $wpdb->esc_like( $dash ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
