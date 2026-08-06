@@ -28,6 +28,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class WSS_AI_Fotostudio {
 
 	/**
+	 * Verkoopt deze webshop kleding?
+	 *
+	 * Staat dit uit, dan verandert er niets aan de module zoals hij was. Staat
+	 * het aan, dan komt de taak "Modelfoto maken" erbij en kijkt de stijlanalyse
+	 * naar het model en de omgeving in plaats van naar een lege achtergrond.
+	 *
+	 * Het is bewust een vinkje van de winkelier zelf en geen instelling bij
+	 * Webshopschool: hij weet zelf wat hij verkoopt, en dit kost niets en zet
+	 * niets aan dat uit zichzelf gegevens verzamelt.
+	 */
+	const KLEDING = 'wss_ai_foto_kleding';
+
+	/**
 	 * Welke AI het werk doet. Eén keer kiezen, want dat is geen vraag die je bij
 	 * elk product opnieuw wilt beantwoorden. WAT er moet gebeuren kies je wel per
 	 * product; dat staat in het paneel.
@@ -62,6 +75,10 @@ class WSS_AI_Fotostudio {
 
 	/* ---------------- instellingen ---------------- */
 
+	public static function kleding() {
+		return (bool) get_option( self::KLEDING, false );
+	}
+
 	public static function motor() {
 		$m = get_option( self::MOTOR, '' );
 		return is_string( $m ) ? $m : '';
@@ -76,6 +93,18 @@ class WSS_AI_Fotostudio {
 	public static function recept() {
 		$s = self::stijl();
 		return isset( $s['recept'] ) ? (string) $s['recept'] : '';
+	}
+
+	/** Wie er op de foto staat, bij een kledingwebshop. */
+	public static function persoon() {
+		$s = self::stijl();
+		return isset( $s['persoon'] ) ? (string) $s['persoon'] : '';
+	}
+
+	/** Waar de foto's genomen zijn, bij een kledingwebshop. */
+	public static function omgeving() {
+		$s = self::stijl();
+		return isset( $s['omgeving'] ) ? (string) $s['omgeving'] : '';
 	}
 
 	public static function bronnen() {
@@ -95,6 +124,8 @@ class WSS_AI_Fotostudio {
 		$motor = isset( $_POST['motor'] ) ? sanitize_key( wp_unslash( $_POST['motor'] ) ) : '';
 		update_option( self::MOTOR, $motor );
 
+		update_option( self::KLEDING, ! empty( $_POST['kleding'] ) );
+
 		/* De beschrijving mag met de hand aangepast worden. Het recept dat naar
 		   het model gaat blijft dan staan zoals het was: dat is Engels en
 		   technisch, en iemand die de Nederlandse tekst bijschaaft bedoelt niet
@@ -105,6 +136,16 @@ class WSS_AI_Fotostudio {
 		}
 		if ( isset( $_POST['eigen'] ) ) {
 			$stijl['eigen'] = sanitize_textarea_field( wp_unslash( $_POST['eigen'] ) );
+		}
+		/* Bij een kledingwebshop zijn dit de twee zinnen die de opdracht maken.
+		   Ze staan bewust in een eigen veld en niet verstopt in de beschrijving,
+		   want een winkelier die zijn model wil bijstellen moet dat kunnen zonder
+		   te raden welk stukje tekst waar terechtkomt. */
+		if ( isset( $_POST['persoon'] ) ) {
+			$stijl['persoon'] = sanitize_text_field( wp_unslash( $_POST['persoon'] ) );
+		}
+		if ( isset( $_POST['omgeving'] ) ) {
+			$stijl['omgeving'] = sanitize_text_field( wp_unslash( $_POST['omgeving'] ) );
 		}
 		update_option( self::STIJL, $stijl );
 
@@ -164,6 +205,9 @@ class WSS_AI_Fotostudio {
 				'post'    => $post ? $post->ID : 0,
 				'prompt'  => $post ? (string) get_post_meta( $post->ID, self::PROMPT_META, true ) : '',
 				'opPagina' => $op_pagina,
+				/* Verkoopt deze shop kleding? Bepaalt welke taken er in het paneel
+				   staan en wat de stijlanalyse gaat beschrijven. */
+				'kleding'  => self::kleding(),
 				'taal'    => array(
 					'bezig'      => __( 'Bezig met maken. Dit duurt ongeveer een halve minuut.', 'wss-ai' ),
 					'stijlBezig' => __( 'Bezig met kijken naar je foto\'s…', 'wss-ai' ),
@@ -180,6 +224,8 @@ class WSS_AI_Fotostudio {
 					'plekKop'    => __( 'Waar moet je product komen te staan?', 'wss-ai' ),
 					'plekUit'    => __( 'Beschrijf kort een plek of situatie. Bijvoorbeeld: op een bank in een woonkamer, op een houten bureau, op een plank in de badkamer. Wil je nog een variant? Noem dan een andere plek.', 'wss-ai' ),
 					'plekLeeg'   => __( 'Vertel eerst waar je product moet komen te staan.', 'wss-ai' ),
+					'modelKop'   => __( 'Een andere plek voor deze foto', 'wss-ai' ),
+					'modelUit'   => __( 'Optioneel. Standaard gebruiken we de omgeving uit je instellingen. Wil je voor dit kledingstuk iets anders? Beschrijf het hier kort.', 'wss-ai' ),
 					'bijwerkBezig' => __( 'Bezig met aanpassen…', 'wss-ai' ),
 					'bijwerkLeeg'  => __( 'Vertel wat er anders moet aan deze foto.', 'wss-ai' ),
 					'bijgewerkt'   => __( 'Aangepast. Nog niet goed? Je kunt het nog een keer proberen.', 'wss-ai' ),
@@ -257,11 +303,31 @@ class WSS_AI_Fotostudio {
 							array( 'key' => 'achtergrond', 'label' => __( 'Achtergrond weghalen', 'wss-ai' ), 'hint' => __( 'Je product vrijstaand, met een doorzichtige achtergrond', 'wss-ai' ), 'gebruiktStijl' => false ),
 						);
 					}
+					/**
+					 * Taken die alleen over kleding gaan, staan er alleen als deze
+					 * shop kleding verkoopt.
+					 *
+					 * De server stuurt de hele lijst en zet er een vlaggetje bij. Dat
+					 * is met opzet: zo hoeft de plugin niet te weten welke taken er
+					 * ooit bijkomen, en beslist de kant die het weet. Filteren doen
+					 * we hier, want alleen hier is bekend wat de winkelier aanvinkte.
+					 */
+					if ( ! self::kleding() ) {
+						$taken = array_values(
+							array_filter(
+								$taken,
+								function ( $t ) {
+									return empty( $t['kleding'] );
+								}
+							)
+						);
+					}
 					foreach ( $taken as $i => $t ) :
 						?>
 						<label class="wss-ai-taak">
 							<input type="radio" name="wss-ai-taak" value="<?php echo esc_attr( $t['key'] ); ?>"
 								data-stijl="<?php echo empty( $t['gebruiktStijl'] ) ? '0' : '1'; ?>"
+								data-plek="<?php echo in_array( $t['key'], array( 'variant', 'model' ), true ) ? '1' : '0'; ?>"
 								<?php checked( 0, $i ); ?>>
 							<span>
 								<strong><?php echo esc_html( $t['label'] ); ?></strong><br>
@@ -423,11 +489,12 @@ class WSS_AI_Fotostudio {
 		$taak = isset( $_POST['taak'] ) ? sanitize_key( wp_unslash( $_POST['taak'] ) ) : 'vernieuwen';
 
 		/* Alleen bij vernieuwen onthouden, en niet bij bulk. Daar gaat de tekst
-		   over het product en blijft hij gelden. Bij een variant is het de plek
-		   waar hij komt te staan, en die wil je de volgende keer juist anders
-		   hebben; bij bulk geldt hij voor de hele serie en hoort hij niet bij
-		   elk product afzonderlijk te blijven plakken. */
-		if ( 'variant' !== $taak && empty( $_POST['bulk'] ) ) {
+		   over het product en blijft hij gelden. Bij een variant en bij een
+		   modelfoto is het de plek waar hij komt te staan, en die wil je de
+		   volgende keer juist anders hebben; bij bulk geldt hij voor de hele
+		   serie en hoort hij niet bij elk product afzonderlijk te blijven
+		   plakken. */
+		if ( ! in_array( $taak, array( 'variant', 'model' ), true ) && empty( $_POST['bulk'] ) ) {
 			if ( '' === $extra ) {
 				delete_post_meta( $post_id, self::PROMPT_META );
 			} else {
@@ -468,6 +535,10 @@ class WSS_AI_Fotostudio {
 				'stijl'     => $recept,
 				'extra'     => $extra,
 				'productId' => $post_id,
+				/* Wie er op de foto komt en waar. Alleen de taak "model" doet er
+				   iets mee; bij de andere taken negeert de server ze. */
+				'persoon'   => self::persoon(),
+				'omgeving'  => self::omgeving(),
 			),
 			120
 		);
@@ -692,7 +763,17 @@ class WSS_AI_Fotostudio {
 			@set_time_limit( 180 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 		}
 
-		$uit = WSS_AI_Koppeling::vraag( '/foto/stijl', array( 'beelden' => $beelden ), 120 );
+		$uit = WSS_AI_Koppeling::vraag(
+			'/foto/stijl',
+			/* Wat de gebruiker nu aangevinkt heeft telt, ook als hij nog niet
+			   opgeslagen heeft. Staat het er niet bij, dan is de bewaarde stand
+			   de waarheid. */
+			array(
+				'beelden' => $beelden,
+				'kleding' => isset( $_POST['kleding'] ) ? ! empty( $_POST['kleding'] ) : self::kleding(),
+			),
+			120
+		);
 		if ( is_wp_error( $uit ) ) {
 			wp_send_json_error( array( 'error' => $uit->get_error_message() ) );
 		}
@@ -701,6 +782,11 @@ class WSS_AI_Fotostudio {
 		$stijl['naam'] = isset( $uit['naam'] ) ? sanitize_text_field( (string) $uit['naam'] ) : '';
 		$stijl['beschrijving'] = isset( $uit['beschrijving'] ) ? sanitize_textarea_field( (string) $uit['beschrijving'] ) : '';
 		$stijl['recept'] = isset( $uit['recept'] ) ? sanitize_textarea_field( (string) $uit['recept'] ) : '';
+		/* Bij een kledingwebshop komen er twee losse velden terug. Ze staan apart
+		   omdat de opdracht ze op verschillende plekken gebruikt: de een achter
+		   "vervang het model door", de ander achter "zet haar". */
+		$stijl['persoon'] = isset( $uit['persoon'] ) ? sanitize_text_field( (string) $uit['persoon'] ) : '';
+		$stijl['omgeving'] = isset( $uit['omgeving'] ) ? sanitize_text_field( (string) $uit['omgeving'] ) : '';
 		$stijl['aantal'] = count( $beelden );
 		$stijl['op'] = gmdate( 'c' );
 		update_option( self::STIJL, $stijl );
@@ -710,6 +796,8 @@ class WSS_AI_Fotostudio {
 			array(
 				'naam'         => $stijl['naam'],
 				'beschrijving' => $stijl['beschrijving'],
+				'persoon'      => $stijl['persoon'],
+				'omgeving'     => $stijl['omgeving'],
 				'aantal'       => $stijl['aantal'],
 			)
 		);
@@ -731,6 +819,18 @@ class WSS_AI_Fotostudio {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="wss_ai_foto_instellingen">
 				<?php wp_nonce_field( 'wss_ai_foto_instellingen' ); ?>
+
+				<p>
+					<label>
+						<input type="checkbox" name="kleding" value="1" id="wss_ai_foto_kleding" <?php checked( self::kleding() ); ?>>
+						<strong><?php esc_html_e( 'Ik verkoop kleding', 'wss-ai' ); ?></strong>
+					</label><br>
+					<span class="wss-ai-mut wss-ai-klein">
+						<?php esc_html_e( 'Zet dit aan als er mensen op je productfoto\'s staan. Je krijgt er dan een knop bij waarmee je een foto van je leverancier omzet naar jouw eigen model en jouw eigen omgeving. De andere knoppen blijven gewoon staan.', 'wss-ai' ); ?>
+					</span>
+				</p>
+
+				<hr>
 
 				<p>
 					<label for="wss_ai_foto_motor"><strong><?php esc_html_e( 'Welke AI maakt je foto\'s?', 'wss-ai' ); ?></strong></label><br>
@@ -813,6 +913,28 @@ class WSS_AI_Fotostudio {
 					<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Optioneel. Iets wat bij elke foto moet gelden, bijvoorbeeld: nooit mensen in beeld.', 'wss-ai' ); ?></span>
 				</p>
 				<textarea id="wss_ai_eigen" name="eigen" rows="2" class="large-text"><?php echo esc_textarea( isset( $stijl['eigen'] ) ? $stijl['eigen'] : '' ); ?></textarea>
+
+				<div class="wss-ai-kledingveld"<?php echo self::kleding() ? '' : ' style="display:none"'; ?>>
+					<hr>
+					<p>
+						<strong><?php esc_html_e( 'Je model en je omgeving', 'wss-ai' ); ?></strong><br>
+						<span class="wss-ai-mut wss-ai-klein">
+							<?php esc_html_e( 'Deze twee zinnen maken je modelfoto\'s. Beschrijf mijn stijl vult ze voor je in aan de hand van de foto\'s die je koos, en je mag ze daarna bijschaven. Kort werkt beter dan lang.', 'wss-ai' ); ?>
+						</span>
+					</p>
+					<p>
+						<label for="wss_ai_persoon"><?php esc_html_e( 'Wie staat er op de foto?', 'wss-ai' ); ?></label><br>
+						<input type="text" id="wss_ai_persoon" name="persoon" class="large-text"
+							placeholder="<?php esc_attr_e( 'Bijvoorbeeld: een vrouw met lang donkerbruin haar', 'wss-ai' ); ?>"
+							value="<?php echo esc_attr( isset( $stijl['persoon'] ) ? $stijl['persoon'] : '' ); ?>">
+					</p>
+					<p>
+						<label for="wss_ai_omgeving"><?php esc_html_e( 'Waar staat ze?', 'wss-ai' ); ?></label><br>
+						<input type="text" id="wss_ai_omgeving" name="omgeving" class="large-text"
+							placeholder="<?php esc_attr_e( 'Bijvoorbeeld: op straat in een Nederlandse binnenstad, in warm laat zonlicht', 'wss-ai' ); ?>"
+							value="<?php echo esc_attr( isset( $stijl['omgeving'] ) ? $stijl['omgeving'] : '' ); ?>">
+					</p>
+				</div>
 
 				<p>
 					<button type="submit" class="button button-primary"><?php esc_html_e( 'Opslaan', 'wss-ai' ); ?></button>

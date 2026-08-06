@@ -67,7 +67,12 @@
 		var $p = paneel();
 		var $gekozen = $p.find('input[name="wss-ai-taak"]:checked');
 		var variant = $gekozen.val() === 'variant';
+		var model = $gekozen.val() === 'model';
 		var metStijl = $gekozen.data('stijl') !== 0 && $gekozen.data('stijl') !== '0';
+		/* Bij welke taken het opdrachtveld om een PLEK vraagt in plaats van om iets
+		   erbij. Dat staat op de knop zelf, zodat een nieuwe taak op de server niet
+		   ook nog een regel in dit bestand nodig heeft. */
+		var plek = $gekozen.data('plek') === 1 || $gekozen.data('plek') === '1';
 
 		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(metStijl);
 
@@ -83,18 +88,33 @@
 		 * je een plek, dan is het in een keer raak. Eén regel typen is een kleine
 		 * prijs voor het verschil tussen een variant en dezelfde foto.
 		 */
-		$p.find('.wss-ai-extra-kop').text(variant ? T.plekKop : T.extraKop);
-		$p.find('.wss-ai-extra-uitleg').text(variant ? T.plekUit : T.extraUit);
-		$p.find('#wss-ai-extra').attr(
-			'placeholder',
-			variant ? 'op een bank in een woonkamer' : ''
-		);
+		var kop = T.extraKop;
+		var uitleg = T.extraUit;
+		if (variant) {
+			kop = T.plekKop;
+			uitleg = T.plekUit;
+		} else if (model) {
+			/* Bij een modelfoto staat de omgeving al in de instellingen. Hier
+			   iets typen mag, maar hoeft niet, en dat verschil hoort in de tekst
+			   te staan en niet alleen in wat er gebeurt als je het leeg laat. */
+			kop = T.modelKop || T.plekKop;
+			uitleg = T.modelUit || T.plekUit;
+		}
+		$p.find('.wss-ai-extra-kop').text(kop);
+		$p.find('.wss-ai-extra-uitleg').text(uitleg);
+		var voorbeeld = '';
+		if (model) {
+			voorbeeld = 'in een park op een zonnige dag';
+		} else if (plek) {
+			voorbeeld = 'op een bank in een woonkamer';
+		}
+		$p.find('#wss-ai-extra').attr('placeholder', voorbeeld);
 
 		/* Een variant hoort van de hoofdfoto uit te gaan: dat is de foto waarop
 		   het product het duidelijkst te zien is, en hier is de bronfoto alleen
 		   een voorbeeld en geen beginpunt. Heeft de winkelier zelf een foto
 		   aangeklikt, dan laten we zijn keuze staan. */
-		if (variant && !$p.data('handmatig')) {
+		if (plek && !$p.data('handmatig')) {
 			var fotos = beschikbareFotos();
 			if (fotos.length) {
 				kiesBron(fotos[0]);
@@ -416,11 +436,18 @@
 		$knop.prop('disabled', true);
 		$m.removeClass('wss-ai-fout').text(T.stijlBezig || 'Bezig…');
 
+		/* Het vinkje zoals het NU op het scherm staat, niet zoals het bewaard is.
+		   Iemand die net aanvinkt dat hij kleding verkoopt en meteen op deze knop
+		   drukt, verwacht een beschrijving van zijn model. Eerst moeten opslaan
+		   zou een omweg zijn die niets oplost. */
+		var kleding = $('#wss_ai_foto_kleding').is(':checked') ? 1 : 0;
+
 		$.post(C.ajax, {
 			action: 'wss_ai_foto_stijl',
 			nonce: C.nonce,
 			media: gekozenMedia,
 			producten: producten,
+			kleding: kleding,
 		})
 			.done(function (res) {
 				$knop.prop('disabled', false);
@@ -429,6 +456,12 @@
 					return;
 				}
 				$('#wss_ai_beschrijving').val(res.data.beschrijving || '');
+				if (res.data.persoon) {
+					$('#wss_ai_persoon').val(res.data.persoon);
+				}
+				if (res.data.omgeving) {
+					$('#wss_ai_omgeving').val(res.data.omgeving);
+				}
 				$m.text(
 					'Gelukt, gebaseerd op ' +
 						res.data.aantal +
@@ -453,6 +486,9 @@
 			$(document).on('click', '.wss-ai-beschrijf', function (e) {
 				e.preventDefault();
 				beschrijf();
+			});
+			$(document).on('change', '#wss_ai_foto_kleding', function () {
+				$('.wss-ai-kledingveld').toggle($(this).is(':checked'));
 			});
 			return;
 		}

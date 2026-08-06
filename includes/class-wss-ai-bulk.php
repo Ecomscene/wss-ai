@@ -213,6 +213,13 @@ class WSS_AI_Bulk {
 						<strong><?php esc_html_e( 'Achtergrond weghalen', 'wss-ai' ); ?></strong>
 						<span class="wss-ai-mut"><?php esc_html_e( 'je product vrijstaand', 'wss-ai' ); ?></span>
 					</label>
+					<?php if ( WSS_AI_Fotostudio::kleding() ) : ?>
+						<br>
+						<label><input type="radio" name="wss-ai-bulk-taak" value="model">
+							<strong><?php esc_html_e( 'Modelfoto maken', 'wss-ai' ); ?></strong>
+							<span class="wss-ai-mut"><?php esc_html_e( 'jouw model en jouw omgeving, hetzelfde kledingstuk', 'wss-ai' ); ?></span>
+						</label>
+					<?php endif; ?>
 				</p>
 				<p class="wss-ai-mut wss-ai-klein">
 					<?php esc_html_e( 'Varianten kunnen niet in bulk: daar hoort per product een eigen plek bij, en dan is het geen serie meer.', 'wss-ai' ); ?>
