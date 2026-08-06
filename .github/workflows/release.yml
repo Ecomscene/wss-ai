@@ -75,6 +75,12 @@ jobs:
       - name: Kolommen tegen het schema houden
         run: php tools/check-schema.php
 
+      # Een klasse die wel bestaat maar nergens ingeladen wordt is schone PHP
+      # tot iemand het scherm opent. De popup ging er zo bijna uit: de
+      # bestanden zaten in de commit, de twee regels die ze inladen niet.
+      - name: Nagaan of alles ingeladen en gestart wordt
+        run: php tools/check-laden.php
+
       # Het leesteken dat hier nergens mag staan. Het glipt er zo weer in via
       # code die van elders komt, en het staat dan in mail aan klanten.
       - name: Het verboden leesteken zoeken
