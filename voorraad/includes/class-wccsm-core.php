@@ -2,7 +2,7 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Core loader — registers all hooks and loads classes.
+ * Core loader - registers all hooks and loads classes.
  */
 class WCCSM_Core {
 

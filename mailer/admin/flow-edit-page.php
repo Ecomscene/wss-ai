@@ -34,7 +34,7 @@ $wsfm_steps   = $wsfm_is_edit ? $flow->steps : array();
 				<td>
 					<input type="text" id="wsfm_flow_name" name="flow_name" class="regular-text" required
 						value="<?php echo esc_attr( $wsfm_is_edit ? $flow->name : '' ); ?>"
-						placeholder="<?php esc_attr_e( 'Bijv. Verlaten winkelwagen — 2 herinneringen', 'ws-flow-mailer' ); ?>" />
+						placeholder="<?php esc_attr_e( 'Bijv. Verlaten winkelwagen - 2 herinneringen', 'ws-flow-mailer' ); ?>" />
 				</td>
 			</tr>
 			<tr>
@@ -90,7 +90,7 @@ $wsfm_steps   = $wsfm_is_edit ? $flow->steps : array();
 						</select>
 						<label><?php esc_html_e( 'en verstuur', 'ws-flow-mailer' ); ?>
 							<select name="steps[<?php echo (int) $wsfm_i; ?>][template_id]" required>
-								<option value=""><?php esc_html_e( '— kies template —', 'ws-flow-mailer' ); ?></option>
+								<option value=""><?php esc_html_e( 'kies een template', 'ws-flow-mailer' ); ?></option>
 								<?php foreach ( $templates as $wsfm_template ) : ?>
 									<option value="<?php echo (int) $wsfm_template->id; ?>" <?php selected( $wsfm_step['template_id'], (int) $wsfm_template->id ); ?>><?php echo esc_html( $wsfm_template->name ); ?></option>
 								<?php endforeach; ?>
@@ -125,7 +125,7 @@ $wsfm_steps   = $wsfm_is_edit ? $flow->steps : array();
 					</select>
 					<label><?php esc_html_e( 'en verstuur', 'ws-flow-mailer' ); ?>
 						<select name="steps[__INDEX__][template_id]" required>
-							<option value=""><?php esc_html_e( '— kies template —', 'ws-flow-mailer' ); ?></option>
+							<option value=""><?php esc_html_e( 'kies een template', 'ws-flow-mailer' ); ?></option>
 							<?php foreach ( $templates as $wsfm_template ) : ?>
 								<option value="<?php echo (int) $wsfm_template->id; ?>"><?php echo esc_html( $wsfm_template->name ); ?></option>
 							<?php endforeach; ?>

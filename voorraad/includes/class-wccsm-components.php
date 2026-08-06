@@ -71,14 +71,14 @@ class WCCSM_Components {
         foreach ( $components as $comp ) {
             $comp_product = wc_get_product( $comp['product_id'] );
             if ( ! $comp_product ) {
-                // Component product deleted — treat as 0 stock.
+                // Component product deleted - treat as 0 stock.
                 return 0;
             }
 
             // Read raw stock to avoid recursion if a component is also composed.
             $comp_stock = $comp_product->get_stock_quantity();
             if ( null === $comp_stock ) {
-                // Component doesn't manage stock — skip (treat as unlimited).
+                // Component doesn't manage stock - skip (treat as unlimited).
                 continue;
             }
 

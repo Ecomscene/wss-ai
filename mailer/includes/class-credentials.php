@@ -9,7 +9,7 @@
  *
  * Note: because the keys derive from wp_salt(), rotating the salts in
  * wp-config.php (or moving the database to another install) invalidates
- * stored secrets — the user then simply re-enters them on the settings page.
+ * stored secrets - the user then simply re-enters them on the settings page.
  *
  * @package WS_Flow_Mailer
  */
@@ -159,7 +159,7 @@ class WSFM_Credentials {
 	}
 
 	/**
-	 * Get the decrypted value of a secret. Runtime use only — never echo this.
+	 * Get the decrypted value of a secret. Runtime use only - never echo this.
 	 *
 	 * @param string $key Secret key name.
 	 * @return string Plaintext, or '' when not set / not decryptable.

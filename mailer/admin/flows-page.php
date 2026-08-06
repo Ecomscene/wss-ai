@@ -29,7 +29,7 @@ $wsfm_trigger_labels = array(
 	<?php endif; ?>
 
 	<?php if ( empty( $flows ) ) : ?>
-		<p><?php esc_html_e( 'Nog geen flows. Maak je eerste flow aan — er staan al kant-en-klare templates voor je klaar.', 'ws-flow-mailer' ); ?></p>
+		<p><?php esc_html_e( 'Nog geen flows. Maak je eerste flow aan - er staan al kant-en-klare templates voor je klaar.', 'ws-flow-mailer' ); ?></p>
 	<?php else : ?>
 		<table class="wp-list-table widefat fixed striped">
 			<thead>

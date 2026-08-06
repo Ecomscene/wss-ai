@@ -154,7 +154,7 @@ class WCCSM_Admin_Overview {
             }
 
             if ( $product->is_type( 'variable' ) ) {
-                // Add parent row (non-editable stock — stock lives on variations).
+                // Add parent row (non-editable stock - stock lives on variations).
                 $parent_row = $this->build_row( $product, true );
 
                 // Stock status filter for variations.

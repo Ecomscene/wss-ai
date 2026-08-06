@@ -3,7 +3,7 @@
  * Settings page markup. Included from WSFM_Admin_Settings::render_settings_page(),
  * which provides $settings (array of non-secret settings).
  *
- * Secrets are never echoed — only their masks, as placeholder text.
+ * Secrets are never echoed - only their masks, as placeholder text.
  *
  * @package WS_Flow_Mailer
  */
@@ -15,7 +15,7 @@ $wsfm_secret_key_set  = WSFM_Credentials::has_secret( 'ses_secret_key' );
 $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 ?>
 <div class="wrap wsfm-settings">
-	<h1><?php esc_html_e( 'WS Flow Mailer — Instellingen', 'ws-flow-mailer' ); ?></h1>
+	<h1><?php esc_html_e( 'WS Flow Mailer - Instellingen', 'ws-flow-mailer' ); ?></h1>
 
 	<?php if ( isset( $_GET['wsfm-updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 		<div class="notice notice-success is-dismissible">
@@ -189,7 +189,7 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 	<!-- SNS bounce & complaint webhook -->
 	<h2><?php esc_html_e( 'Bounce- en klachtafhandeling (Amazon SNS)', 'ws-flow-mailer' ); ?></h2>
 	<p class="description" style="max-width:720px;">
-		<?php esc_html_e( 'Zonder bounce-afhandeling blijf je mailen naar niet-bestaande adressen en beschadig je je verzendreputatie. Koppel SES daarom eenmalig aan deze webhook — bounces en klachten komen dan automatisch op de suppressielijst.', 'ws-flow-mailer' ); ?>
+		<?php esc_html_e( 'Zonder bounce-afhandeling blijf je mailen naar niet-bestaande adressen en beschadig je je verzendreputatie. Koppel SES daarom eenmalig aan deze webhook - bounces en klachten komen dan automatisch op de suppressielijst.', 'ws-flow-mailer' ); ?>
 	</p>
 
 	<table class="form-table" role="presentation">
@@ -223,7 +223,7 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 			<li><?php esc_html_e( 'Log in op de AWS-console en open SNS (Simple Notification Service) in dezelfde regio als je SES-instelling hierboven.', 'ws-flow-mailer' ); ?></li>
 			<li><?php esc_html_e( 'Maak een topic aan: type "Standard", naam bijv. "ses-bounces". Klik op "Create topic".', 'ws-flow-mailer' ); ?></li>
 			<li><?php esc_html_e( 'Klik in het topic op "Create subscription". Kies protocol "HTTPS" en plak bij "Endpoint" de webhook-URL hierboven. Klik op "Create subscription".', 'ws-flow-mailer' ); ?></li>
-			<li><?php esc_html_e( 'De plugin bevestigt het abonnement automatisch — herlaad deze pagina en de status hierboven springt op "Gekoppeld".', 'ws-flow-mailer' ); ?></li>
+			<li><?php esc_html_e( 'De plugin bevestigt het abonnement automatisch - herlaad deze pagina en de status hierboven springt op "Gekoppeld".', 'ws-flow-mailer' ); ?></li>
 			<li><?php esc_html_e( 'Open nu SES → Configuration sets. Maak een configuration set aan (naam bijv. "wsfm") of gebruik een bestaande.', 'ws-flow-mailer' ); ?></li>
 			<li><?php esc_html_e( 'Voeg in die configuration set een "Event destination" toe: type "Amazon SNS", vink de events "Bounce" en "Complaint" aan en kies het topic uit stap 2.', 'ws-flow-mailer' ); ?></li>
 			<li><?php esc_html_e( 'Alternatief zonder configuration set: open in SES je geverifieerde identiteit → tabblad "Notifications" → stel voor "Bounce feedback" en "Complaint feedback" het SNS-topic in.', 'ws-flow-mailer' ); ?></li>
@@ -235,7 +235,7 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 	<!-- Suppression list management -->
 	<h2 id="wsfm-suppression"><?php esc_html_e( 'Suppressielijst', 'ws-flow-mailer' ); ?></h2>
 	<p class="description" style="max-width:720px;">
-		<?php esc_html_e( 'Adressen op deze lijst ontvangen nooit flow-e-mails. Ze komen hier via bounces, klachten of afmeldingen. Handmatig verwijderen kan, bijv. na een fout-positieve klacht — doe dat alleen als je zeker weet dat het adres bereikbaar is en wíl blijven ontvangen.', 'ws-flow-mailer' ); ?>
+		<?php esc_html_e( 'Adressen op deze lijst ontvangen nooit flow-e-mails. Ze komen hier via bounces, klachten of afmeldingen. Handmatig verwijderen kan, bijv. na een fout-positieve klacht - doe dat alleen als je zeker weet dat het adres bereikbaar is en wíl blijven ontvangen.', 'ws-flow-mailer' ); ?>
 	</p>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:12px;">

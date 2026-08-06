@@ -35,7 +35,7 @@
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			body: body.toString(),
 		} ).catch( function () {
-			// Silently ignore — tracking must never break checkout.
+			// Silently ignore - tracking must never break checkout.
 		} );
 	}
 

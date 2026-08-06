@@ -1,5 +1,5 @@
 /**
- * WC Central Stock Manager — Product Edit Page JS
+ * WC Central Stock Manager - Product Edit Page JS
  *
  * Handles the component rows on the product edit screen:
  * - Add new component row (parent product level)

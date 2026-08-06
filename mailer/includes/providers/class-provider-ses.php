@@ -3,7 +3,7 @@
  * Amazon SES provider.
  *
  * Talks directly to the SES query API (email.{region}.amazonaws.com) with
- * our own SigV4 signer — no AWS SDK dependency.
+ * our own SigV4 signer - no AWS SDK dependency.
  *
  * @package WS_Flow_Mailer
  */
@@ -153,7 +153,7 @@ class WSFM_Provider_SES implements WSFM_Mail_Provider {
 	}
 
 	/**
-	 * Validate credentials via GetSendQuota — no e-mail is sent.
+	 * Validate credentials via GetSendQuota - no e-mail is sent.
 	 *
 	 * @return bool
 	 */

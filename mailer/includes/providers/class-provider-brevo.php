@@ -1,6 +1,6 @@
 <?php
 /**
- * Brevo provider — placeholder.
+ * Brevo provider - placeholder.
  *
  * The settings UI already stores the API key + from address so switching
  * later is seamless; the actual API calls land in a future version.

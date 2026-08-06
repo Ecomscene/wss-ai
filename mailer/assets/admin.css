@@ -196,3 +196,255 @@
 	display: block;
 	margin-top: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Nieuwsbrieven
+   ------------------------------------------------------------------------ */
+
+.wsfm-leeg {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 32px;
+	max-width: 640px;
+	margin-top: 20px;
+}
+
+.wsfm-leeg h2 {
+	margin-top: 0;
+}
+
+.wsfm-brief-kolommen {
+	display: flex;
+	gap: 20px;
+	align-items: flex-start;
+	margin-top: 16px;
+}
+
+.wsfm-brief-links {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.wsfm-brief-rechts {
+	flex: 0 0 300px;
+	position: sticky;
+	top: 46px;
+}
+
+@media screen and (max-width: 1100px) {
+	.wsfm-brief-kolommen {
+		display: block;
+	}
+
+	.wsfm-brief-rechts {
+		position: static;
+	}
+}
+
+/* De drie sjablonen, met een miniatuur dat het verschil laat zien. */
+.wsfm-sjablonen {
+	display: flex;
+	gap: 14px;
+	flex-wrap: wrap;
+}
+
+.wsfm-sjabloon {
+	flex: 1 1 160px;
+	border: 2px solid #dcdcde;
+	border-radius: 6px;
+	padding: 12px;
+	cursor: pointer;
+	display: block;
+	background: #fff;
+}
+
+.wsfm-sjabloon.is-gekozen,
+.wsfm-sjabloon:has( input:checked ) {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.wsfm-sjabloon input {
+	margin-bottom: 8px;
+}
+
+.wsfm-sjabloon-naam {
+	display: block;
+	font-weight: 600;
+	margin-top: 8px;
+}
+
+.wsfm-sjabloon-kort {
+	display: block;
+	color: #666;
+	font-size: 12px;
+	line-height: 1.5;
+	margin-top: 2px;
+}
+
+.wsfm-sjabloon-beeld {
+	display: block;
+	border: 1px solid #e6e6e6;
+	padding: 10px;
+	background: #fff;
+}
+
+.wsfm-sjabloon-beeld > span {
+	display: block;
+}
+
+.wsfm-mini-kop {
+	height: 8px;
+	width: 40%;
+	margin: 0 auto 8px;
+	background: #c9c9c9;
+}
+
+.wsfm-mini-beeld {
+	height: 34px;
+	background: #e2e2e2;
+	margin-bottom: 8px;
+}
+
+.wsfm-mini-regel {
+	height: 4px;
+	background: #dcdcde;
+	margin-bottom: 4px;
+}
+
+.wsfm-mini-kort {
+	width: 60%;
+}
+
+.wsfm-mini-raster {
+	display: flex;
+	gap: 4px;
+	margin-top: 8px;
+}
+
+.wsfm-mini-raster span {
+	flex: 1;
+	height: 22px;
+	background: #e2e2e2;
+}
+
+.wsfm-sjabloon-warm .wsfm-sjabloon-beeld,
+.wsfm-sjabloon-beeld.wsfm-sjabloon-warm {
+	background: #f6f1ea;
+}
+
+.wsfm-sjabloon-warm .wsfm-mini-beeld,
+.wsfm-sjabloon-warm .wsfm-mini-raster span {
+	border-radius: 6px;
+}
+
+/* Strak: drie in plaats van twee, en beeld tot de rand. */
+.wsfm-sjabloon-strak {
+	padding: 0;
+}
+
+.wsfm-sjabloon-strak .wsfm-mini-kop,
+.wsfm-sjabloon-strak .wsfm-mini-regel,
+.wsfm-sjabloon-strak .wsfm-mini-raster {
+	margin-left: 10px;
+	margin-right: 10px;
+}
+
+.wsfm-sjabloon-strak .wsfm-mini-kop {
+	margin-top: 10px;
+}
+
+.wsfm-sjabloon-strak .wsfm-mini-raster {
+	margin-bottom: 10px;
+}
+
+/* De blokken. */
+.wsfm-blok {
+	border: 1px solid #dcdcde;
+	border-left: 4px solid #2271b1;
+	border-radius: 4px;
+	background: #fdfdfd;
+	padding: 12px 16px;
+	margin-bottom: 12px;
+}
+
+.wsfm-blok[data-soort="afbeelding"] {
+	border-left-color: #8c68cd;
+}
+
+.wsfm-blok[data-soort="producten"] {
+	border-left-color: #00a32a;
+}
+
+.wsfm-blok-kop {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
+.wsfm-blok-naam {
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 11px;
+	letter-spacing: .5px;
+	color: #50575e;
+}
+
+.wsfm-blok-knoppen .button-link {
+	margin-left: 10px;
+	text-decoration: none;
+}
+
+.wsfm-blok-knoppen .wsfm-weg {
+	color: #b32d2e;
+}
+
+.wsfm-beeld-voor img {
+	max-width: 260px;
+	height: auto;
+	display: block;
+	margin-bottom: 8px;
+	border: 1px solid #dcdcde;
+}
+
+.wsfm-knopveld label {
+	display: inline-block;
+	margin-right: 16px;
+}
+
+.wsfm-toevoegen {
+	margin-top: 4px;
+}
+
+.wsfm-toevoegen .button {
+	margin-right: 6px;
+}
+
+.wsfm-aantal {
+	font-size: 18px;
+	font-weight: 600;
+	margin: 4px 0 8px;
+}
+
+.wsfm-verstuurvak {
+	max-width: 640px;
+}
+
+.wsfm-verstuurvak h2 {
+	margin-top: 0;
+}
+
+.wsfm-weggooi {
+	margin: 16px 0 32px;
+}
+
+.wsfm-weggooi-knop {
+	color: #b32d2e;
+}
+
+.wsfm-melding {
+	min-height: 1em;
+	margin: 0;
+}

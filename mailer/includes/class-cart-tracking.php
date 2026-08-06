@@ -88,7 +88,7 @@ class WSFM_Cart_Tracking {
 
 		$customer = self::resolve_customer();
 		if ( '' === $customer['email'] ) {
-			return; // No known address — nothing to track.
+			return; // No known address - nothing to track.
 		}
 
 		$email = strtolower( $customer['email'] );

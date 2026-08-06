@@ -21,7 +21,7 @@ $wsfm_status_labels = array(
 );
 ?>
 <div class="wrap wsfm-dashboard">
-	<h1><?php esc_html_e( 'WS Flow Mailer — Dashboard', 'ws-flow-mailer' ); ?></h1>
+	<h1><?php esc_html_e( 'WS Flow Mailer - Dashboard', 'ws-flow-mailer' ); ?></h1>
 	<p class="description"><?php esc_html_e( 'Overzicht van de afgelopen 30 dagen.', 'ws-flow-mailer' ); ?></p>
 
 	<div class="wsfm-cards">

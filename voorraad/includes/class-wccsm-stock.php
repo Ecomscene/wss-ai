@@ -3,7 +3,7 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Handles:
- * 1. Component stock reduction/restoration on order status changes (V1 — preserved).
+ * 1. Component stock reduction/restoration on order status changes (V1 - preserved).
  * 2. Front-end stock computation for composed products: stock quantity, status,
  *    purchasability, and manage_stock are derived from components.
  * 3. Database sync: after component stock changes, all parent composed products
@@ -19,7 +19,7 @@ class WCCSM_Stock {
     private static bool $computing = false;
 
     public function __construct() {
-        // --- Order stock adjustment (V1 — preserved) ---
+        // --- Order stock adjustment (V1 - preserved) ---
         add_action( 'woocommerce_order_status_changed', [ $this, 'on_status_change' ], 10, 4 );
 
         // --- Front-end stock filters for composed products ---
@@ -153,7 +153,7 @@ class WCCSM_Stock {
     }
 
     /* ========================================================================
-       Order Stock Adjustment (V1 — preserved)
+       Order Stock Adjustment (V1 - preserved)
        ======================================================================== */
 
     /**
@@ -248,7 +248,7 @@ class WCCSM_Stock {
     }
 
     /* ========================================================================
-       Database Sync — keep _stock and _stock_status consistent
+       Database Sync - keep _stock and _stock_status consistent
        ======================================================================== */
 
     /**

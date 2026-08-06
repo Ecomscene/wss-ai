@@ -70,6 +70,7 @@ class WSS_AI_Mailer {
 			'class-install', 'class-credentials', 'class-mail-provider', 'class-sigv4',
 			'providers/class-provider-ses', 'providers/class-provider-brevo',
 			'class-suppression', 'class-template-engine', 'class-templates',
+			'class-newsletter-render', 'class-newsletters',
 			'class-flows', 'class-flow-conditions', 'class-queue', 'class-queue-processor',
 			'class-cart-tracking', 'class-flow-engine',
 			'class-unsubscribe', 'class-sns-webhook', 'class-identity',

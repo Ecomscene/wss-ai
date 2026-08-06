@@ -65,6 +65,40 @@ class WSFM_Admin_Settings {
 				'confirmDeleteTemplate' => __( 'Weet je zeker dat je deze template wilt verwijderen?', 'ws-flow-mailer' ),
 			)
 		);
+
+		/* De samensteller heeft meer nodig dan de rest: de mediakiezer van
+		   WordPress en de productzoeker van WooCommerce. Die staan hier en niet
+		   bij de andere schermen, want ze zijn zwaar en nergens anders nodig. */
+		if ( false !== strpos( $hook, WSFM_Flow_Admin_UI::SLUG_BRIEVEN ) ) {
+			wp_enqueue_media();
+			wp_enqueue_script( 'wc-enhanced-select' );
+			wp_enqueue_style( 'woocommerce_admin_styles' );
+
+			wp_enqueue_script(
+				'wsfm-nieuwsbrief',
+				WSFM_PLUGIN_URL . 'assets/nieuwsbrief.js',
+				array( 'jquery', 'wsfm-admin' ),
+				WSFM_VERSION,
+				true
+			);
+			wp_localize_script(
+				'wsfm-nieuwsbrief',
+				'wsfmBrief',
+				array(
+					'bezig'         => __( 'Momentje...', 'ws-flow-mailer' ),
+					'versturen'     => __( 'Bezig met versturen...', 'ws-flow-mailer' ),
+					'tellen'        => __( 'Bezig met tellen...', 'ws-flow-mailer' ),
+					'telFout'       => __( 'Het aantal kon niet opgehaald worden.', 'ws-flow-mailer' ),
+					'fout'          => __( 'Er ging iets mis. Probeer het nog eens.', 'ws-flow-mailer' ),
+					'popup'         => __( 'Je browser blokkeerde het voorbeeldvenster. Sta pop-ups toe voor deze pagina.', 'ws-flow-mailer' ),
+					'kiesBeeld'     => __( 'Kies een afbeelding', 'ws-flow-mailer' ),
+					'gebruikBeeld'  => __( 'Deze gebruiken', 'ws-flow-mailer' ),
+					'wegVragen'     => __( 'Dit blok weghalen?', 'ws-flow-mailer' ),
+					'weggooiVragen' => __( 'Deze nieuwsbrief weggooien? Dat kan niet ongedaan gemaakt worden.', 'ws-flow-mailer' ),
+					'zekerWeten'    => __( 'Versturen naar %s? Dit kan niet teruggedraaid worden.', 'ws-flow-mailer' ),
+				)
+			);
+		}
 	}
 
 	/**
@@ -74,22 +108,22 @@ class WSFM_Admin_Settings {
 	 */
 	public static function ses_regions() {
 		return array(
-			'eu-west-1'      => 'EU (Ierland) — eu-west-1',
-			'eu-central-1'   => 'EU (Frankfurt) — eu-central-1',
-			'eu-west-2'      => 'EU (Londen) — eu-west-2',
-			'eu-west-3'      => 'EU (Parijs) — eu-west-3',
-			'eu-north-1'     => 'EU (Stockholm) — eu-north-1',
-			'eu-south-1'     => 'EU (Milaan) — eu-south-1',
-			'us-east-1'      => 'US East (N. Virginia) — us-east-1',
-			'us-east-2'      => 'US East (Ohio) — us-east-2',
-			'us-west-2'      => 'US West (Oregon) — us-west-2',
-			'ca-central-1'   => 'Canada (Central) — ca-central-1',
-			'ap-southeast-1' => 'Azië (Singapore) — ap-southeast-1',
-			'ap-southeast-2' => 'Azië (Sydney) — ap-southeast-2',
-			'ap-northeast-1' => 'Azië (Tokio) — ap-northeast-1',
-			'ap-south-1'     => 'Azië (Mumbai) — ap-south-1',
-			'sa-east-1'      => 'Zuid-Amerika (São Paulo) — sa-east-1',
-			'af-south-1'     => 'Afrika (Kaapstad) — af-south-1',
+			'eu-west-1'      => 'EU (Ierland) - eu-west-1',
+			'eu-central-1'   => 'EU (Frankfurt) - eu-central-1',
+			'eu-west-2'      => 'EU (Londen) - eu-west-2',
+			'eu-west-3'      => 'EU (Parijs) - eu-west-3',
+			'eu-north-1'     => 'EU (Stockholm) - eu-north-1',
+			'eu-south-1'     => 'EU (Milaan) - eu-south-1',
+			'us-east-1'      => 'US East (N. Virginia) - us-east-1',
+			'us-east-2'      => 'US East (Ohio) - us-east-2',
+			'us-west-2'      => 'US West (Oregon) - us-west-2',
+			'ca-central-1'   => 'Canada (Central) - ca-central-1',
+			'ap-southeast-1' => 'Azië (Singapore) - ap-southeast-1',
+			'ap-southeast-2' => 'Azië (Sydney) - ap-southeast-2',
+			'ap-northeast-1' => 'Azië (Tokio) - ap-northeast-1',
+			'ap-south-1'     => 'Azië (Mumbai) - ap-south-1',
+			'sa-east-1'      => 'Zuid-Amerika (São Paulo) - sa-east-1',
+			'af-south-1'     => 'Afrika (Kaapstad) - af-south-1',
 		);
 	}
 
@@ -217,9 +251,9 @@ class WSFM_Admin_Settings {
 
 		// Step 2: real test mail to the site admin address.
 		$admin_email = get_option( 'admin_email' );
-		$subject     = sprintf( __( 'WS Flow Mailer testmail — %s', 'ws-flow-mailer' ), wp_parse_url( home_url(), PHP_URL_HOST ) );
+		$subject     = sprintf( __( 'WS Flow Mailer testmail - %s', 'ws-flow-mailer' ), wp_parse_url( home_url(), PHP_URL_HOST ) );
 		$body        = '<p>' . esc_html__( 'Dit is een testmail van WS Flow Mailer. Je provider-instellingen werken correct.', 'ws-flow-mailer' ) . '</p>'
-			. '<p><small>' . esc_html( home_url() ) . ' — ' . esc_html( current_time( 'mysql' ) ) . '</small></p>';
+			. '<p><small>' . esc_html( home_url() ) . ' - ' . esc_html( current_time( 'mysql' ) ) . '</small></p>';
 
 		$result = $provider->send( $admin_email, $subject, $body, array() );
 
@@ -230,7 +264,7 @@ class WSFM_Admin_Settings {
 						/* translators: 1: admin e-mail address, 2: provider message id */
 						__( 'Verbinding geslaagd! Testmail verzonden naar %1$s (message-id: %2$s).', 'ws-flow-mailer' ),
 						$admin_email,
-						$result->message_id ? $result->message_id : '—'
+						$result->message_id ? $result->message_id : '-'
 					),
 				)
 			);

@@ -14,11 +14,17 @@ class WSFM_Flow_Admin_UI {
 
 	const CAPABILITY     = 'manage_woocommerce';
 	const SLUG_DASHBOARD = 'ws-flow-mailer';
+	const SLUG_BRIEVEN   = 'ws-flow-mailer-nieuwsbrieven';
 	const SLUG_FLOWS     = 'ws-flow-mailer-flows';
 	const SLUG_TEMPLATES = 'ws-flow-mailer-templates';
 
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 9 );
+
+		add_action( 'admin_post_wsfm_save_newsletter', array( $this, 'handle_save_newsletter' ) );
+		add_action( 'admin_post_wsfm_delete_newsletter', array( $this, 'handle_delete_newsletter' ) );
+		add_action( 'admin_post_wsfm_duplicate_newsletter', array( $this, 'handle_duplicate_newsletter' ) );
+		add_action( 'admin_post_wsfm_send_newsletter', array( $this, 'handle_send_newsletter' ) );
 
 		add_action( 'admin_post_wsfm_save_flow', array( $this, 'handle_save_flow' ) );
 		add_action( 'admin_post_wsfm_delete_flow', array( $this, 'handle_delete_flow' ) );
@@ -28,6 +34,9 @@ class WSFM_Flow_Admin_UI {
 		add_action( 'wp_ajax_wsfm_toggle_flow', array( $this, 'ajax_toggle_flow' ) );
 		add_action( 'wp_ajax_wsfm_preview_template', array( $this, 'ajax_preview_template' ) );
 		add_action( 'wp_ajax_wsfm_send_test_template', array( $this, 'ajax_send_test_template' ) );
+		add_action( 'wp_ajax_wsfm_preview_newsletter', array( $this, 'ajax_preview_newsletter' ) );
+		add_action( 'wp_ajax_wsfm_test_newsletter', array( $this, 'ajax_test_newsletter' ) );
+		add_action( 'wp_ajax_wsfm_count_audience', array( $this, 'ajax_count_audience' ) );
 	}
 
 	/**
@@ -54,6 +63,7 @@ class WSFM_Flow_Admin_UI {
 			'56.2'
 		);
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Overzicht', 'ws-flow-mailer' ), __( 'Overzicht', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_DASHBOARD, array( $this, 'render_dashboard' ) );
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Nieuwsbrieven', 'ws-flow-mailer' ), __( 'Nieuwsbrieven', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_BRIEVEN, array( $this, 'render_newsletters' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Flows', 'ws-flow-mailer' ), __( 'Flows', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_FLOWS, array( $this, 'render_flows' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Templates', 'ws-flow-mailer' ), __( 'Templates', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_TEMPLATES, array( $this, 'render_templates' ) );
 	}
@@ -101,6 +111,34 @@ class WSFM_Flow_Admin_UI {
 		$recent     = WSFM_Queue::get_recent_log( 20, $trigger_filter ? $trigger_filter : null );
 
 		include WSFM_PLUGIN_DIR . 'admin/dashboard-page.php';
+	}
+
+	/**
+	 * Nieuwsbrieven: lijst of samensteller, afhankelijk van ?action.
+	 */
+	public function render_newsletters() {
+		$this->require_capability();
+
+		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		if ( 'new' === $action || 'edit' === $action ) {
+			$brief_id = isset( $_GET['nieuwsbrief'] ) ? (int) $_GET['nieuwsbrief'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			$brief    = $brief_id ? WSFM_Newsletters::get( $brief_id ) : null;
+
+			if ( 'edit' === $action && ! $brief ) {
+				wp_die( esc_html__( 'Nieuwsbrief niet gevonden.', 'ws-flow-mailer' ) );
+			}
+
+			$sjablonen   = WSFM_Newsletter_Render::templates();
+			$doelgroepen = WSFM_Newsletters::doelgroepen();
+			$voortgang   = $brief && 'concept' !== $brief->status ? WSFM_Newsletters::voortgang( $brief->id ) : null;
+
+			include WSFM_PLUGIN_DIR . 'admin/newsletter-edit-page.php';
+			return;
+		}
+
+		$brieven = WSFM_Newsletters::get_all();
+		include WSFM_PLUGIN_DIR . 'admin/newsletters-page.php';
 	}
 
 	/**
@@ -171,6 +209,115 @@ class WSFM_Flow_Admin_UI {
 	/* ---------------------------------------------------------------------
 	 * Form handlers (admin-post.php)
 	 * ------------------------------------------------------------------- */
+
+	/**
+	 * Een nieuwsbrief opslaan.
+	 */
+	public function handle_save_newsletter() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_save_newsletter' );
+
+		$blokken = isset( $_POST['blokken'] ) && is_array( $_POST['blokken'] )
+			? wp_unslash( $_POST['blokken'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- opgeschoond in WSFM_Newsletters::schoon_blokken().
+			: array();
+
+		$result = WSFM_Newsletters::save(
+			array(
+				'id'       => isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0,
+				'name'     => isset( $_POST['nieuwsbrief_naam'] ) ? sanitize_text_field( wp_unslash( $_POST['nieuwsbrief_naam'] ) ) : '',
+				'subject'  => isset( $_POST['nieuwsbrief_onderwerp'] ) ? sanitize_text_field( wp_unslash( $_POST['nieuwsbrief_onderwerp'] ) ) : '',
+				'template' => isset( $_POST['nieuwsbrief_sjabloon'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_sjabloon'] ) ) : '',
+				'audience' => isset( $_POST['nieuwsbrief_doelgroep'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_doelgroep'] ) ) : '',
+				'blocks'   => $blokken,
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$this->terug_naar_brieven( array( 'wsfm-error' => rawurlencode( $result->get_error_message() ) ) );
+		}
+
+		$this->terug_naar_brieven(
+			array(
+				'action'      => 'edit',
+				'nieuwsbrief' => $result,
+				'wsfm-saved'  => '1',
+			)
+		);
+	}
+
+	/**
+	 * Een concept weggooien.
+	 */
+	public function handle_delete_newsletter() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_delete_newsletter' );
+
+		$id     = isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0;
+		$result = $id ? WSFM_Newsletters::delete( $id ) : true;
+
+		if ( is_wp_error( $result ) ) {
+			$this->terug_naar_brieven( array( 'wsfm-error' => rawurlencode( $result->get_error_message() ) ) );
+		}
+
+		$this->terug_naar_brieven( array( 'wsfm-deleted' => '1' ) );
+	}
+
+	/**
+	 * Een kopie maken. Zo kun je een verstuurde brief hergebruiken zonder de
+	 * geschiedenis aan te tasten.
+	 */
+	public function handle_duplicate_newsletter() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_duplicate_newsletter' );
+
+		$id     = isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0;
+		$result = $id ? WSFM_Newsletters::duplicate( $id ) : new WP_Error( 'wsfm_nb_weg', __( 'Onbekende nieuwsbrief.', 'ws-flow-mailer' ) );
+
+		if ( is_wp_error( $result ) ) {
+			$this->terug_naar_brieven( array( 'wsfm-error' => rawurlencode( $result->get_error_message() ) ) );
+		}
+
+		$this->terug_naar_brieven( array( 'action' => 'edit', 'nieuwsbrief' => $result ) );
+	}
+
+	/**
+	 * Versturen.
+	 */
+	public function handle_send_newsletter() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_send_newsletter' );
+
+		$id     = isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0;
+		$result = $id ? WSFM_Newsletters::verstuur( $id ) : new WP_Error( 'wsfm_nb_weg', __( 'Onbekende nieuwsbrief.', 'ws-flow-mailer' ) );
+
+		if ( is_wp_error( $result ) ) {
+			$this->terug_naar_brieven(
+				array(
+					'action'      => 'edit',
+					'nieuwsbrief' => $id,
+					'wsfm-error'  => rawurlencode( $result->get_error_message() ),
+				)
+			);
+		}
+
+		$this->terug_naar_brieven(
+			array(
+				'action'      => 'edit',
+				'nieuwsbrief' => $id,
+				'wsfm-sent'   => (int) $result,
+			)
+		);
+	}
+
+	/**
+	 * Terug naar het nieuwsbriefscherm, met een boodschap in de URL.
+	 *
+	 * @param array $args Extra queryargumenten.
+	 */
+	private function terug_naar_brieven( array $args ) {
+		wp_safe_redirect( add_query_arg( array_merge( array( 'page' => self::SLUG_BRIEVEN ), $args ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
 
 	/**
 	 * Save a flow (create or update).
@@ -349,6 +496,114 @@ class WSFM_Flow_Admin_UI {
 		}
 
 		wp_send_json_error( array( 'message' => $result->error ) );
+	}
+
+	/* ---------------------------------------------------------------------
+	 * AJAX voor de nieuwsbrief
+	 * ------------------------------------------------------------------- */
+
+	/**
+	 * De nieuwsbrief zoals hij nu op het scherm staat, opgemaakt.
+	 *
+	 * Dit gaat over de ONGEOPGESLAGEN inhoud. Wie eerst moet opslaan om te
+	 * kunnen kijken, slaat halve dingen op en verstuurt uiteindelijk de
+	 * verkeerde versie.
+	 */
+	public function ajax_preview_newsletter() {
+		check_ajax_referer( 'wsfm_admin' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( array( 'message' => __( 'Geen toestemming.', 'ws-flow-mailer' ) ) );
+		}
+
+		$rendered = $this->render_posted_newsletter();
+
+		wp_send_json_success(
+			array(
+				'subject' => $rendered['subject'],
+				'html'    => $rendered['html_body'],
+			)
+		);
+	}
+
+	/**
+	 * Een proefmail naar één adres.
+	 */
+	public function ajax_test_newsletter() {
+		check_ajax_referer( 'wsfm_admin' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( array( 'message' => __( 'Geen toestemming.', 'ws-flow-mailer' ) ) );
+		}
+
+		$naar = isset( $_POST['naar'] ) ? sanitize_email( wp_unslash( $_POST['naar'] ) ) : '';
+		if ( ! is_email( $naar ) ) {
+			$naar = get_option( 'admin_email' );
+		}
+
+		$provider = WSFM_Provider_Factory::create();
+		if ( is_wp_error( $provider ) ) {
+			wp_send_json_error( array( 'message' => $provider->get_error_message() ) );
+		}
+
+		$rendered = $this->render_posted_newsletter();
+		$result   = $provider->send( $naar, '[TEST] ' . $rendered['subject'], $rendered['html_body'], array() );
+
+		if ( $result->success ) {
+			/* translators: %s: e-mailadres. */
+			wp_send_json_success( array( 'message' => sprintf( __( 'Proefmail verstuurd naar %s. Kijk ook even in je spamfolder.', 'ws-flow-mailer' ), $naar ) ) );
+		}
+
+		wp_send_json_error( array( 'message' => $result->error ) );
+	}
+
+	/**
+	 * Hoeveel klanten er in een doelgroep zitten.
+	 */
+	public function ajax_count_audience() {
+		check_ajax_referer( 'wsfm_admin' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( array( 'message' => __( 'Geen toestemming.', 'ws-flow-mailer' ) ) );
+		}
+
+		$doelgroep = isset( $_POST['doelgroep'] ) ? sanitize_key( wp_unslash( $_POST['doelgroep'] ) ) : '';
+		$aantal    = WSFM_Newsletters::aantal_ontvangers( $doelgroep );
+
+		wp_send_json_success(
+			array(
+				'aantal' => $aantal,
+				/* translators: %d: aantal klanten. */
+				'tekst'  => sprintf( _n( '%d klant', '%d klanten', $aantal, 'ws-flow-mailer' ), $aantal ),
+			)
+		);
+	}
+
+	/**
+	 * De ingezonden nieuwsbrief opmaken met verzonnen gegevens.
+	 *
+	 * @return array { subject, html_body }
+	 */
+	private function render_posted_newsletter() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- geverifieerd door de aanroepers.
+		$blokken = isset( $_POST['blokken'] ) && is_array( $_POST['blokken'] )
+			? wp_unslash( $_POST['blokken'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- opgeschoond hieronder.
+			: array();
+
+		$brief = (object) array(
+			'subject'  => isset( $_POST['onderwerp'] ) ? sanitize_text_field( wp_unslash( $_POST['onderwerp'] ) ) : '',
+			'template' => isset( $_POST['sjabloon'] ) ? sanitize_key( wp_unslash( $_POST['sjabloon'] ) ) : 'rustig',
+			'blocks'   => WSFM_Newsletters::schoon_blokken( $blokken ),
+		);
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		return WSFM_Newsletters::render(
+			$brief,
+			array(
+				'first_name'      => 'Jan',
+				'unsubscribe_url' => home_url( '/?voorbeeld-afmeldlink' ),
+			)
+		);
 	}
 
 	/**

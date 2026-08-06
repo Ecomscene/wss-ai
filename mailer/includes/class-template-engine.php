@@ -68,7 +68,7 @@ class WSFM_Template_Engine {
 	/**
 	 * Replace merge tags in a subject + body pair.
 	 *
-	 * Every supported tag is always replaced — missing context values
+	 * Every supported tag is always replaced - missing context values
 	 * become an empty string so no raw {tags} ever reach a customer.
 	 *
 	 * @param string $subject Raw subject.
@@ -133,7 +133,7 @@ class WSFM_Template_Engine {
 
 			$out .= '<li style="margin-bottom:6px;">' . $qty . '&times; ' . esc_html( $name );
 			if ( '' !== $price ) {
-				$out .= ' &mdash; ' . esc_html( $price );
+				$out .= ' - ' . esc_html( $price );
 			}
 			$out .= '</li>';
 		}

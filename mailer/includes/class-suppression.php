@@ -1,6 +1,6 @@
 <?php
 /**
- * Suppression list — the safety layer.
+ * Suppression list - the safety layer.
  *
  * Every send MUST pass WSFM_Suppression::is_suppressed() first. Addresses
  * land here via SNS bounces/complaints, the unsubscribe endpoint, or

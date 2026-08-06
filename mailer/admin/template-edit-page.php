@@ -86,7 +86,7 @@ $wsfm_is_edit = ( null !== $template );
 							</ul>
 							<p class="description">
 								<strong><?php esc_html_e( 'Tip:', 'ws-flow-mailer' ); ?></strong>
-								<?php esc_html_e( 'Zet {unsubscribe_url} altijd in de footer — zonder afmeldlink beschadig je je verzendreputatie.', 'ws-flow-mailer' ); ?>
+								<?php esc_html_e( 'Zet {unsubscribe_url} altijd in de footer - zonder afmeldlink beschadig je je verzendreputatie.', 'ws-flow-mailer' ); ?>
 							</p>
 						</div>
 					</div>

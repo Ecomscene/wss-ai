@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '2';
+	const DB_VERSION = '3';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -28,6 +28,7 @@ class WSFM_Install {
 		self::create_tables();
 		self::migrate_legacy_columns();
 		self::seed_default_templates();
+		self::strip_em_dashes();
 		update_option( 'wsfm_db_version', self::DB_VERSION );
 		update_option( 'wsfm_plugin_version', WSFM_VERSION );
 	}
@@ -106,7 +107,7 @@ class WSFM_Install {
 			KEY sent_at (sent_at)
 		) $charset_collate;";
 
-		// Suppression list — checked before EVERY send.
+		// Suppression list - checked before EVERY send.
 		// Reason: bounce | complaint | manual.
 		$sql_suppression = "CREATE TABLE {$prefix}wsfm_suppression (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -158,6 +159,25 @@ class WSFM_Install {
 			PRIMARY KEY  (id)
 		) $charset_collate;";
 
+		// Newsletters: one-off broadcasts. `blocks` holds a JSON array of
+		// { soort, ... } blocks; the layout comes from `template`.
+		// Status: concept | bezig | verzonden.
+		$sql_newsletters = "CREATE TABLE {$prefix}wsfm_newsletters (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			name VARCHAR(190) NOT NULL DEFAULT '',
+			subject VARCHAR(255) NOT NULL DEFAULT '',
+			template VARCHAR(40) NOT NULL DEFAULT 'rustig',
+			audience VARCHAR(40) NOT NULL DEFAULT 'klanten_jaar',
+			blocks LONGTEXT NULL,
+			status VARCHAR(20) NOT NULL DEFAULT 'concept',
+			recipients INT UNSIGNED NOT NULL DEFAULT 0,
+			sent_at DATETIME NULL DEFAULT NULL,
+			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+			updated_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+			PRIMARY KEY  (id),
+			KEY status (status)
+		) $charset_collate;";
+
 		dbDelta( $sql_flows );
 		dbDelta( $sql_queue );
 		dbDelta( $sql_log );
@@ -165,6 +185,7 @@ class WSFM_Install {
 		dbDelta( $sql_cart_tracking );
 		dbDelta( $sql_identity );
 		dbDelta( $sql_templates );
+		dbDelta( $sql_newsletters );
 	}
 
 	/**
@@ -185,6 +206,29 @@ class WSFM_Install {
 			if ( $exists ) {
 				$wpdb->query( "ALTER TABLE {$table} DROP COLUMN {$column}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			}
+		}
+	}
+
+	/**
+	 * Remove the em dash from templates that were seeded before the rule.
+	 *
+	 * The seeded bodies contained it in three places, and those bodies are
+	 * already sitting in the database of every shop that installed an earlier
+	 * version. Fixing only the source would leave the character in the mail
+	 * that actually reaches customers, which is the one place it matters.
+	 *
+	 * Only the seeded phrases are touched, so a shop that deliberately typed
+	 * one keeps it.
+	 */
+	private static function strip_em_dashes() {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'wsfm_templates';
+		$dash  = json_decode( '"—"' );
+
+		foreach ( array( 'name', 'subject', 'html_body' ) as $column ) {
+			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET {$column} = REPLACE({$column}, %s, %s) WHERE {$column} LIKE %s", $dash, '-', '%' . $wpdb->esc_like( $dash ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET {$column} = REPLACE({$column}, %s, %s) WHERE {$column} LIKE %s", '&mdash;', '-', '%' . $wpdb->esc_like( '&mdash;' ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
 	}
 
@@ -211,11 +255,11 @@ class WSFM_Install {
 
 		$templates = array(
 			array(
-				'name'      => 'Verlaten winkelwagen — herinnering',
+				'name'      => 'Verlaten winkelwagen - herinnering',
 				'subject'   => 'Je bent nog iets vergeten in je winkelwagen',
 				'html_body' => $wrap_open
 					. '<h2 style="color:#222222;">Hoi {first_name},</h2>'
-					. '<p>We zagen dat je nog producten in je winkelwagen hebt laten staan. Geen zorgen — we hebben ze voor je bewaard:</p>'
+					. '<p>We zagen dat je nog producten in je winkelwagen hebt laten staan. Geen zorgen - we hebben ze voor je bewaard:</p>'
 					. '{cart_items}'
 					. '<p><strong>Totaal: {cart_total}</strong></p>'
 					. '<p style="margin:28px 0;"><a href="{cart_url}" style="background:#222222;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">Winkelwagen afronden</a></p>'
@@ -229,7 +273,7 @@ class WSFM_Install {
 					. '<h2 style="color:#222222;">Hoi {first_name},</h2>'
 					. '<p>Een tijdje geleden ontving je bestelling {order_number}:</p>'
 					. '{order_items}'
-					. '<p>We zijn benieuwd wat je ervan vindt! Met jouw review help je andere klanten bij hun keuze — en ons om de shop nog beter te maken.</p>'
+					. '<p>We zijn benieuwd wat je ervan vindt! Met jouw review help je andere klanten bij hun keuze - en ons om de shop nog beter te maken.</p>'
 					. '<p style="margin:28px 0;"><a href="{shop_url}" style="background:#222222;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">Schrijf een review</a></p>'
 					. '<p>Alvast bedankt!</p>'
 					. $footer . $wrap_close,

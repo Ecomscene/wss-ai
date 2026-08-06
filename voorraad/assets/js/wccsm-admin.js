@@ -1,5 +1,5 @@
 /**
- * WC Central Stock Manager — Admin JS (V2)
+ * WC Central Stock Manager - Admin JS (V2)
  *
  * Handles the central stock overview page:
  * - AJAX table loading with filters and pagination
@@ -61,7 +61,7 @@
             loadProducts();
         });
 
-        // Inline edit — save on blur or Enter.
+        // Inline edit - save on blur or Enter.
         $(document).on('blur', '.wccsm-inline-input', function () {
             saveField($(this));
         });
@@ -186,14 +186,14 @@
 
             // Regular price
             if (r.is_parent) {
-                html += '<td>—</td>';
+                html += '<td>-</td>';
             } else {
                 html += '<td>' + editableField(r, 'regular_price', r.regular_price, 'number') + '</td>';
             }
 
             // Sale price
             if (r.is_parent) {
-                html += '<td>—</td>';
+                html += '<td>-</td>';
             } else {
                 html += '<td>' + editableField(r, 'sale_price', r.sale_price, 'number') + '</td>';
             }
@@ -201,7 +201,7 @@
             // Stock
             html += '<td>';
             if (r.is_parent) {
-                html += '—';
+                html += '-';
             } else if (r.has_components) {
                 // Composed product: show computed stock as read-only badge.
                 var compStock = (r.computed_stock !== null) ? r.computed_stock : '?';
@@ -213,7 +213,7 @@
                 html += '<span class="' + compStockClass + '" title="Berekend op basis van componenten">'
                     + compStock + ' &#9881;</span>';
             } else {
-                // Editable stock input — works whether or not stock management is
+                // Editable stock input - works whether or not stock management is
                 // currently enabled. For unmanaged products the field is empty with
                 // the current status as placeholder; typing a number auto-enables
                 // stock management on save (also per variation).
@@ -221,7 +221,7 @@
                 var inputVal = (managed && stockVal !== null && stockVal !== '') ? stockVal : '';
                 var inputClass = 'wccsm-inline-input ' + (managed ? stockClass : 'wccsm-stock-unmanaged');
                 var placeholder = managed ? '' : (r.stock_status || '');
-                var hint = managed ? '' : 'Voorraadbeheer staat uit — typ een aantal om het in te schakelen';
+                var hint = managed ? '' : 'Voorraadbeheer staat uit - typ een aantal om het in te schakelen';
 
                 html += '<input type="number" class="' + inputClass + '"'
                     + ' data-product-id="' + r.id + '" data-field="stock"'
@@ -267,7 +267,7 @@
      * Build an editable input field, or dash for parent rows.
      */
     function editableField(row, field, value, type, extraClass) {
-        if (row.is_parent) return '—';
+        if (row.is_parent) return '-';
 
         var cls = 'wccsm-inline-input' + (extraClass ? ' ' + extraClass : '');
         var step = type === 'number' ? ' step="0.01"' : '';

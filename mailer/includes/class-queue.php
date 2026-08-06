@@ -91,6 +91,53 @@ class WSFM_Queue {
 	}
 
 	/**
+	 * Queue one row per recipient for a newsletter.
+	 *
+	 * All rows are scheduled for right now; the processor takes 50 every five
+	 * minutes, so a list of 400 leaves over about forty minutes. That pacing is
+	 * a feature, not a limit we forgot to raise: a shop that suddenly dumps its
+	 * whole list on a provider gets throttled, and throttled mail lands in spam.
+	 *
+	 * @param int   $newsletter_id Newsletter id.
+	 * @param array $recipients    email => first name.
+	 * @return int Rows created.
+	 */
+	public static function enqueue_newsletter( $newsletter_id, array $recipients ) {
+		global $wpdb;
+
+		$now     = current_time( 'mysql' );
+		$created = 0;
+
+		foreach ( $recipients as $email => $name ) {
+			$email = strtolower( trim( (string) $email ) );
+			if ( ! is_email( $email ) ) {
+				continue;
+			}
+
+			$inserted = $wpdb->insert(
+				self::table(),
+				array(
+					'flow_id'        => 0,
+					'newsletter_id'  => (int) $newsletter_id,
+					'step_index'     => 0,
+					'customer_email' => $email,
+					'customer_name'  => sanitize_text_field( (string) $name ),
+					'status'         => 'pending',
+					'scheduled_at'   => $now,
+					'attempts'       => 0,
+					'created_at'     => $now,
+				)
+			);
+
+			if ( $inserted ) {
+				$created++;
+			}
+		}
+
+		return $created;
+	}
+
+	/**
 	 * Whether this flow already has queue rows for this order/customer.
 	 *
 	 * @param int    $flow_id  Flow id.
@@ -212,10 +259,11 @@ class WSFM_Queue {
 	public static function get_recent_log( $limit = 20, $trigger_type = null ) {
 		global $wpdb;
 
-		$log       = self::log_table();
-		$queue     = self::table();
-		$flows     = $wpdb->prefix . 'wsfm_flows';
-		$templates = $wpdb->prefix . 'wsfm_templates';
+		$log         = self::log_table();
+		$queue       = self::table();
+		$flows       = $wpdb->prefix . 'wsfm_flows';
+		$templates   = $wpdb->prefix . 'wsfm_templates';
+		$newsletters = $wpdb->prefix . 'wsfm_newsletters';
 
 		$where = '';
 		$args  = array();
@@ -225,10 +273,15 @@ class WSFM_Queue {
 		}
 		$args[] = $limit;
 
-		return $wpdb->get_results( $wpdb->prepare( "SELECT l.*, f.name AS flow_name, f.trigger_type, t.name AS template_name
+		// COALESCE so a newsletter row shows its own name in the flow column
+		// instead of an empty cell that reads like a bug.
+		return $wpdb->get_results( $wpdb->prepare( "SELECT l.*, COALESCE(f.name, n.name) AS flow_name,
+				COALESCE(f.trigger_type, IF(n.id IS NULL, NULL, 'nieuwsbrief')) AS trigger_type,
+				COALESCE(t.name, n.name) AS template_name
 			FROM {$log} l
 			LEFT JOIN {$queue} q ON q.id = l.queue_id
 			LEFT JOIN {$flows} f ON f.id = q.flow_id
+			LEFT JOIN {$newsletters} n ON n.id = q.newsletter_id
 			LEFT JOIN {$templates} t ON t.id = l.template_id
 			{$where}
 			ORDER BY l.id DESC LIMIT %d", $args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared

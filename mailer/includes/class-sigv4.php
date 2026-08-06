@@ -3,7 +3,7 @@
  * Minimal AWS Signature Version 4 signer.
  *
  * Only supports what the SES query API needs: a POST to "/" with a
- * form-encoded body and no query string. Deliberately tiny — no AWS SDK.
+ * form-encoded body and no query string. Deliberately tiny - no AWS SDK.
  *
  * @package WS_Flow_Mailer
  */

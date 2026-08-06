@@ -6,7 +6,7 @@
  *
  * Every message is verified against the SNS signature (SigningCertURL is
  * restricted to *.amazonaws.com and the RSA signature is checked with
- * openssl) — fail closed. SubscriptionConfirmation messages are confirmed
+ * openssl) - fail closed. SubscriptionConfirmation messages are confirmed
  * automatically; bounce/complaint notifications land on the suppression
  * list and update the send log.
  *
@@ -64,7 +64,7 @@ class WSFM_SNS_Webhook {
 			return new WP_REST_Response( array( 'error' => 'invalid message structure' ), 400 );
 		}
 
-		// Signature check — fail closed.
+		// Signature check - fail closed.
 		if ( ! self::verify_signature( $message ) ) {
 			return new WP_REST_Response( array( 'error' => 'signature verification failed' ), 403 );
 		}
@@ -200,7 +200,7 @@ class WSFM_SNS_Webhook {
 			return false;
 		}
 		if ( ! function_exists( 'openssl_verify' ) ) {
-			return false; // Fail closed — never process unverifiable input.
+			return false; // Fail closed - never process unverifiable input.
 		}
 
 		$string_to_sign = self::build_string_to_sign( $message );
@@ -253,7 +253,7 @@ class WSFM_SNS_Webhook {
 
 	/**
 	 * Fetch (and cache) the SNS signing certificate. The URL must be
-	 * HTTPS on an sns.<region>.amazonaws.com host — anything else is
+	 * HTTPS on an sns.<region>.amazonaws.com host - anything else is
 	 * rejected outright.
 	 *
 	 * @param string $url SigningCertURL.

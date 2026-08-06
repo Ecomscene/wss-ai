@@ -1,6 +1,6 @@
 <?php
 /**
- * Queue processor — the heart of the plugin.
+ * Queue processor - the heart of the plugin.
  *
  * Runs every 5 minutes via Action Scheduler. Idempotent: each item is
  * claimed with a conditional UPDATE to the 'processing' status, so two
@@ -83,7 +83,7 @@ class WSFM_Queue_Processor {
 			return self::finish( $item, 'stopped' );
 		}
 
-		// 1. Suppression list — the safety layer, always first.
+		// 1. Suppression list - the safety layer, always first.
 		if ( WSFM_Suppression::is_suppressed( $item->customer_email ) ) {
 			$reason = WSFM_Suppression::get_reason( $item->customer_email );
 			WSFM_Queue::log( $item, $step['template_id'], 'failed', '', '', sprintf( __( 'Niet verzonden: adres staat op de suppressielijst (%s).', 'ws-flow-mailer' ), $reason ? $reason : 'onbekend' ) );
@@ -98,7 +98,7 @@ class WSFM_Queue_Processor {
 		// 3. Build merge context.
 		$context = self::build_context( $item, $flow );
 		if ( is_wp_error( $context ) ) {
-			// Source data is gone (order/cart deleted) — permanent stop.
+			// Source data is gone (order/cart deleted) - permanent stop.
 			WSFM_Queue::log( $item, $step['template_id'], 'failed', '', '', $context->get_error_message() );
 			return self::finish( $item, 'stopped' );
 		}
@@ -113,7 +113,7 @@ class WSFM_Queue_Processor {
 		// 5. Send.
 		$provider = WSFM_Provider_Factory::create();
 		if ( is_wp_error( $provider ) ) {
-			return self::handle_failure( $item, $step, $provider->get_error_message() );
+			return self::handle_failure( $item, (int) $step['template_id'], $provider->get_error_message() );
 		}
 
 		$result = $provider->send( $item->customer_email, $rendered['subject'], $rendered['html_body'], $context );
@@ -124,7 +124,58 @@ class WSFM_Queue_Processor {
 			return self::finish( $item, 'sent' );
 		}
 
-		return self::handle_failure( $item, $step, $result->error, $rendered['subject'] );
+		return self::handle_failure( $item, (int) $step['template_id'], $result->error, $rendered['subject'] );
+	}
+
+	/**
+	 * One newsletter recipient.
+	 *
+	 * Same shape as a flow item minus the parts a newsletter does not have: no
+	 * step, no stop condition (there is no order to wait for), no source data
+	 * that can disappear. What stays is the suppression check, because that one
+	 * is never optional.
+	 *
+	 * The whole letter is rebuilt per recipient. That is more work than caching
+	 * the HTML once, but a product that sold out or a price that changed halfway
+	 * through a send should be right in the mail that goes out now.
+	 *
+	 * @param object $item Queue row.
+	 * @return string
+	 */
+	private static function process_newsletter_item( $item ) {
+		$brief = WSFM_Newsletters::get( (int) $item->newsletter_id );
+
+		if ( ! $brief ) {
+			return self::finish( $item, 'stopped' );
+		}
+
+		if ( WSFM_Suppression::is_suppressed( $item->customer_email ) ) {
+			$reason = WSFM_Suppression::get_reason( $item->customer_email );
+			WSFM_Queue::log( $item, 0, 'failed', '', '', sprintf( __( 'Niet verzonden: adres staat op de suppressielijst (%s).', 'ws-flow-mailer' ), $reason ? $reason : 'onbekend' ) );
+			return self::finish( $item, 'stopped' );
+		}
+
+		$voornaam = $item->customer_name ? preg_split( '/\s+/', trim( $item->customer_name ) )[0] : '';
+		$context  = array(
+			'first_name'      => $voornaam,
+			'unsubscribe_url' => WSFM_Unsubscribe::url( $item->customer_email ),
+		);
+
+		$rendered = WSFM_Newsletters::render( $brief, $context );
+
+		$provider = WSFM_Provider_Factory::create();
+		if ( is_wp_error( $provider ) ) {
+			return self::handle_failure( $item, 0, $provider->get_error_message() );
+		}
+
+		$result = $provider->send( $item->customer_email, $rendered['subject'], $rendered['html_body'], $context );
+
+		if ( $result->success ) {
+			WSFM_Queue::log( $item, 0, 'sent', $rendered['subject'], $result->message_id );
+			return self::finish( $item, 'sent' );
+		}
+
+		return self::handle_failure( $item, 0, $result->error, $rendered['subject'] );
 	}
 
 	/**

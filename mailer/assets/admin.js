@@ -1,5 +1,5 @@
 /**
- * WS Flow Mailer admin JS — vanilla, no dependencies.
+ * WS Flow Mailer admin JS - vanilla, no dependencies.
  * Settings (provider toggle, test connection), flows (status toggle,
  * steps builder), template editor (merge tags, preview, test mail).
  */
