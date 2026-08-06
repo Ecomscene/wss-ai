@@ -48,9 +48,23 @@
 		$blokken.append( nieuw );
 		hernummer();
 
-		/* De productzoeker van WooCommerce hangt zichzelf op bij het laden van
-		   de pagina. Een keuzelijst die er daarna bij komt moet zeggen dat hij
-		   er is, anders blijft het een kaal selectveld. */
+		/**
+		 * De productzoeker klaarzetten.
+		 *
+		 * De bouwsteen draagt de klasse wc-product-search nog niet, juist zodat
+		 * WooCommerce hem in het verborgen vak met rust laat. Hier krijgt hij hem,
+		 * en dan zegt de trigger dat er iets nieuws klaarstaat.
+		 *
+		 * Het opruimen erbij is een vangnet: mocht er ooit tóch een opgetuigde
+		 * lijst meekomen, dan wordt die eerst weer kaal gemaakt. Zonder dat is het
+		 * gevolg een zoekbalk waarin je kunt typen zonder dat er iets gebeurt, en
+		 * dat is een storing waar je lang naar kunt kijken.
+		 */
+		nieuw.find( '.select2, .select2-container' ).remove();
+		nieuw.find( '[data-wsfm-zoeker]' )
+			.removeClass( 'enhanced select2-hidden-accessible' )
+			.removeAttr( 'data-select2-id tabindex aria-hidden' )
+			.addClass( 'wc-product-search' );
 		$( document.body ).trigger( 'wc-enhanced-select-init' );
 
 		nieuw.find( 'input[type="text"], textarea' ).first().trigger( 'focus' );

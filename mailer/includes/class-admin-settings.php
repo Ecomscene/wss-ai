@@ -77,7 +77,9 @@ class WSFM_Admin_Settings {
 			wp_enqueue_script(
 				'wsfm-nieuwsbrief',
 				WSFM_PLUGIN_URL . 'assets/nieuwsbrief.js',
-				array( 'jquery', 'wsfm-admin' ),
+				/* wc-enhanced-select erbij, want dit bestand roept zijn trigger aan.
+				   Zonder die afhankelijkheid is de laadvolgorde toeval. */
+				array( 'jquery', 'wsfm-admin', 'wc-enhanced-select' ),
 				WSFM_VERSION,
 				true
 			);

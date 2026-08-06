@@ -32,9 +32,10 @@ $wsfm_terug     = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVE
  * @param string $soort  afbeelding | tekst | producten.
  * @param string $index  Indexnummer, of __I__ voor een bouwsteen.
  * @param array  $blok   Ingevulde waarden.
+ * @param bool   $bouwsteen Is dit de lege bouwsteen achter de plus-knop?
  */
 if ( ! function_exists( 'wsfm_blok_velden' ) ) {
-	function wsfm_blok_velden( $soort, $index, array $blok = array() ) {
+	function wsfm_blok_velden( $soort, $index, array $blok = array(), $bouwsteen = false ) {
 		$naam   = 'blokken[' . $index . ']';
 		$labels = array(
 			'afbeelding' => __( 'Afbeelding', 'ws-flow-mailer' ),
@@ -108,7 +109,20 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 				</p>
 				<p>
 					<label><?php esc_html_e( 'Welke producten?', 'ws-flow-mailer' ); ?><br>
-						<select class="wc-product-search wsfm-producten" multiple="multiple" style="width:100%;max-width:520px;"
+						<?php
+						/**
+						 * De bouwsteen draagt de klasse nog niet.
+						 *
+						 * WooCommerce tuigt bij het laden alles op wat wc-product-search heet,
+						 * ook wat in een verborgen vak staat, en zet er een vlaggetje enhanced
+						 * op. Kopieer je dat, dan kopieer je de HTML van de zoekbalk zonder de
+						 * JavaScript eronder, en slaat WooCommerce hem daarna over omdat het
+						 * vlaggetje er al op staat. Je krijgt een vakje waarin je kunt typen
+						 * zonder dat er ooit iets verschijnt.
+						 */
+						?>
+						<select class="wsfm-producten<?php echo $bouwsteen ? '' : ' wc-product-search'; ?>"
+							data-wsfm-zoeker="1" multiple="multiple" style="width:100%;max-width:520px;"
 							name="<?php echo esc_attr( $naam ); ?>[producten][]"
 							data-placeholder="<?php esc_attr_e( 'Zoek een product', 'ws-flow-mailer' ); ?>"
 							data-action="woocommerce_json_search_products_and_variations">
@@ -339,7 +353,7 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 	<div id="wsfm-bouwstenen" style="display:none;">
 		<?php foreach ( array( 'afbeelding', 'tekst', 'producten' ) as $wsfm_soort ) : ?>
 			<div data-bouwsteen="<?php echo esc_attr( $wsfm_soort ); ?>">
-				<?php wsfm_blok_velden( $wsfm_soort, '__I__' ); ?>
+				<?php wsfm_blok_velden( $wsfm_soort, '__I__', array(), true ); ?>
 			</div>
 		<?php endforeach; ?>
 	</div>
