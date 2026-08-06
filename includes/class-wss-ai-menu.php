@@ -228,7 +228,7 @@ class WSS_AI_Menu {
 					<a class="wss-ai-tegel" href="<?php echo esc_url( admin_url( 'admin.php?page=ws-flow-mailer' ) ); ?>">
 						<span class="dashicons dashicons-email-alt"></span>
 						<strong><?php esc_html_e( 'Nieuwsbrief & Flows', 'wss-ai' ); ?></strong>
-						<span class="wss-ai-mut"><?php esc_html_e( 'Zelf een nieuwsbrief sturen naar je klanten, en mails die vanzelf gaan: een herinnering bij een vergeten winkelwagen, een berichtje na een bestelling.', 'wss-ai' ); ?></span>
+						<span class="wss-ai-mut"><?php esc_html_e( 'Zelf een nieuwsbrief sturen, een popup met kortingscode voor nieuwe inschrijvingen, en mails die vanzelf gaan bij een vergeten winkelwagen of na een bestelling.', 'wss-ai' ); ?></span>
 						<span class="wss-ai-mut wss-ai-klein"><?php esc_html_e( 'Staat in het menu links, net onder Voorraadbeheer.', 'wss-ai' ); ?></span>
 					</a>
 				<?php endif; ?>

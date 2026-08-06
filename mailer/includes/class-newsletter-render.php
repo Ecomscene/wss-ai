@@ -244,6 +244,9 @@ class WSFM_Newsletter_Render {
 		if ( 'producten' === $soort ) {
 			return self::blok_producten( $blok, $s );
 		}
+		if ( 'code' === $soort ) {
+			return self::blok_code( $blok, $s );
+		}
 
 		return '';
 	}
@@ -279,6 +282,38 @@ class WSFM_Newsletter_Render {
 		}
 
 		return self::rij( $img, $s, $s['vollebreed'] );
+	}
+
+	/**
+	 * Een kortingscode, groot en om over te typen.
+	 *
+	 * Staat niet in de blokkenkiezer van de nieuwsbrief: hij komt alleen uit de
+	 * welkomstmail van de popup. Wel hier, want die mail hoort er hetzelfde uit
+	 * te zien als de rest van wat deze winkel verstuurt.
+	 *
+	 * Een gestippelde rand en veel ruimte eromheen: dit is het enige wat de
+	 * ontvanger moet zien, en het moet leesbaar zijn op een telefoon in de zon.
+	 *
+	 * @param array $blok Blokgegevens.
+	 * @param array $s    Stijlwaarden.
+	 * @return string
+	 */
+	private static function blok_code( array $blok, array $s ) {
+		$code = isset( $blok['code'] ) ? trim( (string) $blok['code'] ) : '';
+		if ( '' === $code ) {
+			return '';
+		}
+
+		$onder = isset( $blok['onder'] ) ? trim( (string) $blok['onder'] ) : '';
+
+		$uit = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
+			. '<tr><td align="center" style="border:2px dashed ' . $s['lijn'] . ';border-radius:' . $s['rond'] . ';padding:22px 16px;">'
+			. '<span style="display:block;font-family:' . $s['font'] . ';font-size:26px;font-weight:700;letter-spacing:2px;color:' . $s['tekst'] . ';">'
+			. esc_html( $code ) . '</span>'
+			. ( '' === $onder ? '' : '<span style="display:block;margin-top:8px;font-size:13px;color:' . $s['zacht'] . ';">' . esc_html( $onder ) . '</span>' )
+			. '</td></tr></table>';
+
+		return self::rij( $uit, $s );
 	}
 
 	/**

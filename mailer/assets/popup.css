@@ -1,0 +1,206 @@
+/**
+ * De inschrijfpopup op de winkel.
+ *
+ * Alles hangt onder .wsfm-popup-laag en gebruikt eigen variabelen voor de
+ * kleuren, zodat het thema van de klant er niet doorheen komt en de winkelier
+ * de kleuren in het beheerscherm kan zetten zonder dat hier iets verandert.
+ *
+ * Geen animaties die van links komen invliegen: een popup die beweegt terwijl
+ * je aan het lezen bent, wordt weggeklikt voordat hij uitgesproken is.
+ */
+
+.wsfm-popup-laag {
+	position: fixed;
+	inset: 0;
+	z-index: 999999;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	background: rgba( 0, 0, 0, .5 );
+	opacity: 0;
+	transition: opacity .2s ease;
+	box-sizing: border-box;
+}
+
+.wsfm-popup-laag.is-open {
+	display: flex;
+	opacity: 1;
+}
+
+.wsfm-popup {
+	position: relative;
+	display: flex;
+	width: 100%;
+	max-width: 900px;
+	max-height: calc( 100vh - 40px );
+	background: var( --wsfm-bg, #fff );
+	color: var( --wsfm-tekst, #111 );
+	border-radius: var( --wsfm-rond, 0 );
+	overflow: hidden;
+	box-shadow: 0 20px 60px rgba( 0, 0, 0, .25 );
+	box-sizing: border-box;
+}
+
+.wsfm-popup * {
+	box-sizing: border-box;
+}
+
+.wsfm-popup-sluit {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	z-index: 2;
+	width: 38px;
+	height: 38px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: rgba( 255, 255, 255, .85 );
+	color: #111;
+	font-size: 26px;
+	line-height: 1;
+	cursor: pointer;
+	box-shadow: 0 1px 4px rgba( 0, 0, 0, .15 );
+}
+
+.wsfm-popup-sluit:hover {
+	background: #fff;
+}
+
+.wsfm-popup-tekst {
+	flex: 1 1 50%;
+	min-width: 0;
+	padding: 48px 44px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	overflow-y: auto;
+}
+
+.wsfm-popup-beeld {
+	flex: 1 1 50%;
+	min-width: 0;
+}
+
+.wsfm-popup-beeld img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.wsfm-popup h2 {
+	margin: 0 0 10px;
+	font-size: 46px;
+	line-height: 1.05;
+	font-weight: 800;
+	color: inherit;
+}
+
+.wsfm-popup p {
+	margin: 0 0 18px;
+	font-size: 16px;
+	line-height: 1.5;
+	color: inherit;
+}
+
+.wsfm-popup-form {
+	display: block;
+	margin: 0;
+}
+
+.wsfm-popup-form input[type="email"] {
+	display: block;
+	width: 100%;
+	margin: 0 0 12px;
+	padding: 16px 18px;
+	border: 1px solid rgba( 0, 0, 0, .25 );
+	border-radius: var( --wsfm-rond, 0 );
+	font-size: 16px;
+	background: #fff;
+	color: #111;
+}
+
+.wsfm-popup-form button {
+	display: block;
+	width: 100%;
+	padding: 17px 18px;
+	border: 0;
+	border-radius: var( --wsfm-rond, 0 );
+	background: var( --wsfm-knop, #c08b7d );
+	color: var( --wsfm-knoptekst, #fff );
+	font-size: 17px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.wsfm-popup-form button:disabled {
+	opacity: .6;
+	cursor: default;
+}
+
+.wsfm-popup-melding {
+	margin: 12px 0 0;
+	font-size: 14px;
+	min-height: 1em;
+}
+
+.wsfm-popup-melding.is-fout {
+	color: #b32d2e;
+}
+
+.wsfm-popup-klein {
+	margin: 14px 0 0;
+	font-size: 12px;
+	opacity: .65;
+}
+
+/* Het bedankscherm met de code. */
+.wsfm-popup-code {
+	margin: 18px 0 0;
+	padding: 20px 16px;
+	border: 2px dashed currentColor;
+	border-radius: var( --wsfm-rond, 0 );
+	text-align: center;
+	font-size: 26px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	word-break: break-all;
+}
+
+.wsfm-popup-code:empty {
+	display: none;
+}
+
+/**
+ * Op een telefoon gaat de foto eruit.
+ *
+ * Naast elkaar past niet, en eronder duwt het formulier onder de vouw: dan zie
+ * je een foto en moet je scrollen om te snappen wat er gevraagd wordt. De tekst
+ * is waar het om gaat, dus die blijft.
+ */
+@media screen and ( max-width: 780px ) {
+	.wsfm-popup-beeld {
+		display: none;
+	}
+
+	.wsfm-popup-tekst {
+		flex: 1 1 100%;
+		padding: 44px 26px;
+	}
+
+	.wsfm-popup h2 {
+		font-size: 36px;
+	}
+
+	.wsfm-popup {
+		max-width: 460px;
+	}
+}
+
+@media ( prefers-reduced-motion: reduce ) {
+	.wsfm-popup-laag {
+		transition: none;
+	}
+}

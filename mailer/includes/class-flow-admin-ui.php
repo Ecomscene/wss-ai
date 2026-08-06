@@ -15,6 +15,7 @@ class WSFM_Flow_Admin_UI {
 	const CAPABILITY     = 'manage_woocommerce';
 	const SLUG_DASHBOARD = 'ws-flow-mailer';
 	const SLUG_BRIEVEN   = 'ws-flow-mailer-nieuwsbrieven';
+	const SLUG_POPUP     = 'ws-flow-mailer-popup';
 	const SLUG_FLOWS     = 'ws-flow-mailer-flows';
 	const SLUG_TEMPLATES = 'ws-flow-mailer-templates';
 
@@ -25,6 +26,8 @@ class WSFM_Flow_Admin_UI {
 		add_action( 'admin_post_wsfm_delete_newsletter', array( $this, 'handle_delete_newsletter' ) );
 		add_action( 'admin_post_wsfm_duplicate_newsletter', array( $this, 'handle_duplicate_newsletter' ) );
 		add_action( 'admin_post_wsfm_send_newsletter', array( $this, 'handle_send_newsletter' ) );
+
+		add_action( 'admin_post_wsfm_save_popup', array( $this, 'handle_save_popup' ) );
 
 		add_action( 'admin_post_wsfm_save_flow', array( $this, 'handle_save_flow' ) );
 		add_action( 'admin_post_wsfm_delete_flow', array( $this, 'handle_delete_flow' ) );
@@ -37,6 +40,8 @@ class WSFM_Flow_Admin_UI {
 		add_action( 'wp_ajax_wsfm_preview_newsletter', array( $this, 'ajax_preview_newsletter' ) );
 		add_action( 'wp_ajax_wsfm_test_newsletter', array( $this, 'ajax_test_newsletter' ) );
 		add_action( 'wp_ajax_wsfm_count_audience', array( $this, 'ajax_count_audience' ) );
+		add_action( 'wp_ajax_wsfm_preview_popup_mail', array( $this, 'ajax_preview_popup_mail' ) );
+		add_action( 'wp_ajax_wsfm_test_popup_mail', array( $this, 'ajax_test_popup_mail' ) );
 	}
 
 	/**
@@ -64,6 +69,7 @@ class WSFM_Flow_Admin_UI {
 		);
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Overzicht', 'ws-flow-mailer' ), __( 'Overzicht', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_DASHBOARD, array( $this, 'render_dashboard' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Nieuwsbrieven', 'ws-flow-mailer' ), __( 'Nieuwsbrieven', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_BRIEVEN, array( $this, 'render_newsletters' ) );
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Popup', 'ws-flow-mailer' ), __( 'Popup', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_POPUP, array( $this, 'render_popup' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Flows', 'ws-flow-mailer' ), __( 'Flows', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_FLOWS, array( $this, 'render_flows' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Templates', 'ws-flow-mailer' ), __( 'Templates', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_TEMPLATES, array( $this, 'render_templates' ) );
 	}
@@ -139,6 +145,33 @@ class WSFM_Flow_Admin_UI {
 
 		$brieven = WSFM_Newsletters::get_all();
 		include WSFM_PLUGIN_DIR . 'admin/newsletters-page.php';
+	}
+
+	/**
+	 * De popup instellen.
+	 */
+	public function render_popup() {
+		$this->require_capability();
+
+		$i         = WSFM_Popup::instellingen();
+		$sjablonen = WSFM_Newsletter_Render::templates();
+		$recent    = WSFM_Subscribers::recent( 15 );
+		$aantal    = WSFM_Subscribers::aantal();
+
+		include WSFM_PLUGIN_DIR . 'admin/popup-page.php';
+	}
+
+	/**
+	 * De popup-instellingen opslaan.
+	 */
+	public function handle_save_popup() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_save_popup' );
+
+		WSFM_Popup::opslaan( wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- veld voor veld opgeschoond in opslaan().
+
+		wp_safe_redirect( add_query_arg( array( 'page' => self::SLUG_POPUP, 'wsfm-saved' => '1' ), admin_url( 'admin.php' ) ) );
+		exit;
 	}
 
 	/**
@@ -577,6 +610,90 @@ class WSFM_Flow_Admin_UI {
 				'tekst'  => sprintf( _n( '%d klant', '%d klanten', $aantal, 'ws-flow-mailer' ), $aantal ),
 			)
 		);
+	}
+
+	/**
+	 * De welkomstmail zoals hij nu op het scherm staat.
+	 */
+	public function ajax_preview_popup_mail() {
+		check_ajax_referer( 'wsfm_admin' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( array( 'message' => __( 'Geen toestemming.', 'ws-flow-mailer' ) ) );
+		}
+
+		$rendered = WSFM_Popup::mail_html(
+			$this->popup_uit_post(),
+			$this->proefcode(),
+			array( 'unsubscribe_url' => home_url( '/?voorbeeld-afmeldlink' ) )
+		);
+
+		wp_send_json_success(
+			array(
+				'subject' => $rendered['subject'],
+				'html'    => $rendered['html_body'],
+			)
+		);
+	}
+
+	/**
+	 * De welkomstmail als proef naar de beheerder.
+	 */
+	public function ajax_test_popup_mail() {
+		check_ajax_referer( 'wsfm_admin' );
+
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_send_json_error( array( 'message' => __( 'Geen toestemming.', 'ws-flow-mailer' ) ) );
+		}
+
+		$naar = get_option( 'admin_email' );
+
+		/* Een verzonnen code, geen echte coupon. Bij het bekijken van een
+		   voorbeeld hoort niets in WooCommerce aangemaakt te worden. */
+		if ( WSFM_Popup::stuur_welkomstmail( $naar, $this->proefcode(), $this->popup_uit_post() ) ) {
+			/* translators: %s: e-mailadres. */
+			wp_send_json_success( array( 'message' => sprintf( __( 'Verstuurd naar %s.', 'ws-flow-mailer' ), $naar ) ) );
+		}
+
+		wp_send_json_error( array( 'message' => __( 'Versturen lukte niet. Staan de instellingen van je mailprovider goed?', 'ws-flow-mailer' ) ) );
+	}
+
+	/**
+	 * Een herkenbaar nepcode voor voorbeelden.
+	 *
+	 * @return string
+	 */
+	private function proefcode() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- geverifieerd door de aanroepers.
+		$voor = isset( $_POST['code_voorvoegsel'] ) ? sanitize_text_field( wp_unslash( $_POST['code_voorvoegsel'] ) ) : 'WELKOM';
+		return strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', $voor ) ) . '-4KP7HQ';
+	}
+
+	/**
+	 * De popup-instellingen met de nog niet opgeslagen mailvelden eroverheen.
+	 *
+	 * @return array
+	 */
+	private function popup_uit_post() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- geverifieerd door de aanroepers.
+		$i = WSFM_Popup::instellingen();
+
+		foreach ( array( 'mail_onderwerp', 'mail_kop', 'mail_sjabloon', 'korting_soort' ) as $veld ) {
+			if ( isset( $_POST[ $veld ] ) ) {
+				$i[ $veld ] = sanitize_text_field( wp_unslash( $_POST[ $veld ] ) );
+			}
+		}
+		if ( isset( $_POST['mail_tekst'] ) ) {
+			$i['mail_tekst'] = sanitize_textarea_field( wp_unslash( $_POST['mail_tekst'] ) );
+		}
+		foreach ( array( 'korting_waarde', 'minimaal', 'geldig_dagen' ) as $veld ) {
+			if ( isset( $_POST[ $veld ] ) ) {
+				$i[ $veld ] = (float) $_POST[ $veld ];
+			}
+		}
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		return $i;
 	}
 
 	/**

@@ -46,7 +46,9 @@ class WSFM_Newsletters {
 	public static function doelgroepen() {
 		return array(
 			'klanten_jaar' => __( 'Klanten die het afgelopen jaar besteld hebben', 'ws-flow-mailer' ),
-			'klanten_alle' => __( 'Alle klanten die ooit besteld hebben', 'ws-flow-mailer' ),
+			'klanten_alle'   => __( 'Alle klanten die ooit besteld hebben', 'ws-flow-mailer' ),
+			'inschrijvingen' => __( 'Iedereen die zich via de popup heeft ingeschreven', 'ws-flow-mailer' ),
+			'alles'          => __( 'Klanten en inschrijvingen samen', 'ws-flow-mailer' ),
 		);
 	}
 
@@ -294,6 +296,22 @@ class WSFM_Newsletters {
 	public static function ontvangers( $doelgroep ) {
 		global $wpdb;
 
+		/* De inschrijvingen zijn een eigen lijst met een eigen grond: die mensen
+		   hebben er zelf om gevraagd. Ze staan los van de bestellingen en worden
+		   er hooguit bij opgeteld. */
+		$ingeschreven = array();
+		if ( in_array( $doelgroep, array( 'inschrijvingen', 'alles' ), true ) ) {
+			foreach ( WSFM_Subscribers::alles( self::MAX_ONTVANGERS ) as $adres => $naam ) {
+				if ( is_email( $adres ) && ! WSFM_Suppression::is_suppressed( $adres ) ) {
+					$ingeschreven[ $adres ] = $naam;
+				}
+			}
+
+			if ( 'inschrijvingen' === $doelgroep ) {
+				return $ingeschreven;
+			}
+		}
+
 		$vanaf = 'klanten_alle' === $doelgroep
 			? '1970-01-01 00:00:00'
 			: gmdate( 'Y-m-d H:i:s', time() - YEAR_IN_SECONDS );
@@ -356,7 +374,9 @@ class WSFM_Newsletters {
 			}
 		}
 
-		return $uit;
+		/* Bij "samen" wint de klant van de inschrijving: die heeft een voornaam
+		   uit zijn bestelling, en daar valt mee te schrijven. */
+		return $uit + $ingeschreven;
 	}
 
 	/**

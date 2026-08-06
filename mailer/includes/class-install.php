@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '3';
+	const DB_VERSION = '4';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -180,6 +180,20 @@ class WSFM_Install {
 			KEY status (status)
 		) $charset_collate;";
 
+		// Inschrijvingen via de popup. Losse lijst van de klanten, want het is
+		// een andere grond om iemand te mogen mailen.
+		$sql_subscribers = "CREATE TABLE {$prefix}wsfm_subscribers (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			email VARCHAR(190) NOT NULL DEFAULT '',
+			first_name VARCHAR(190) NOT NULL DEFAULT '',
+			source VARCHAR(40) NOT NULL DEFAULT 'popup',
+			coupon_code VARCHAR(60) NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+			PRIMARY KEY  (id),
+			UNIQUE KEY email (email),
+			KEY source (source)
+			) $charset_collate;";
+
 		dbDelta( $sql_flows );
 		dbDelta( $sql_queue );
 		dbDelta( $sql_log );
@@ -188,6 +202,7 @@ class WSFM_Install {
 		dbDelta( $sql_identity );
 		dbDelta( $sql_templates );
 		dbDelta( $sql_newsletters );
+		dbDelta( $sql_subscribers );
 	}
 
 	/**

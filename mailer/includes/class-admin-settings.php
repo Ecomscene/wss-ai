@@ -101,6 +101,34 @@ class WSFM_Admin_Settings {
 				)
 			);
 		}
+
+		/* Het beheerscherm van de popup toont het echte ding, met dezelfde
+		   stylesheet als op de winkel. Zo kan het voorbeeld niet uit de pas
+		   gaan lopen met wat de bezoeker ziet. */
+		if ( false !== strpos( $hook, WSFM_Flow_Admin_UI::SLUG_POPUP ) ) {
+			wp_enqueue_media();
+			wp_enqueue_style( 'wsfm-popup', WSFM_PLUGIN_URL . 'assets/popup.css', array(), WSFM_VERSION );
+			wp_enqueue_script(
+				'wsfm-popup-beheer',
+				WSFM_PLUGIN_URL . 'assets/popup-admin.js',
+				array( 'jquery', 'wsfm-admin' ),
+				WSFM_VERSION,
+				true
+			);
+			wp_localize_script(
+				'wsfm-popup-beheer',
+				'wsfmPopupBeheer',
+				array(
+					'kiesBeeld'     => __( 'Kies een foto', 'ws-flow-mailer' ),
+					'gebruikBeeld'  => __( 'Deze gebruiken', 'ws-flow-mailer' ),
+					'toonGelukt'    => __( 'Laat het bedankscherm zien', 'ws-flow-mailer' ),
+					'toonFormulier' => __( 'Terug naar het formulier', 'ws-flow-mailer' ),
+					'versturen'     => __( 'Bezig met versturen...', 'ws-flow-mailer' ),
+					'fout'          => __( 'Er ging iets mis. Probeer het nog eens.', 'ws-flow-mailer' ),
+					'popup'         => __( 'Je browser blokkeerde het voorbeeldvenster.', 'ws-flow-mailer' ),
+				)
+			);
+		}
 	}
 
 	/**
