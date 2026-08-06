@@ -71,8 +71,21 @@ class WSS_AI_Updater {
 			}
 		}
 
+		/**
+		 * De hele lijst, niet /releases/latest.
+		 *
+		 * GitHub noemt de LAATST AANGEMAAKTE release "latest", niet die met het
+		 * hoogste nummer. Zet je om wat voor reden dan ook een oudere tag opnieuw
+		 * weg, dan schuift die naar voren en krijgt iedereen ineens een update
+		 * náár beneden. Dat is precies wat er gebeurde toen v0.16.1 na v0.17.0
+		 * opnieuw werd weggezet: 0.16.1 stond vooraan met oudere code erin.
+		 *
+		 * We halen dus de lijst op en kiezen zelf het hoogste nummer. Wat wij
+		 * aan de klant aanbieden hoort van het versienummer af te hangen en niet
+		 * van de volgorde waarin er iets is aangemaakt.
+		 */
 		$url = sprintf(
-			'https://api.github.com/repos/%s/%s/releases/latest',
+			'https://api.github.com/repos/%s/%s/releases?per_page=20',
 			rawurlencode( self::$eigenaar ),
 			rawurlencode( self::$repo )
 		);
@@ -105,13 +118,33 @@ class WSS_AI_Updater {
 			return new WP_Error( 'onverwacht', sprintf( __( 'GitHub antwoordde met code %d.', 'wss-ai' ), $code ) );
 		}
 
-		$data = json_decode( wp_remote_retrieve_body( $antwoord ), true );
-		if ( ! is_array( $data ) || empty( $data['tag_name'] ) ) {
+		$lijst = json_decode( wp_remote_retrieve_body( $antwoord ), true );
+		if ( ! is_array( $lijst ) ) {
 			return new WP_Error( 'onleesbaar', __( 'Het antwoord van GitHub was niet te lezen.', 'wss-ai' ) );
 		}
 
-		/* Een release heet meestal "v1.2.0"; WordPress vergelijkt op "1.2.0". */
-		$versie = ltrim( (string) $data['tag_name'], 'vV' );
+		/* De hoogste uitgebrachte versie zoeken. Concepten en voorproefjes tellen
+		   niet mee: die staan er om te kijken, niet om uit te rollen. */
+		$data   = null;
+		$versie = '';
+		foreach ( $lijst as $release ) {
+			if ( ! is_array( $release ) || empty( $release['tag_name'] ) ) {
+				continue;
+			}
+			if ( ! empty( $release['draft'] ) || ! empty( $release['prerelease'] ) ) {
+				continue;
+			}
+			/* Een release heet meestal "v1.2.0"; WordPress vergelijkt op "1.2.0". */
+			$kandidaat = ltrim( (string) $release['tag_name'], 'vV' );
+			if ( '' === $versie || version_compare( $kandidaat, $versie, '>' ) ) {
+				$versie = $kandidaat;
+				$data   = $release;
+			}
+		}
+
+		if ( ! $data ) {
+			return new WP_Error( 'geen-release', __( 'Er staat nog geen release klaar.', 'wss-ai' ) );
+		}
 
 		/* Liever een meegeleverd zip-bestand dan de automatische zipball: dat
 		   eerste bevat precies wat je hebt vrijgegeven, het tweede de hele repo
