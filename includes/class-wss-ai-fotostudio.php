@@ -225,6 +225,9 @@ class WSS_AI_Fotostudio {
 					'plekUit'    => __( 'Beschrijf kort een plek of situatie. Bijvoorbeeld: op een bank in een woonkamer, op een houten bureau, op een plank in de badkamer. Wil je nog een variant? Noem dan een andere plek.', 'wss-ai' ),
 					'plekLeeg'   => __( 'Vertel eerst waar je product moet komen te staan.', 'wss-ai' ),
 					'modelKop'   => __( 'Een andere plek voor deze foto', 'wss-ai' ),
+					'vrijKop'    => __( 'Wat moet er gebeuren?', 'wss-ai' ),
+					'vrijUit'    => __( 'Jouw tekst is hier de hele opdracht. Er gaat niets van ons overheen en je fotostijl telt niet mee. Schrijf dus ook op wat er hetzelfde moet blijven, bijvoorbeeld: zet dit product op een marmeren blad, houd het product zelf precies zoals het is.', 'wss-ai' ),
+					'vrijLeeg'   => __( 'Schrijf eerst op wat er moet gebeuren. Bij deze keuze is jouw tekst de hele opdracht.', 'wss-ai' ),
 					'modelUit'   => __( 'Optioneel. Standaard gebruiken we de omgeving uit je instellingen. Wil je voor dit kledingstuk iets anders? Beschrijf het hier kort.', 'wss-ai' ),
 					'bijwerkBezig' => __( 'Bezig met aanpassen…', 'wss-ai' ),
 					'bijwerkLeeg'  => __( 'Vertel wat er anders moet aan deze foto.', 'wss-ai' ),
@@ -328,6 +331,7 @@ class WSS_AI_Fotostudio {
 							<input type="radio" name="wss-ai-taak" value="<?php echo esc_attr( $t['key'] ); ?>"
 								data-stijl="<?php echo empty( $t['gebruiktStijl'] ) ? '0' : '1'; ?>"
 								data-plek="<?php echo in_array( $t['key'], array( 'variant', 'model' ), true ) ? '1' : '0'; ?>"
+								data-vrij="<?php echo empty( $t['vrij'] ) ? '0' : '1'; ?>"
 								<?php checked( 0, $i ); ?>>
 							<span>
 								<strong><?php echo esc_html( $t['label'] ); ?></strong><br>
@@ -491,10 +495,12 @@ class WSS_AI_Fotostudio {
 		/* Alleen bij vernieuwen onthouden, en niet bij bulk. Daar gaat de tekst
 		   over het product en blijft hij gelden. Bij een variant en bij een
 		   modelfoto is het de plek waar hij komt te staan, en die wil je de
-		   volgende keer juist anders hebben; bij bulk geldt hij voor de hele
-		   serie en hoort hij niet bij elk product afzonderlijk te blijven
-		   plakken. */
-		if ( ! in_array( $taak, array( 'variant', 'model' ), true ) && empty( $_POST['bulk'] ) ) {
+		   volgende keer juist anders hebben. Bij een vrije opdracht ook niet:
+		   dat is meestal een eenmalige correctie, en die zou daarna stilletjes
+		   meeliften als je weer op vernieuwen klikt. Bij bulk geldt de tekst
+		   voor de hele serie en hoort hij niet bij elk product afzonderlijk te
+		   blijven plakken. */
+		if ( ! in_array( $taak, array( 'variant', 'model', 'vrij' ), true ) && empty( $_POST['bulk'] ) ) {
 			if ( '' === $extra ) {
 				delete_post_meta( $post_id, self::PROMPT_META );
 			} else {

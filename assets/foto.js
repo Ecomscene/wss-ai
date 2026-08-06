@@ -68,13 +68,18 @@
 		var $gekozen = $p.find('input[name="wss-ai-taak"]:checked');
 		var variant = $gekozen.val() === 'variant';
 		var model = $gekozen.val() === 'model';
+		/* Vrije opdracht: het tekstveld is de hele opdracht en de fotostijl doet
+		   niet mee. Dat laatste hoort de winkelier te zien, want anders zit hij te
+		   wachten op een stijl die niet komt. */
+		var vrij = $gekozen.data('vrij') === 1 || $gekozen.data('vrij') === '1';
 		var metStijl = $gekozen.data('stijl') !== 0 && $gekozen.data('stijl') !== '0';
 		/* Bij welke taken het opdrachtveld om een PLEK vraagt in plaats van om iets
 		   erbij. Dat staat op de knop zelf, zodat een nieuwe taak op de server niet
 		   ook nog een regel in dit bestand nodig heeft. */
 		var plek = $gekozen.data('plek') === 1 || $gekozen.data('plek') === '1';
 
-		$p.find('.wss-ai-extra-vak, .wss-ai-stijlregel').toggle(metStijl);
+		$p.find('.wss-ai-extra-vak').toggle(metStijl || vrij);
+		$p.find('.wss-ai-stijlregel').toggle(metStijl && !vrij);
 
 		/* De knop zegt wat er gaat gebeuren. "Maak de foto" onder een keuze die
 		   "variant" heet laat je twijfelen of je wel het goede aanklikte. */
@@ -93,6 +98,9 @@
 		if (variant) {
 			kop = T.plekKop;
 			uitleg = T.plekUit;
+		} else if (vrij) {
+			kop = T.vrijKop;
+			uitleg = T.vrijUit;
 		} else if (model) {
 			/* Bij een modelfoto staat de omgeving al in de instellingen. Hier
 			   iets typen mag, maar hoeft niet, en dat verschil hoort in de tekst
@@ -103,7 +111,9 @@
 		$p.find('.wss-ai-extra-kop').text(kop);
 		$p.find('.wss-ai-extra-uitleg').text(uitleg);
 		var voorbeeld = '';
-		if (model) {
+		if (vrij) {
+			voorbeeld = 'zet dit product op een marmeren blad, met een glas water ernaast';
+		} else if (model) {
 			voorbeeld = 'in een park op een zonnige dag';
 		} else if (plek) {
 			voorbeeld = 'op een bank in een woonkamer';
@@ -209,12 +219,17 @@
 
 	function maak() {
 		var $p = paneel();
-		var variant = $p.find('input[name="wss-ai-taak"]:checked').val() === 'variant';
+		var taak = $p.find('input[name="wss-ai-taak"]:checked').val();
 
 		/* Zelf tegenhouden in plaats van de server laten weigeren: dat scheelt
-		   een rondje wachten voor iets wat je hier al kunt zien. */
-		if (variant && !$.trim($p.find('#wss-ai-extra').val() || '')) {
-			melding(T.plekLeeg || '', true);
+		   een rondje wachten voor iets wat je hier al kunt zien. Bij een variant
+		   en bij een vrije opdracht is het veld verplicht, om verschillende
+		   redenen: daar een plek, hier de opdracht zelf. */
+		if (
+			('variant' === taak || 'vrij' === taak) &&
+			!$.trim($p.find('#wss-ai-extra').val() || '')
+		) {
+			melding(('vrij' === taak ? T.vrijLeeg : T.plekLeeg) || '', true);
 			$p.find('#wss-ai-extra').trigger('focus');
 			return;
 		}
