@@ -43,6 +43,12 @@ class WSFM_Popup {
 			return;
 		}
 
+		/* De stylesheet en het script gaan op wp_enqueue_scripts en niet in de
+		   voettekst. WordPress print de footer-scripts op wp_footer prioriteit 20;
+		   wie daarna nog iets in de wachtrij zet, zet het in een wachtrij die al
+		   leeg is gemaakt. De popup stond dan wel in de pagina maar bleef verborgen,
+		   want er was geen opmaak en geen JavaScript om hem te openen. */
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'scripts' ) );
 		add_action( 'wp_footer', array( __CLASS__, 'toon' ), 40 );
 	}
 
@@ -72,6 +78,7 @@ class WSFM_Popup {
 			'kleur_knop'        => '#c08b7d',
 			'kleur_knoptekst'   => '#ffffff',
 			'rond'              => 0,
+			'lettertype'        => 'website',
 
 			'na_seconden'     => 5,
 			'dagen_verbergen' => 14,
@@ -165,6 +172,7 @@ class WSFM_Popup {
 				'kleur_knop'        => $kleur( 'kleur_knop' ),
 				'kleur_knoptekst'   => $kleur( 'kleur_knoptekst' ),
 				'rond'              => empty( $ruw['rond'] ) ? 0 : 1,
+				'lettertype'        => self::lettertype_of( isset( $ruw['lettertype'] ) ? $ruw['lettertype'] : '' ),
 
 				'na_seconden'        => (int) $getal( 'na_seconden', 0, 120 ),
 				'dagen_verbergen'    => (int) $getal( 'dagen_verbergen', 1, 365 ),
@@ -186,6 +194,52 @@ class WSFM_Popup {
 				'mail_sjabloon'  => isset( $sjablonen[ $sjabloon ] ) ? $sjabloon : 'rustig',
 			)
 		);
+	}
+
+	/**
+	 * De lettertypes waar de winkelier uit kan kiezen.
+	 *
+	 * Vier, en niet een lijst met alles wat er bestaat. Een popup hoort bij de
+	 * winkel te passen, en de veiligste keuze is dus het lettertype dat de rest
+	 * van de site al gebruikt. Dat staat vooraan en is de standaard.
+	 *
+	 * Geen webfonts die we zelf ophalen: dat is een extra verzoek naar een
+	 * externe server op elke pagina van de winkel, en dat is een prijs die je
+	 * niet voor een popup wilt betalen.
+	 *
+	 * @return array sleutel => array( naam, stapel )
+	 */
+	public static function lettertypes() {
+		return array(
+			'website'     => array(
+				'naam'   => __( 'Van je website', 'ws-flow-mailer' ),
+				'stapel' => 'inherit',
+			),
+			'schreefloos' => array(
+				'naam'   => __( 'Schreefloos', 'ws-flow-mailer' ),
+				'stapel' => 'Helvetica, Arial, sans-serif',
+			),
+			'schreef'     => array(
+				'naam'   => __( 'Met schreef', 'ws-flow-mailer' ),
+				'stapel' => 'Georgia, "Times New Roman", serif',
+			),
+			'modern'      => array(
+				'naam'   => __( 'Modern', 'ws-flow-mailer' ),
+				'stapel' => '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+			),
+		);
+	}
+
+	/**
+	 * Een geldige lettertypesleutel, of de standaard.
+	 *
+	 * @param string $sleutel Wat er binnenkwam.
+	 * @return string
+	 */
+	public static function lettertype_of( $sleutel ) {
+		$sleutel     = sanitize_key( (string) $sleutel );
+		$lettertypes = self::lettertypes();
+		return isset( $lettertypes[ $sleutel ] ) ? $sleutel : 'website';
 	}
 
 	/* ---------------------------------------------------------------------
@@ -216,15 +270,14 @@ class WSFM_Popup {
 	}
 
 	/**
-	 * De popup in de voettekst zetten.
+	 * De stylesheet en het script klaarzetten.
 	 */
-	public static function toon() {
+	public static function scripts() {
 		if ( ! self::hier_tonen() ) {
 			return;
 		}
 
-		$i     = self::instellingen();
-		$beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeelding'], 'large' ) : '';
+		$i = self::instellingen();
 
 		wp_enqueue_style( 'wsfm-popup', WSFM_PLUGIN_URL . 'assets/popup.css', array(), WSFM_VERSION );
 		wp_enqueue_script( 'wsfm-popup', WSFM_PLUGIN_URL . 'assets/popup.js', array(), WSFM_VERSION, true );
@@ -241,6 +294,18 @@ class WSFM_Popup {
 				'fout'     => __( 'Er ging iets mis. Probeer het zo nog eens.', 'ws-flow-mailer' ),
 			)
 		);
+	}
+
+	/**
+	 * De popup in de voettekst zetten.
+	 */
+	public static function toon() {
+		if ( ! self::hier_tonen() ) {
+			return;
+		}
+
+		$i     = self::instellingen();
+		$beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeelding'], 'large' ) : '';
 
 		echo self::html( $i, $beeld ); // phpcs:ignore WordPress.Security.EscapingOutput -- opgebouwd met esc_* hieronder.
 	}
@@ -252,22 +317,36 @@ class WSFM_Popup {
 	 * ziet echt hetzelfde is als wat je bezoeker krijgt en geen nagemaakte
 	 * versie die langzaam uit elkaar groeit.
 	 *
-	 * @param array  $i     Instellingen.
-	 * @param string $beeld URL van de afbeelding.
-	 * @param bool   $open  Meteen zichtbaar (voor het voorbeeld).
+	 * WAAROM HET VOORBEELD GEEN FORMULIER IS
+	 * Op de winkel is dit een echt form. In het beheerscherm staat het voorbeeld
+	 * binnen het instellingenformulier, en geneste formulieren bestaan niet in
+	 * HTML: de browser gooit de binnenste weg. Het e-mailveld hoorde daardoor
+	 * ineens bij de instellingen, inclusief zijn required, en je moest het
+	 * invullen voordat je kon opslaan. De klasse blijft er wel op staan, dus de
+	 * opmaak en het JavaScript merken er niets van.
+	 *
+	 * @param array  $i         Instellingen.
+	 * @param string $beeld     URL van de afbeelding.
+	 * @param bool   $voorbeeld Meteen zichtbaar, en zonder formulier.
 	 * @return string
 	 */
-	public static function html( array $i, $beeld = '', $open = false ) {
+	public static function html( array $i, $beeld = '', $voorbeeld = false ) {
+		$lettertypes = self::lettertypes();
+		$letter      = $lettertypes[ self::lettertype_of( isset( $i['lettertype'] ) ? $i['lettertype'] : '' ) ]['stapel'];
+		$vak         = $voorbeeld ? 'div' : 'form';
+		$knopsoort   = $voorbeeld ? 'button' : 'submit';
+
 		$stijl = sprintf(
-			'--wsfm-bg:%s;--wsfm-tekst:%s;--wsfm-knop:%s;--wsfm-knoptekst:%s;--wsfm-rond:%s;',
+			'--wsfm-bg:%s;--wsfm-tekst:%s;--wsfm-knop:%s;--wsfm-knoptekst:%s;--wsfm-rond:%s;--wsfm-font:%s;',
 			esc_attr( $i['kleur_achtergrond'] ),
 			esc_attr( $i['kleur_tekst'] ),
 			esc_attr( $i['kleur_knop'] ),
 			esc_attr( $i['kleur_knoptekst'] ),
-			empty( $i['rond'] ) ? '0px' : '14px'
+			empty( $i['rond'] ) ? '0px' : '14px',
+			esc_attr( $letter )
 		);
 
-		$uit = '<div class="wsfm-popup-laag' . ( $open ? ' is-open' : '' ) . '" style="' . $stijl . '" hidden>'
+		$uit = '<div class="wsfm-popup-laag' . ( $voorbeeld ? ' is-open' : '' ) . '" style="' . $stijl . '" hidden>'
 			. '<div class="wsfm-popup" role="dialog" aria-modal="true" aria-label="' . esc_attr( $i['kop'] ) . '">'
 			. '<button type="button" class="wsfm-popup-sluit" aria-label="' . esc_attr__( 'Sluiten', 'ws-flow-mailer' ) . '">&times;</button>';
 
@@ -275,11 +354,11 @@ class WSFM_Popup {
 			. '<div class="wsfm-popup-vraag">'
 			. '<h2>' . esc_html( $i['kop'] ) . '</h2>'
 			. ( '' === trim( (string) $i['tekst'] ) ? '' : '<p>' . esc_html( $i['tekst'] ) . '</p>' )
-			. '<form class="wsfm-popup-form">'
+			. '<' . $vak . ' class="wsfm-popup-form">'
 			. '<label class="screen-reader-text" for="wsfm-popup-email">' . esc_html( $i['plaatshouder'] ) . '</label>'
-			. '<input type="email" id="wsfm-popup-email" required autocomplete="email" placeholder="' . esc_attr( $i['plaatshouder'] ) . '">'
-			. '<button type="submit">' . esc_html( $i['knop'] ) . '</button>'
-			. '</form>'
+			. '<input type="email" id="wsfm-popup-email"' . ( $voorbeeld ? '' : ' required' ) . ' autocomplete="email" placeholder="' . esc_attr( $i['plaatshouder'] ) . '">'
+			. '<button type="' . $knopsoort . '">' . esc_html( $i['knop'] ) . '</button>'
+			. '</' . $vak . '>'
 			. '<p class="wsfm-popup-melding" role="status"></p>'
 			. ( '' === trim( (string) $i['kleine_letters'] ) ? '' : '<p class="wsfm-popup-klein">' . esc_html( $i['kleine_letters'] ) . '</p>' )
 			. '</div>'

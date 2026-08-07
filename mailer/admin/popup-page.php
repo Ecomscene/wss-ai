@@ -115,6 +115,19 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 								<input type="color" class="wsfm-live-kleur" data-var="--wsfm-knoptekst" name="kleur_knoptekst" value="<?php echo esc_attr( $i['kleur_knoptekst'] ); ?>"></label>
 						</p>
 						<p>
+							<label><?php esc_html_e( 'Lettertype', 'ws-flow-mailer' ); ?><br>
+								<select name="lettertype" id="wsfm-lettertype">
+									<?php foreach ( WSFM_Popup::lettertypes() as $wsfm_lk => $wsfm_lt ) : ?>
+										<option value="<?php echo esc_attr( $wsfm_lk ); ?>"
+											data-stapel="<?php echo esc_attr( $wsfm_lt['stapel'] ); ?>"
+											<?php selected( isset( $i['lettertype'] ) ? $i['lettertype'] : 'website', $wsfm_lk ); ?>>
+											<?php echo esc_html( $wsfm_lt['naam'] ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select></label><br>
+							<span class="description"><?php esc_html_e( 'Van je website is meestal de beste keuze: dan past de popup vanzelf bij de rest van je winkel.', 'ws-flow-mailer' ); ?></span>
+						</p>
+						<p>
 							<label>
 								<input type="checkbox" name="rond" value="1" id="wsfm-rond" <?php checked( ! empty( $i['rond'] ) ); ?>>
 								<?php esc_html_e( 'Ronde hoeken', 'ws-flow-mailer' ); ?>

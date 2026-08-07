@@ -60,6 +60,15 @@
 		$laag[ 0 ].style.setProperty( '--wsfm-rond', $( this ).is( ':checked' ) ? '14px' : '0px' );
 	} );
 
+	/* ---------------- het lettertype ---------------- */
+
+	$( '#wsfm-lettertype' ).on( 'change', function () {
+		$laag[ 0 ].style.setProperty(
+			'--wsfm-font',
+			$( this ).find( 'option:selected' ).data( 'stapel' ) || 'inherit'
+		);
+	} );
+
 	/* ---------------- de foto ---------------- */
 
 	function zetBeeld( url ) {

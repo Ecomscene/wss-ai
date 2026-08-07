@@ -36,6 +36,9 @@
 	max-height: calc( 100vh - 40px );
 	background: var( --wsfm-bg, #fff );
 	color: var( --wsfm-tekst, #111 );
+	/* inherit is de standaard: dan neemt hij het lettertype van de winkel
+	   over en past hij vanzelf bij de rest. */
+	font-family: var( --wsfm-font, inherit );
 	border-radius: var( --wsfm-rond, 0 );
 	overflow: hidden;
 	box-shadow: 0 20px 60px rgba( 0, 0, 0, .25 );
@@ -111,6 +114,7 @@
 }
 
 .wsfm-popup-form input[type="email"] {
+	font-family: inherit;
 	display: block;
 	width: 100%;
 	margin: 0 0 12px;
@@ -123,6 +127,7 @@
 }
 
 .wsfm-popup-form button {
+	font-family: inherit;
 	display: block;
 	width: 100%;
 	padding: 17px 18px;
