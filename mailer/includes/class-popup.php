@@ -49,7 +49,11 @@ class WSFM_Popup {
 		   leeg is gemaakt. De popup stond dan wel in de pagina maar bleef verborgen,
 		   want er was geen opmaak en geen JavaScript om hem te openen. */
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'scripts' ) );
-		add_action( 'wp_footer', array( __CLASS__, 'toon' ), 40 );
+		/* Prioriteit 5: de opmaak moet in de pagina staan voordat WordPress op
+		   prioriteit 20 de footer-scripts afdrukt. Het script wacht ook zelf op
+		   het document, dus het is dubbelop, maar een volgorde die klopt is
+		   beter dan een volgorde die goedgemaakt moet worden. */
+		add_action( 'wp_footer', array( __CLASS__, 'toon' ), 5 );
 	}
 
 	/* ---------------------------------------------------------------------
@@ -290,6 +294,11 @@ class WSFM_Popup {
 				'seconden' => (int) $i['na_seconden'],
 				'dagen'    => (int) $i['dagen_verbergen'],
 				'koekje'   => self::KOEKJE,
+				/* Bij "van je website" zoekt het script het lettertype op bij een
+				   echt stuk tekst. Erven van body werkt niet bij thema's die hun
+				   lettertype op de elementen zelf zetten; dan staat op body nog de
+				   standaard van de browser en werd de popup ineens een schreef. */
+				'erfLettertype' => 'website' === self::lettertype_of( $i['lettertype'] ),
 				'bezig'    => __( 'Momentje...', 'ws-flow-mailer' ),
 				'fout'     => __( 'Er ging iets mis. Probeer het zo nog eens.', 'ws-flow-mailer' ),
 			)
