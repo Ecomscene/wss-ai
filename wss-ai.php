@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.21.2
+ * Version:           0.22.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.21.2' );
+define( 'WSS_AI_VERSIE', '0.22.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -41,6 +41,7 @@ require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-seoplan.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-fotostudio.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-bulk.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-upgrades.php';
@@ -169,6 +170,26 @@ function wss_ai_stijl( $hook ) {
 		. 'padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s ease}'
 		. '.wss-ai-upgrade-knop:hover{background:#135e96}'
 		. '.wss-ai-upgrade-knop:focus{outline:2px solid #2271b1;outline-offset:2px}'
+		/* Het SEO-plan. Vier cijfers boven een balk, en daaronder de weken als
+		   een tijdlijn: een rondje met het weeknummer, ernaast wat er gebeurt.
+		   De kleur zegt waar je bent (groen is af, blauw is nu), zodat je het
+		   ziet zonder te lezen. */
+		. '.wss-ai-seoplan .wss-ai-cijfers{display:flex;gap:28px;flex-wrap:wrap;margin:0 0 14px}'
+		. '.wss-ai-cijfer b{display:block;font-size:22px;line-height:1.25;font-weight:700}'
+		. '.wss-ai-cijfer span{color:#646970;font-size:12px}'
+		. '.wss-ai-balk{height:8px;border-radius:4px;background:#f0f0f1;overflow:hidden}'
+		. '.wss-ai-balk i{display:block;height:100%;background:#2271b1}'
+		. '.wss-ai-weken{margin:14px 0 4px}'
+		. '.wss-ai-week{display:flex;gap:14px;padding:14px 0;border-top:1px solid #f0f0f1}'
+		. '.wss-ai-week:first-child{border-top:0;padding-top:4px}'
+		. '.wss-ai-week-nr{flex:0 0 auto;width:46px;height:46px;border-radius:50%;background:#f0f0f1;'
+		. 'color:#646970;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}'
+		. '.wss-ai-week.is-af .wss-ai-week-nr{background:#e3f2e6;color:#00701a}'
+		. '.wss-ai-week.is-nu .wss-ai-week-nr{background:#f0f6fc;color:#2271b1}'
+		. '.wss-ai-week-inhoud{flex:1 1 auto;min-width:0}'
+		. '.wss-ai-week-inhoud strong{display:block;font-size:14px}'
+		. '.wss-ai-week-stand{display:block;font-size:12px;color:#646970}'
+		. '.wss-ai-week-tekst{margin:8px 0 0;color:#3c434a;line-height:1.55}'
 		. '.wss-ai-mut{color:#646970}'
 		. '.wss-ai-tabel{max-width:640px}'
 		. '.wss-ai-tabel th{width:220px}'
@@ -324,6 +345,7 @@ add_action(
 WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
 WSS_AI_Instellingen::init();
 WSS_AI_SEO::init();
+WSS_AI_Seoplan::init();
 WSS_AI_Fotostudio::init();
 WSS_AI_Bulk::init();
 WSS_AI_Upgrades::init();

@@ -89,6 +89,20 @@ class WSS_AI_Menu {
 			self::$haken[ $p[0] ] = add_submenu_page( self::HOOFD, $p[1], $p[1], 'manage_options', $p[0], $p[2] );
 		}
 
+		/* AI SEO staat los van de lijst hierboven, want die werkt op "aan tenzij
+		   uitgezet". Dit onderdeel is andersom: het verschijnt alleen bij een
+		   webshop waar ook echt een SEO-traject voor loopt. */
+		if ( WSS_AI_Seoplan::beschikbaar() ) {
+			self::$haken[ WSS_AI_Seoplan::SLUG ] = add_submenu_page(
+				self::HOOFD,
+				__( 'AI SEO', 'wss-ai' ),
+				__( 'AI SEO', 'wss-ai' ),
+				'manage_options',
+				WSS_AI_Seoplan::SLUG,
+				array( __CLASS__, 'toon_seoplan' )
+			);
+		}
+
 		self::verwijzingen();
 
 		$rest = array(
@@ -145,6 +159,20 @@ class WSS_AI_Menu {
 		}
 	}
 
+	/**
+	 * Staat dit onderdeel aan?
+	 *
+	 * Twee soorten schakelaars, en het verschil zit in wat er gebeurt als we
+	 * niets weten. Een gewoon onderdeel staat aan tenzij Webshopschool het heeft
+	 * uitgezet; een opt-in onderdeel staat uit tenzij het met zoveel woorden
+	 * aanstaat. Zie class-wss-ai-koppeling.php.
+	 */
+	private static function onderdeel_aan( $o ) {
+		return empty( $o['optin'] )
+			? WSS_AI_Koppeling::module_aan( $o['module'] )
+			: WSS_AI_Koppeling::module_aan_optin( $o['module'] );
+	}
+
 	/** Alle onderdelen op één plek, zodat de knoppen en de uitleg niet uiteenlopen. */
 	public static function onderdelen() {
 		return array(
@@ -163,6 +191,15 @@ class WSS_AI_Menu {
 				'kort'   => __( 'Betere productfoto\'s: een foto vernieuwen, een variant maken of de achtergrond weghalen.', 'wss-ai' ),
 				'waar'   => __( 'Je vindt de knoppen bij een product, bij de hoofdfoto en bij de galerij. Meerdere producten tegelijk kan via het productenoverzicht.', 'wss-ai' ),
 				'icoon'  => 'format-image',
+			),
+			array(
+				'slug'   => WSS_AI_Seoplan::SLUG,
+				'module' => 'seoplan',
+				'optin'  => true,
+				'naam'   => __( 'AI SEO', 'wss-ai' ),
+				'kort'   => __( 'Je SEO-traject: wat we deze maanden doen om je beter vindbaar te maken in Google.', 'wss-ai' ),
+				'waar'   => __( 'Hier zie je week voor week wat er af is en wat eraan komt. Je hoeft zelf niets te doen.', 'wss-ai' ),
+				'icoon'  => 'chart-line',
 			),
 			array(
 				'slug'   => WSS_AI_Upgrades::SLUG,
@@ -212,7 +249,7 @@ class WSS_AI_Menu {
 		<div class="wss-ai-tegels">
 			<?php
 			foreach ( self::onderdelen() as $o ) :
-				if ( ! WSS_AI_Koppeling::module_aan( $o['module'] ) ) {
+				if ( ! self::onderdeel_aan( $o ) ) {
 					continue;
 				}
 				?>
@@ -329,6 +366,12 @@ class WSS_AI_Menu {
 		</p>
 		<?php
 		WSS_AI_Fotostudio::kaart();
+		self::voet();
+	}
+
+	public static function toon_seoplan() {
+		self::kop( __( 'AI SEO', 'wss-ai' ) );
+		WSS_AI_Seoplan::pagina();
 		self::voet();
 	}
 
