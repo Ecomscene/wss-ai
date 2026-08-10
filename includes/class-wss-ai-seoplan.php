@@ -227,9 +227,17 @@ class WSS_AI_Seoplan {
 							<div class="wss-ai-week-inhoud">
 								<strong><?php echo esc_html( isset( $w['titel'] ) ? (string) $w['titel'] : '' ); ?></strong>
 								<span class="wss-ai-week-stand"><?php echo esc_html( self::stand_van_week( $w, $nu ) ); ?></span>
-								<?php if ( ! empty( $w['samenvatting'] ) ) : ?>
-									<p class="wss-ai-week-tekst"><?php echo nl2br( esc_html( (string) $w['samenvatting'] ) ); ?></p>
-								<?php endif; ?>
+								<?php
+								/*
+								 * Hier stond het weekverslag van de agent. Dat is eruit:
+								 * het is zijn werkaantekening ("de select-syntax gaf niets
+								 * terug"), waar een ondernemer niets uit kan opmaken behalve
+								 * dat er iets mis lijkt. De titel en de stand vertellen wat
+								 * hij wil weten. De server stuurt het veld niet meer mee;
+								 * dit blijft weg ook als er nog een oude versie in de cache
+								 * zit.
+								 */
+								?>
 							</div>
 						</div>
 					<?php endforeach; ?>

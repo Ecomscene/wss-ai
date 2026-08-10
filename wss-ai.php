@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.22.0
+ * Version:           0.22.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.22.0' );
+define( 'WSS_AI_VERSIE', '0.22.1' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
