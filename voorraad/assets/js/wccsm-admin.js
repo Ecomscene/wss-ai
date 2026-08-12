@@ -18,6 +18,7 @@
         supplier: '',
         stock_status: '',
         product_type: '',
+        per_page: 0,
         bulkProductId: 0,
         debounceTimer: null
     };
@@ -45,6 +46,14 @@
                 state.page = 1;
                 loadProducts();
             }, 400);
+        });
+
+        // Aantal per pagina. Terug naar bladzijde 1: wie van 25 naar 200 gaat
+        // en op pagina 7 stond, komt anders in het niets uit.
+        $('#wccsm-per-page').on('change', function () {
+            state.per_page = parseInt($(this).val(), 10) || 0;
+            state.page = 1;
+            loadProducts();
         });
 
         // Filter changes.
@@ -115,7 +124,8 @@
             search: state.search,
             supplier: state.supplier,
             stock_status: state.stock_status,
-            product_type: state.product_type
+            product_type: state.product_type,
+            per_page: state.per_page
         }, function (response) {
             if (!response.success || !response.data.rows.length) {
                 $body.html('<tr><td colspan="10" class="wccsm-loading">' + wccsm.i18n.no_results + '</td></tr>');
@@ -337,12 +347,18 @@
        ======================================================================== */
 
     function renderPagination(data) {
+        // Ook bij één pagina het aantal tonen: dat is precies het getal waar je
+        // naar zoekt als je net een filter hebt aangezet.
+        var telling = '<span class="wccsm-page-info">' + data.total +
+            (data.total === 1 ? ' product' : ' producten') + '</span>';
+
         if (data.pages <= 1) {
-            $('#wccsm-pagination').html('');
+            $('#wccsm-pagination').html(telling);
             return;
         }
 
-        var html = '<span class="wccsm-page-info">Pagina ' + data.page + ' van ' + data.pages + '</span>';
+        var html = telling +
+            '<span class="wccsm-page-info">Pagina ' + data.page + ' van ' + data.pages + '</span>';
 
         if (data.page > 1) {
             html += '<button class="button wccsm-page-btn" data-page="' + (data.page - 1) + '">&laquo; Vorige</button>';

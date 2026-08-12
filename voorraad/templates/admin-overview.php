@@ -25,6 +25,20 @@ defined( 'ABSPATH' ) || exit;
             <option value="variable"><?php esc_html_e( 'Variabel', 'wccsm' ); ?></option>
         </select>
 
+        <select id="wccsm-per-page" class="wccsm-filter-select" title="<?php esc_attr_e( 'Aantal producten per pagina', 'wccsm' ); ?>">
+            <?php
+            $wccsm_nu = WCCSM_Admin_Overview::per_page();
+            foreach ( [ 25, 50, 100, 200 ] as $wccsm_aantal ) :
+            ?>
+                <option value="<?php echo esc_attr( $wccsm_aantal ); ?>" <?php selected( $wccsm_nu, $wccsm_aantal ); ?>>
+                    <?php
+                    /* translators: %d: aantal producten per pagina. */
+                    printf( esc_html__( '%d per pagina', 'wccsm' ), (int) $wccsm_aantal );
+                    ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+
         <button type="button" class="button" id="wccsm-refresh">
             <?php esc_html_e( 'Vernieuwen', 'wccsm' ); ?>
         </button>

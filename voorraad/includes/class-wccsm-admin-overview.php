@@ -92,6 +92,39 @@ class WCCSM_Admin_Overview {
     }
 
     /**
+     * Hoeveel producten er op een pagina passen.
+     *
+     * Vier vaste keuzes en geen vrij getal. Een winkelier die hier 5000 invult
+     * krijgt geen lange lijst maar een time-out: per regel worden de voorraad,
+     * de prijzen en de leverancier opgehaald, en dat loopt hard op. Tweehonderd
+     * is wat een gewone shophosting nog haalt.
+     *
+     * De keuze wordt bij de gebruiker bewaard, niet bij de site: twee mensen
+     * die samen een winkel doen hebben ieder hun eigen scherm en hun eigen
+     * geduld.
+     *
+     * @param mixed $gevraagd Wat de browser meestuurde.
+     * @return int
+     */
+    public static function per_page( $gevraagd = 0 ) {
+        $toegestaan = [ 25, 50, 100, 200 ];
+
+        /* Gewoon casten en niet absint(): die maakt van -50 een 50, en dat staat
+           toevallig in de lijst. Een verzoek met onzin erin zou dan alsnog de
+           voorkeur van de gebruiker veranderen. */
+        $gevraagd = is_numeric( $gevraagd ) ? (int) $gevraagd : 0;
+
+        if ( in_array( $gevraagd, $toegestaan, true ) ) {
+            update_user_meta( get_current_user_id(), 'wccsm_per_page', $gevraagd );
+            return $gevraagd;
+        }
+
+        $bewaard = (int) get_user_meta( get_current_user_id(), 'wccsm_per_page', true );
+
+        return in_array( $bewaard, $toegestaan, true ) ? $bewaard : 50;
+    }
+
+    /**
      * AJAX: Load products for the overview table.
      */
     public function ajax_load_products(): void {
@@ -102,7 +135,7 @@ class WCCSM_Admin_Overview {
         }
 
         $page     = max( 1, absint( $_POST['page'] ?? 1 ) );
-        $per_page = 50;
+        $per_page = self::per_page( $_POST['per_page'] ?? 0 );
         $search   = sanitize_text_field( $_POST['search'] ?? '' );
         $supplier = sanitize_text_field( $_POST['supplier'] ?? '' );
         $stock_status = sanitize_text_field( $_POST['stock_status'] ?? '' );
