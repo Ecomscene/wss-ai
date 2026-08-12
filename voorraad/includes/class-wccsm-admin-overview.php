@@ -91,13 +91,18 @@ class WCCSM_Admin_Overview {
         include WCCSM_PLUGIN_DIR . 'templates/admin-overview.php';
     }
 
+    /** Meer dan dit haalt een gewone shophosting niet binnen zijn tijdslimiet. */
+    public const MAX_PER_PAGE = 1000;
+
     /**
      * Hoeveel producten er op een pagina passen.
      *
-     * Vier vaste keuzes en geen vrij getal. Een winkelier die hier 5000 invult
-     * krijgt geen lange lijst maar een time-out: per regel worden de voorraad,
-     * de prijzen en de leverancier opgehaald, en dat loopt hard op. Tweehonderd
-     * is wat een gewone shophosting nog haalt.
+     * Je mag hier zelf een getal intypen, want soms wil je gewoon alles op een
+     * scherm hebben. Er zit wel een dak op: per regel worden de voorraad, de
+     * prijzen en de leverancier opgehaald, en dat loopt hard op. Boven de
+     * duizend loopt een gewone shophosting tegen zijn tijdslimiet aan, en dan
+     * krijg je geen lange lijst maar een halve pagina. Vandaar die grens, en
+     * vandaar de waarschuwing in het scherm.
      *
      * De keuze wordt bij de gebruiker bewaard, niet bij de site: twee mensen
      * die samen een winkel doen hebben ieder hun eigen scherm en hun eigen
@@ -107,21 +112,24 @@ class WCCSM_Admin_Overview {
      * @return int
      */
     public static function per_page( $gevraagd = 0 ) {
-        $toegestaan = [ 25, 50, 100, 200 ];
-
-        /* Gewoon casten en niet absint(): die maakt van -50 een 50, en dat staat
-           toevallig in de lijst. Een verzoek met onzin erin zou dan alsnog de
-           voorkeur van de gebruiker veranderen. */
+        /* Casten en niet absint(): die maakt van -50 een keurige 50, en dan zou
+           een verzoek met onzin erin alsnog de voorkeur van de gebruiker
+           veranderen. */
         $gevraagd = is_numeric( $gevraagd ) ? (int) $gevraagd : 0;
 
-        if ( in_array( $gevraagd, $toegestaan, true ) ) {
+        if ( $gevraagd >= 1 ) {
+            $gevraagd = min( $gevraagd, self::MAX_PER_PAGE );
             update_user_meta( get_current_user_id(), 'wccsm_per_page', $gevraagd );
             return $gevraagd;
         }
 
         $bewaard = (int) get_user_meta( get_current_user_id(), 'wccsm_per_page', true );
 
-        return in_array( $bewaard, $toegestaan, true ) ? $bewaard : 50;
+        if ( $bewaard >= 1 ) {
+            return min( $bewaard, self::MAX_PER_PAGE );
+        }
+
+        return 50;
     }
 
     /**
@@ -170,13 +178,41 @@ class WCCSM_Admin_Overview {
             ];
         }
 
-        $product_ids = wc_get_products( $args );
+        /**
+         * WAAROM DE VOORRAADSTATUS APART GAAT
+         *
+         * De andere filters zitten in de query, dus die tellen mee voor het totaal
+         * en voor het aantal pagina's. De voorraadstatus zat dat niet: die werd pas
+         * toegepast NADAT de pagina was opgehaald, door regels weg te gooien.
+         *
+         * Gevolg: het totaal telde alle producten, de paginabalk rekende daarop, en
+         * op het scherm bleven er een paar over. Met 200 per pagina zag je 1317
+         * producten, zeven pagina's en zes regels. Bij 25 per pagina viel het minder
+         * op, maar het klopte toen net zo min.
+         *
+         * Nu wordt eerst uitgezocht welke producten er passen, en pas daarna in
+         * plakjes gesneden. Dan zeggen het totaal, de pagina's en de regels
+         * hetzelfde.
+         */
+        if ( $stock_status ) {
+            $alles_args           = $args;
+            $alles_args['limit']  = -1;
+            $alles_args['return'] = 'ids';
+            unset( $alles_args['page'] );
 
-        // Count total for pagination.
-        $count_args = $args;
-        $count_args['limit']  = -1;
-        $count_args['return'] = 'ids';
-        $total = count( wc_get_products( $count_args ) );
+            $kandidaten = wc_get_products( $alles_args );
+            $passend    = $this->filter_op_voorraad( $kandidaten, $stock_status );
+
+            $total       = count( $passend );
+            $product_ids = array_slice( $passend, ( $page - 1 ) * $per_page, $per_page );
+        } else {
+            $product_ids = wc_get_products( $args );
+
+            $count_args           = $args;
+            $count_args['limit']  = -1;
+            $count_args['return'] = 'ids';
+            $total                = count( wc_get_products( $count_args ) );
+        }
 
         $rows = [];
 
@@ -269,6 +305,61 @@ class WCCSM_Admin_Overview {
             'page'       => $page,
             'per_page'   => $per_page,
         ] );
+    }
+
+    /**
+     * Welke van deze producten passen bij de gekozen voorraadstatus?
+     *
+     * Bij een variabel product telt het mee zodra ÉÉN variatie past: dat is ook
+     * wat je in de tabel te zien krijgt, namelijk de ouder met de passende
+     * variaties eronder.
+     *
+     * Producten zonder voorraadbeheer hebben geen aantal en vallen dus overal
+     * buiten. Dat is hoe het altijd al werkte; het staat hier alleen nu op één
+     * plek in plaats van verspreid over drie stukken PHP.
+     *
+     * @param array  $kandidaten Product-ids in de gewenste volgorde.
+     * @param string $status     outofstock | lowstock | instock.
+     * @return array Dezelfde ids, in dezelfde volgorde, alleen de passende.
+     */
+    private function filter_op_voorraad( array $kandidaten, string $status ): array {
+        global $wpdb;
+
+        if ( empty( $kandidaten ) ) {
+            return [];
+        }
+
+        $laag = absint( get_option( 'woocommerce_notify_low_stock_amount', 2 ) );
+
+        if ( 'outofstock' === $status ) {
+            $voorwaarde = 'aantal <= 0';
+        } elseif ( 'lowstock' === $status ) {
+            $voorwaarde = 'aantal <= ' . $laag;
+        } else {
+            $voorwaarde = 'aantal > 0';
+        }
+
+        // De ids komen uit wc_get_products en zijn dus al gehele getallen; door
+        // absint() halen is de goedkoopste manier om dat ook zo te houden.
+        $lijst = implode( ',', array_map( 'absint', $kandidaten ) );
+
+        $sql = "SELECT DISTINCT CASE WHEN p.post_type = 'product_variation'
+                THEN p.post_parent ELSE p.ID END AS pid,
+                CAST( ms.meta_value AS DECIMAL(20,4) ) AS aantal
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} ms
+                ON ms.post_id = p.ID AND ms.meta_key = '_stock'
+            WHERE p.post_type IN ( 'product', 'product_variation' )
+                AND ms.meta_value <> ''
+                AND ( p.ID IN ({$lijst}) OR p.post_parent IN ({$lijst}) )
+            HAVING {$voorwaarde}";
+
+        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- alle waarden zijn hierboven door absint() gehaald.
+        $treffers = array_map( 'absint', (array) $wpdb->get_col( $sql ) );
+
+        // array_intersect houdt de volgorde van de eerste lijst aan, en die staat
+        // al op naam gesorteerd.
+        return array_values( array_intersect( $kandidaten, $treffers ) );
     }
 
     /**

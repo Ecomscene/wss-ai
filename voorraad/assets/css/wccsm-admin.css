@@ -364,3 +364,22 @@
         width: 100%;
     }
 }
+
+/* Het aantal per pagina: een smal invulveld met "per pagina" ernaast, zodat
+   het getal niet los in de filterbalk zweeft. */
+.wccsm-per-page-vak {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	white-space: nowrap;
+}
+
+.wccsm-per-page-vak .wccsm-per-page {
+	width: 82px;
+	min-width: 0;
+}
+
+.wccsm-per-page-vak span {
+	color: #50575e;
+	font-size: 13px;
+}

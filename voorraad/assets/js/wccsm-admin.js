@@ -48,12 +48,38 @@
             }, 400);
         });
 
-        // Aantal per pagina. Terug naar bladzijde 1: wie van 25 naar 200 gaat
-        // en op pagina 7 stond, komt anders in het niets uit.
+        // Aantal per pagina. Terug naar bladzijde 1: wie van 25 naar 500 gaat en
+        // op pagina 7 stond, komt anders in het niets uit.
+        //
+        // Op 'change' en niet op 'input': anders vuurt hij bij elke aanslag, en
+        // haalt hij tijdens het typen van 1000 eerst 1, dan 10 en dan 100 op.
         $('#wccsm-per-page').on('change', function () {
-            state.per_page = parseInt($(this).val(), 10) || 0;
+            var gevraagd = parseInt($(this).val(), 10);
+            var max = parseInt($(this).attr('max'), 10) || 1000;
+
+            if (!gevraagd || gevraagd < 1) {
+                gevraagd = 50;
+            }
+            if (gevraagd > max) {
+                gevraagd = max;
+            }
+
+            // Terugzetten wat er echt gebruikt wordt, anders staat er 5000 in beeld
+            // terwijl er 1000 opgehaald wordt.
+            $(this).val(gevraagd);
+
+            state.per_page = gevraagd;
             state.page = 1;
             loadProducts();
+        });
+
+        // Enter in het vakje betekent: doen. Zonder dit moet je eerst ergens
+        // anders klikken voordat er iets gebeurt.
+        $('#wccsm-per-page').on('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                $(this).trigger('change');
+            }
         });
 
         // Filter changes.

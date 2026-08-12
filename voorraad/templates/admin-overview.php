@@ -25,19 +25,25 @@ defined( 'ABSPATH' ) || exit;
             <option value="variable"><?php esc_html_e( 'Variabel', 'wccsm' ); ?></option>
         </select>
 
-        <select id="wccsm-per-page" class="wccsm-filter-select" title="<?php esc_attr_e( 'Aantal producten per pagina', 'wccsm' ); ?>">
-            <?php
-            $wccsm_nu = WCCSM_Admin_Overview::per_page();
-            foreach ( [ 25, 50, 100, 200 ] as $wccsm_aantal ) :
-            ?>
-                <option value="<?php echo esc_attr( $wccsm_aantal ); ?>" <?php selected( $wccsm_nu, $wccsm_aantal ); ?>>
-                    <?php
-                    /* translators: %d: aantal producten per pagina. */
-                    printf( esc_html__( '%d per pagina', 'wccsm' ), (int) $wccsm_aantal );
-                    ?>
-                </option>
+        <?php
+        /* Een invulveld met suggesties in plaats van een keuzelijst: de gangbare
+           getallen staan klaar, maar wie er duizend van wil kan dat gewoon
+           intypen. */
+        $wccsm_nu = WCCSM_Admin_Overview::per_page();
+        ?>
+        <label class="wccsm-per-page-vak">
+            <input type="number" id="wccsm-per-page" class="wccsm-filter-input wccsm-per-page"
+                min="1" max="<?php echo esc_attr( WCCSM_Admin_Overview::MAX_PER_PAGE ); ?>" step="1"
+                list="wccsm-per-page-suggesties"
+                value="<?php echo esc_attr( $wccsm_nu ); ?>"
+                title="<?php esc_attr_e( 'Aantal producten per pagina. Boven de paar honderd wordt laden merkbaar traag.', 'wccsm' ); ?>" />
+            <span><?php esc_html_e( 'per pagina', 'wccsm' ); ?></span>
+        </label>
+        <datalist id="wccsm-per-page-suggesties">
+            <?php foreach ( [ 25, 50, 100, 200, 500, 1000 ] as $wccsm_suggestie ) : ?>
+                <option value="<?php echo esc_attr( $wccsm_suggestie ); ?>"></option>
             <?php endforeach; ?>
-        </select>
+        </datalist>
 
         <button type="button" class="button" id="wccsm-refresh">
             <?php esc_html_e( 'Vernieuwen', 'wccsm' ); ?>
