@@ -48,6 +48,15 @@ defined( 'ABSPATH' ) || exit;
         <button type="button" class="button" id="wccsm-refresh">
             <?php esc_html_e( 'Vernieuwen', 'wccsm' ); ?>
         </button>
+
+        <?php
+        /* Een gewone link en geen ajax-knop: een browser weet zelf prima wat hij
+           met een bestand moet doen. De filters worden er door het script bij
+           gezet, zodat je krijgt wat je op het scherm ziet staan. */
+        ?>
+        <a href="<?php echo esc_url( WCCSM_Export::url() ); ?>" class="button" id="wccsm-export">
+            <?php esc_html_e( 'Exporteren', 'wccsm' ); ?>
+        </a>
     </div>
 
     <!-- Table -->

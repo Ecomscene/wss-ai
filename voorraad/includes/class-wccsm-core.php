@@ -26,6 +26,7 @@ class WCCSM_Core {
         require_once WCCSM_PLUGIN_DIR . 'includes/class-wccsm-admin-overview.php';
         require_once WCCSM_PLUGIN_DIR . 'includes/class-wccsm-admin-product.php';
         require_once WCCSM_PLUGIN_DIR . 'includes/class-wccsm-bulk.php';
+        require_once WCCSM_PLUGIN_DIR . 'includes/class-wccsm-export.php';
     }
 
     private function init_hooks(): void {
@@ -34,5 +35,6 @@ class WCCSM_Core {
         new WCCSM_Admin_Overview();
         new WCCSM_Admin_Product();
         new WCCSM_Bulk();
+        new WCCSM_Export();
     }
 }

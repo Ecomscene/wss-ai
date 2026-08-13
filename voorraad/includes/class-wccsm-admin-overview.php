@@ -133,6 +133,65 @@ class WCCSM_Admin_Overview {
     }
 
     /**
+     * De zoekopdracht die bij deze filters hoort, zonder paginering.
+     *
+     * Staat apart omdat de export precies dezelfde selectie moet opleveren als
+     * wat er op het scherm staat. Twee keer hetzelfde filter uitschrijven is hoe
+     * je een export krijgt die net iets anders is dan de lijst, en dat merk je
+     * pas als iemand op de verkeerde cijfers gaat bestellen.
+     *
+     * De voorraadstatus zit hier NIET in: die kan de database niet in één keer
+     * beantwoorden voor variabele producten. Zie filter_op_voorraad().
+     *
+     * @param array $f search | supplier | product_type.
+     * @return array
+     */
+    public static function bouw_args( array $f ): array {
+        $args = [
+            'limit'   => -1,
+            'orderby' => 'name',
+            'order'   => 'ASC',
+            'return'  => 'ids',
+            'status'  => 'publish',
+        ];
+
+        if ( ! empty( $f['search'] ) ) {
+            $args['s'] = $f['search'];
+        }
+
+        $args['type'] = ! empty( $f['product_type'] )
+            ? $f['product_type']
+            : [ 'simple', 'variable' ];
+
+        if ( ! empty( $f['supplier'] ) ) {
+            $args['meta_query'] = [
+                [
+                    'key'   => '_wccsm_supplier',
+                    'value' => $f['supplier'],
+                ],
+            ];
+        }
+
+        return $args;
+    }
+
+    /**
+     * Alle product-ids die bij deze filters horen, op naam gesorteerd.
+     *
+     * @param array $f search | supplier | product_type | stock_status.
+     * @return array
+     */
+    public static function zoek_ids( array $f ): array {
+        $ids = wc_get_products( self::bouw_args( $f ) );
+
+        if ( empty( $f['stock_status'] ) ) {
+            return $ids;
+        }
+
+        return self::filter_op_voorraad( $ids, (string) $f['stock_status'] );
+    }
+
+    /**
      * AJAX: Load products for the overview table.
      */
     public function ajax_load_products(): void {
@@ -149,34 +208,16 @@ class WCCSM_Admin_Overview {
         $stock_status = sanitize_text_field( $_POST['stock_status'] ?? '' );
         $product_type = sanitize_text_field( $_POST['product_type'] ?? '' );
 
-        $args = [
-            'limit'   => $per_page,
-            'page'    => $page,
-            'orderby' => 'name',
-            'order'   => 'ASC',
-            'return'  => 'ids',
-            'status'  => 'publish',
-        ];
+        $args = self::bouw_args(
+            [
+                'search'       => $search,
+                'supplier'     => $supplier,
+                'product_type' => $product_type,
+            ]
+        );
 
-        if ( $search ) {
-            $args['s'] = $search;
-        }
-
-        if ( $product_type ) {
-            $args['type'] = $product_type;
-        } else {
-            $args['type'] = [ 'simple', 'variable' ];
-        }
-
-        // Supplier filter via meta query.
-        if ( $supplier ) {
-            $args['meta_query'] = [
-                [
-                    'key'   => '_wccsm_supplier',
-                    'value' => $supplier,
-                ],
-            ];
-        }
+        $args['limit'] = $per_page;
+        $args['page']  = $page;
 
         /**
          * WAAROM DE VOORRAADSTATUS APART GAAT
@@ -195,13 +236,12 @@ class WCCSM_Admin_Overview {
          * hetzelfde.
          */
         if ( $stock_status ) {
-            $alles_args           = $args;
-            $alles_args['limit']  = -1;
-            $alles_args['return'] = 'ids';
+            $alles_args          = $args;
+            $alles_args['limit'] = -1;
             unset( $alles_args['page'] );
 
             $kandidaten = wc_get_products( $alles_args );
-            $passend    = $this->filter_op_voorraad( $kandidaten, $stock_status );
+            $passend    = self::filter_op_voorraad( $kandidaten, $stock_status );
 
             $total       = count( $passend );
             $product_ids = array_slice( $passend, ( $page - 1 ) * $per_page, $per_page );
@@ -322,7 +362,7 @@ class WCCSM_Admin_Overview {
      * @param string $status     outofstock | lowstock | instock.
      * @return array Dezelfde ids, in dezelfde volgorde, alleen de passende.
      */
-    private function filter_op_voorraad( array $kandidaten, string $status ): array {
+    public static function filter_op_voorraad( array $kandidaten, string $status ): array {
         global $wpdb;
 
         if ( empty( $kandidaten ) ) {

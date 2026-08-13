@@ -139,7 +139,41 @@
        Load Products
        ======================================================================== */
 
+    /**
+     * De exportlink laten meelopen met de filters.
+     *
+     * Staat hier en niet in de ready-functie: loadProducts() roept hem aan, en
+     * die staat op dit niveau. Een functie die binnen ready gedefinieerd is,
+     * bestaat daarbuiten niet, en dan valt het laden van de lijst stil op een
+     * fout die je alleen in de console ziet.
+     */
+    function ververExportLink() {
+        var $link = $('#wccsm-export');
+        if (!$link.length) {
+            return;
+        }
+
+        // De kale link met de beveiligingssleutel erin bewaren we één keer;
+        // daarna wordt hij telkens opnieuw met de filters aangevuld.
+        var basis = $link.data('basis');
+        if (!basis) {
+            basis = $link.attr('href');
+            $link.data('basis', basis);
+        }
+
+        $link.attr('href', basis +
+            '&search=' + encodeURIComponent(state.search) +
+            '&supplier=' + encodeURIComponent(state.supplier) +
+            '&stock_status=' + encodeURIComponent(state.stock_status) +
+            '&product_type=' + encodeURIComponent(state.product_type));
+    }
+
     function loadProducts() {
+        // Elke keer dat de lijst opnieuw geladen wordt, zijn de filters de
+        // actuele. Dan hoort de exportlink daar ook bij te staan; dit is de enige
+        // plek waar dat gegarandeerd is.
+        ververExportLink();
+
         var $body = $('#wccsm-table-body');
         $body.html('<tr><td colspan="10" class="wccsm-loading">' + wccsm.i18n.loading + '</td></tr>');
 
