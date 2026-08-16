@@ -320,6 +320,22 @@
 		}
 	}
 
+	/**
+	 * De lijst met inschrijvingen: eerst vragen, dan weghalen.
+	 *
+	 * Die knop staat op elke regel, vlak naast de vorige, en een misklik haalt
+	 * iemand van de lijst zonder dat het terug te draaien is.
+	 */
+	function initSubscriberList() {
+		document.querySelectorAll( '.wsfm-weghalen' ).forEach( function ( button ) {
+			button.addEventListener( 'click', function ( event ) {
+				if ( ! window.confirm( window.wsfmAdmin.confirmDeleteSubscriber ) ) {
+					event.preventDefault();
+				}
+			} );
+		} );
+	}
+
 	document.addEventListener( 'DOMContentLoaded', function () {
 		if ( typeof window.wsfmAdmin === 'undefined' ) {
 			return;
@@ -328,5 +344,6 @@
 		initFlowList();
 		initFlowEditor();
 		initTemplateEditor();
+		initSubscriberList();
 	} );
 } )();

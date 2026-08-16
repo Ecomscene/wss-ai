@@ -52,9 +52,10 @@ class WSFM_Newsletter_Render {
 	 * een tabelregel zijn in plaats van een nieuwe renderfunctie.
 	 *
 	 * @param string $sjabloon Sjabloonsleutel.
+	 * @param array  $eigen    Waarden die over het sjabloon heen gaan.
 	 * @return array
 	 */
-	private static function stijl( $sjabloon ) {
+	private static function stijl( $sjabloon, array $eigen = array() ) {
 		$sjablonen = array(
 			'rustig' => array(
 				'pagina'      => '#ffffff',
@@ -62,6 +63,7 @@ class WSFM_Newsletter_Render {
 				'tekst'       => '#1f1f1f',
 				'zacht'       => '#767676',
 				'lijn'        => '#e6e6e6',
+				'codelijn'    => '#e6e6e6',
 				'font'        => 'Helvetica, Arial, sans-serif',
 				'kopfont'     => 'Helvetica, Arial, sans-serif',
 				'kopgrootte'  => '24px',
@@ -83,6 +85,7 @@ class WSFM_Newsletter_Render {
 				'tekst'       => '#33302c',
 				'zacht'       => '#8a827a',
 				'lijn'        => '#ece5db',
+				'codelijn'    => '#ece5db',
 				'font'        => 'Helvetica, Arial, sans-serif',
 				'kopfont'     => 'Georgia, "Times New Roman", serif',
 				'kopgrootte'  => '26px',
@@ -104,6 +107,7 @@ class WSFM_Newsletter_Render {
 				'tekst'       => '#000000',
 				'zacht'       => '#7a7a7a',
 				'lijn'        => '#000000',
+				'codelijn'    => '#000000',
 				'font'        => 'Helvetica, Arial, sans-serif',
 				'kopfont'     => 'Helvetica, Arial, sans-serif',
 				'kopgrootte'  => '15px',
@@ -121,7 +125,130 @@ class WSFM_Newsletter_Render {
 			),
 		);
 
-		return isset( $sjablonen[ $sjabloon ] ) ? $sjablonen[ $sjabloon ] : $sjablonen['rustig'];
+		$s = isset( $sjablonen[ $sjabloon ] ) ? $sjablonen[ $sjabloon ] : $sjablonen['rustig'];
+
+		/* Alleen waarden die het sjabloon zelf ook kent worden overschreven. Wat
+		   er van buiten binnenkomt gaat rechtstreeks een style-attribuut in dat
+		   naar duizend mensen vertrekt; een onbekende sleutel hoort daar niet
+		   ongemerkt in te kunnen glippen. */
+		foreach ( $eigen as $sleutel => $waarde ) {
+			if ( array_key_exists( $sleutel, $s ) && '' !== (string) $waarde ) {
+				$s[ $sleutel ] = $waarde;
+			}
+		}
+
+		return $s;
+	}
+
+	/**
+	 * Vier kleuren uit een beheerscherm naar een compleet stel stijlwaarden.
+	 *
+	 * De winkelier kiest een achtergrond, een tekstkleur en een knop. De rest
+	 * van wat een mail nodig heeft, de kleur van de kleine lettertjes en van de
+	 * scheidingslijn, wordt hieruit afgeleid en niet apart gevraagd: dat zijn
+	 * twee extra keuzes die niemand goed maakt en waar je een onleesbare mail
+	 * mee kunt bouwen.
+	 *
+	 * @param string $achtergrond Achtergrond.
+	 * @param string $tekst       Tekstkleur.
+	 * @param string $knop        Knopkleur.
+	 * @param string $knoptekst   Kleur van de tekst op de knop.
+	 * @return array Stijlwaarden voor render().
+	 */
+	public static function kleuren_uit( $achtergrond, $tekst, $knop, $knoptekst ) {
+		/* Alles wat hier binnenkomt is al door sanitize_hex_color gegaan. Toch
+		   hier nog een keer: deze waarden gaan rechtstreeks een style-attribuut
+		   in van een mail die naar duizend mensen vertrekt, en dat is geen plek
+		   om erop te vertrouwen dat de aanroeper zijn werk heeft gedaan. */
+		$achtergrond = self::veilig( $achtergrond, '#ffffff' );
+		$tekst       = self::veilig( $tekst, '#1f1f1f' );
+		$knop        = self::veilig( $knop, '#1f1f1f' );
+		$knoptekst   = self::veilig( $knoptekst, '#ffffff' );
+
+		return array(
+			'pagina'    => $achtergrond,
+			'kaart'     => $achtergrond,
+			'tekst'     => $tekst,
+			/* De kleine lettertjes en de lijn zijn de tekstkleur die naar de
+			   achtergrond toe getrokken is. Zo blijven ze zacht op een witte
+			   mail en leesbaar op een donkere, in plaats van een vast grijs dat
+			   op de ene helft van de keuzes wegvalt. */
+			'zacht'     => self::meng( $tekst, $achtergrond, 0.45 ),
+			'lijn'      => self::meng( $tekst, $achtergrond, 0.85 ),
+			/* Het kader om de kortingscode krijgt wel de knopkleur: dat is het
+			   enige wat de ontvanger echt moet zien. */
+			'codelijn'  => $knop,
+			'knopbg'    => $knop,
+			'knoptekst' => $knoptekst,
+		);
+	}
+
+	/**
+	 * Een kleur, of de terugvaller als het er geen is.
+	 *
+	 * @param string $kleur      Wat er binnenkwam.
+	 * @param string $terugvaller Wat het wordt als dat geen kleur is.
+	 * @return string
+	 */
+	private static function veilig( $kleur, $terugvaller ) {
+		$rgb = self::rgb( $kleur );
+		if ( ! $rgb ) {
+			return $terugvaller;
+		}
+
+		/* Altijd als #rrggbb terug, ook als er "fff" of "FFF" binnenkwam. Zo
+		   staat er nooit een kleur zonder hekje in een style-attribuut, want dat
+		   is geen kleur meer maar een woord dat de mailclient weggooit. */
+		return sprintf( '#%02x%02x%02x', $rgb[0], $rgb[1], $rgb[2] );
+	}
+
+	/**
+	 * Twee kleuren mengen.
+	 *
+	 * @param string $van    Beginkleur (#rrggbb).
+	 * @param string $naar   Kleur waar naartoe gemengd wordt.
+	 * @param float  $hoevel Hoe ver richting $naar, 0 tot 1.
+	 * @return string #rrggbb
+	 */
+	private static function meng( $van, $naar, $hoevel ) {
+		$a = self::rgb( $van );
+		$b = self::rgb( $naar );
+
+		if ( ! $a || ! $b ) {
+			return $van;
+		}
+
+		$hoevel = max( 0, min( 1, (float) $hoevel ) );
+		$uit    = '#';
+
+		for ( $n = 0; $n < 3; $n++ ) {
+			$uit .= str_pad( dechex( (int) round( $a[ $n ] + ( $b[ $n ] - $a[ $n ] ) * $hoevel ) ), 2, '0', STR_PAD_LEFT );
+		}
+
+		return $uit;
+	}
+
+	/**
+	 * #rgb of #rrggbb naar drie getallen.
+	 *
+	 * @param string $kleur Kleur.
+	 * @return array|null
+	 */
+	private static function rgb( $kleur ) {
+		$kleur = ltrim( trim( (string) $kleur ), '#' );
+
+		if ( 3 === strlen( $kleur ) ) {
+			$kleur = $kleur[0] . $kleur[0] . $kleur[1] . $kleur[1] . $kleur[2] . $kleur[2];
+		}
+		if ( ! preg_match( '/^[0-9a-fA-F]{6}$/', $kleur ) ) {
+			return null;
+		}
+
+		return array(
+			hexdec( substr( $kleur, 0, 2 ) ),
+			hexdec( substr( $kleur, 2, 2 ) ),
+			hexdec( substr( $kleur, 4, 2 ) ),
+		);
 	}
 
 	/**
@@ -135,7 +262,11 @@ class WSFM_Newsletter_Render {
 	 * @return string
 	 */
 	public static function render( $brief ) {
-		$s       = self::stijl( isset( $brief->template ) ? $brief->template : 'rustig' );
+		/* De nieuwsbrief zet `kleuren` nooit: die houdt de vormgeving van zijn
+		   sjabloon. Alleen de welkomstmail van de popup vult dit, zodat de
+		   winkelier die mail bij zijn eigen huisstijl kan zetten. */
+		$eigen   = isset( $brief->kleuren ) && is_array( $brief->kleuren ) ? $brief->kleuren : array();
+		$s       = self::stijl( isset( $brief->template ) ? $brief->template : 'rustig', $eigen );
 		$blokken = isset( $brief->blocks ) && is_array( $brief->blocks ) ? $brief->blocks : array();
 
 		$binnen = '';
@@ -307,7 +438,7 @@ class WSFM_Newsletter_Render {
 		$onder = isset( $blok['onder'] ) ? trim( (string) $blok['onder'] ) : '';
 
 		$uit = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
-			. '<tr><td align="center" style="border:2px dashed ' . $s['lijn'] . ';border-radius:' . $s['rond'] . ';padding:22px 16px;">'
+			. '<tr><td align="center" style="border:2px dashed ' . $s['codelijn'] . ';border-radius:' . $s['rond'] . ';padding:22px 16px;">'
 			. '<span style="display:block;font-family:' . $s['font'] . ';font-size:26px;font-weight:700;letter-spacing:2px;color:' . $s['tekst'] . ';">'
 			. esc_html( $code ) . '</span>'
 			. ( '' === $onder ? '' : '<span style="display:block;margin-top:8px;font-size:13px;color:' . $s['zacht'] . ';">' . esc_html( $onder ) . '</span>' )

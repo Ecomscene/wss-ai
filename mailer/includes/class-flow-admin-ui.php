@@ -16,8 +16,15 @@ class WSFM_Flow_Admin_UI {
 	const SLUG_DASHBOARD = 'ws-flow-mailer';
 	const SLUG_BRIEVEN   = 'ws-flow-mailer-nieuwsbrieven';
 	const SLUG_POPUP     = 'ws-flow-mailer-popup';
+	const SLUG_ABONNEES  = 'ws-flow-mailer-inschrijvingen';
 	const SLUG_FLOWS     = 'ws-flow-mailer-flows';
 	const SLUG_TEMPLATES = 'ws-flow-mailer-templates';
+
+	/** Inschrijvingen per pagina in het overzicht. */
+	const PER_PAGINA = 50;
+
+	/** Hoogste aantal regels dat één import verwerkt. */
+	const MAX_IMPORT = 20000;
 
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 9 );
@@ -28,6 +35,10 @@ class WSFM_Flow_Admin_UI {
 		add_action( 'admin_post_wsfm_send_newsletter', array( $this, 'handle_send_newsletter' ) );
 
 		add_action( 'admin_post_wsfm_save_popup', array( $this, 'handle_save_popup' ) );
+
+		add_action( 'admin_post_wsfm_import_inschrijvingen', array( $this, 'handle_import_inschrijvingen' ) );
+		add_action( 'admin_post_wsfm_delete_inschrijving', array( $this, 'handle_delete_inschrijving' ) );
+		add_action( 'admin_post_wsfm_export_inschrijvingen', array( $this, 'handle_export_inschrijvingen' ) );
 
 		add_action( 'admin_post_wsfm_save_flow', array( $this, 'handle_save_flow' ) );
 		add_action( 'admin_post_wsfm_delete_flow', array( $this, 'handle_delete_flow' ) );
@@ -70,6 +81,7 @@ class WSFM_Flow_Admin_UI {
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Overzicht', 'ws-flow-mailer' ), __( 'Overzicht', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_DASHBOARD, array( $this, 'render_dashboard' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Nieuwsbrieven', 'ws-flow-mailer' ), __( 'Nieuwsbrieven', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_BRIEVEN, array( $this, 'render_newsletters' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Popup', 'ws-flow-mailer' ), __( 'Popup', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_POPUP, array( $this, 'render_popup' ) );
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Inschrijvingen', 'ws-flow-mailer' ), __( 'Inschrijvingen', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_ABONNEES, array( $this, 'render_inschrijvingen' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Flows', 'ws-flow-mailer' ), __( 'Flows', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_FLOWS, array( $this, 'render_flows' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Templates', 'ws-flow-mailer' ), __( 'Templates', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_TEMPLATES, array( $this, 'render_templates' ) );
 	}
@@ -171,6 +183,206 @@ class WSFM_Flow_Admin_UI {
 		WSFM_Popup::opslaan( wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- veld voor veld opgeschoond in opslaan().
 
 		wp_safe_redirect( add_query_arg( array( 'page' => self::SLUG_POPUP, 'wsfm-saved' => '1' ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Inschrijvingen
+	 * ------------------------------------------------------------------- */
+
+	/**
+	 * De lijst met inschrijvingen, met zoeken, bladeren en importeren.
+	 */
+	public function render_inschrijvingen() {
+		$this->require_capability();
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- alleen lezen en bladeren.
+		$zoek   = isset( $_GET['zoek'] ) ? sanitize_text_field( wp_unslash( $_GET['zoek'] ) ) : '';
+		$pagina = isset( $_GET['paged'] ) && is_numeric( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		$totaal    = WSFM_Subscribers::aantal( $zoek );
+		$paginas   = max( 1, (int) ceil( $totaal / self::PER_PAGINA ) );
+		$pagina    = min( $pagina, $paginas );
+		$rijen     = WSFM_Subscribers::lijst( self::PER_PAGINA, $pagina, $zoek );
+		$alle      = WSFM_Subscribers::aantal();
+
+		include WSFM_PLUGIN_DIR . 'admin/inschrijvingen-page.php';
+	}
+
+	/**
+	 * Adressen erbij zetten, uit een bestand of geplakt.
+	 */
+	public function handle_import_inschrijvingen() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_import_inschrijvingen' );
+
+		/* Zonder dit vinkje niet importeren. Een lijst inladen betekent dat er
+		   post uitgaat naar mensen die daar bij DEZE winkel niet om gevraagd
+		   hebben, en dat is geen technische maar een juridische fout: die kost
+		   de ondernemer een boete en ons zijn afzenderreputatie. */
+		if ( empty( $_POST['toestemming'] ) ) {
+			$this->terug_naar_inschrijvingen(
+				array( 'wsfm-error' => rawurlencode( __( 'Zet eerst het vinkje dat deze mensen zich bij jou hebben aangemeld.', 'ws-flow-mailer' ) ) )
+			);
+		}
+
+		$regels = array();
+
+		if ( isset( $_POST['plakken'] ) ) {
+			$plak   = sanitize_textarea_field( wp_unslash( $_POST['plakken'] ) );
+			$regels = preg_split( '/\r\n|\r|\n/', $plak );
+		}
+
+		$uit_bestand = $this->regels_uit_upload();
+		if ( is_wp_error( $uit_bestand ) ) {
+			$this->terug_naar_inschrijvingen( array( 'wsfm-error' => rawurlencode( $uit_bestand->get_error_message() ) ) );
+		}
+
+		$regels = array_merge( (array) $regels, $uit_bestand );
+
+		if ( count( $regels ) > self::MAX_IMPORT ) {
+			$regels = array_slice( $regels, 0, self::MAX_IMPORT );
+		}
+
+		$telling = WSFM_Subscribers::importeer( WSFM_Subscribers::ontleed( $regels ) );
+
+		$this->terug_naar_inschrijvingen(
+			array(
+				'wsfm-toegevoegd' => (int) $telling['toegevoegd'],
+				'wsfm-bestond'    => (int) $telling['bestond'],
+				'wsfm-ongeldig'   => (int) $telling['ongeldig'],
+				'wsfm-afgemeld'   => (int) $telling['afgemeld'],
+			)
+		);
+	}
+
+	/**
+	 * De regels uit het geüploade bestand.
+	 *
+	 * Het bestand wordt gelezen waar PHP het al heeft neergezet en nergens
+	 * heen gekopieerd. Deze plugin draait op winkels van klanten en hoort daar
+	 * geen bestanden achter te laten.
+	 *
+	 * @return array|WP_Error
+	 */
+	private function regels_uit_upload() {
+		if ( ! isset( $_FILES['bestand'] ) || ! isset( $_FILES['bestand']['error'] ) ) {
+			return array();
+		}
+
+		$fout = (int) $_FILES['bestand']['error'];
+
+		if ( UPLOAD_ERR_NO_FILE === $fout ) {
+			return array();
+		}
+		if ( UPLOAD_ERR_OK !== $fout ) {
+			return new WP_Error( 'wsfm_upload', __( 'Het bestand kwam niet goed binnen. Probeer het nog eens, of plak de adressen in het vak eronder.', 'ws-flow-mailer' ) );
+		}
+
+		$pad = isset( $_FILES['bestand']['tmp_name'] ) ? sanitize_text_field( $_FILES['bestand']['tmp_name'] ) : '';
+
+		if ( '' === $pad || ! is_uploaded_file( $pad ) ) {
+			return new WP_Error( 'wsfm_upload', __( 'Het bestand kon niet gelezen worden.', 'ws-flow-mailer' ) );
+		}
+
+		/* Twee megabyte is ruim honderdduizend adressen. Wat groter is, is geen
+		   adressenlijst maar een vergissing, en die hoeven we niet in het
+		   geheugen van een webshop te trekken. */
+		if ( filesize( $pad ) > 2 * MB_IN_BYTES ) {
+			return new WP_Error( 'wsfm_upload', __( 'Dat bestand is te groot. Splits het op, of laat er alleen de e-mailadressen in staan.', 'ws-flow-mailer' ) );
+		}
+
+		$handvat = fopen( $pad, 'r' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- tijdelijk bestand van PHP zelf, geen bestand op de site.
+		if ( ! $handvat ) {
+			return new WP_Error( 'wsfm_upload', __( 'Het bestand kon niet gelezen worden.', 'ws-flow-mailer' ) );
+		}
+
+		$regels = array();
+
+		while ( count( $regels ) < self::MAX_IMPORT ) {
+			$regel = fgets( $handvat ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fgets
+			if ( false === $regel ) {
+				break;
+			}
+			$regels[] = $regel;
+		}
+
+		fclose( $handvat ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+
+		/* Excel zet drie onzichtbare tekens vooraan het bestand. Zonder dit
+		   hoort het eerste adres bij niemand, want het staat er met rommel
+		   ervoor en is dan geen geldig adres meer. */
+		if ( ! empty( $regels ) ) {
+			$regels[0] = preg_replace( '/^\xEF\xBB\xBF/', '', $regels[0] );
+		}
+
+		return $regels;
+	}
+
+	/**
+	 * Eén inschrijving weghalen.
+	 */
+	public function handle_delete_inschrijving() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_delete_inschrijving' );
+
+		$id = isset( $_POST['inschrijving_id'] ) && is_numeric( $_POST['inschrijving_id'] ) ? (int) $_POST['inschrijving_id'] : 0;
+		if ( $id > 0 ) {
+			WSFM_Subscribers::verwijder( $id );
+		}
+
+		$this->terug_naar_inschrijvingen( array( 'wsfm-deleted' => '1' ) );
+	}
+
+	/**
+	 * De hele lijst als bestand.
+	 *
+	 * Puntkomma's als scheidingsteken: Excel opent een bestand met komma's in
+	 * Nederland als één kolom, en dan denkt de winkelier dat de export stuk is.
+	 */
+	public function handle_export_inschrijvingen() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_export_inschrijvingen' );
+
+		$bestand = 'inschrijvingen-' . gmdate( 'Y-m-d' ) . '.csv';
+
+		nocache_headers();
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=' . $bestand );
+
+		$uit = fopen( 'php://output', 'w' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- geen bestand, maar het antwoord zelf.
+
+		/* Dezelfde onzichtbare tekens die we bij het inlezen weghalen, zetten we
+		   er bij het uitschrijven juist voor: zonder die is een e met een accent
+		   in Excel een blokje. */
+		fwrite( $uit, "\xEF\xBB\xBF" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite
+		fputcsv( $uit, array( 'email', 'voornaam', 'bron', 'kortingscode', 'ingeschreven op' ), ';' );
+
+		$pagina = 1;
+		do {
+			$rijen = WSFM_Subscribers::lijst( 500, $pagina );
+			foreach ( $rijen as $rij ) {
+				fputcsv(
+					$uit,
+					array( $rij->email, $rij->first_name, $rij->source, $rij->coupon_code, $rij->created_at ),
+					';'
+				);
+			}
+			$pagina++;
+		} while ( count( $rijen ) === 500 );
+
+		fclose( $uit ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		exit;
+	}
+
+	/**
+	 * Terug naar de inschrijvingen, met een boodschap in de URL.
+	 *
+	 * @param array $args Extra queryargumenten.
+	 */
+	private function terug_naar_inschrijvingen( array $args ) {
+		wp_safe_redirect( add_query_arg( array_merge( array( 'page' => self::SLUG_ABONNEES ), $args ), admin_url( 'admin.php' ) ) );
 		exit;
 	}
 
@@ -689,6 +901,21 @@ class WSFM_Flow_Admin_UI {
 		foreach ( array( 'korting_waarde', 'minimaal', 'geldig_dagen' ) as $veld ) {
 			if ( isset( $_POST[ $veld ] ) ) {
 				$i[ $veld ] = (float) $_POST[ $veld ];
+			}
+		}
+
+		/* Het scherm stuurt het vinkje altijd mee, ook als het uit staat, dus
+		   hier telt de waarde en niet of het veld er is. */
+		if ( isset( $_POST['mail_eigen_kleuren'] ) ) {
+			$i['mail_eigen_kleuren'] = '1' === (string) $_POST['mail_eigen_kleuren'] ? 1 : 0;
+		}
+		foreach ( array( 'mail_kleur_achtergrond', 'mail_kleur_tekst', 'mail_kleur_knop', 'mail_kleur_knoptekst' ) as $veld ) {
+			if ( ! isset( $_POST[ $veld ] ) ) {
+				continue;
+			}
+			$kleur = sanitize_hex_color( wp_unslash( $_POST[ $veld ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- sanitize_hex_color doet het werk.
+			if ( $kleur ) {
+				$i[ $veld ] = $kleur;
 			}
 		}
 		// phpcs:enable WordPress.Security.NonceVerification.Missing

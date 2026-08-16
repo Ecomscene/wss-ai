@@ -228,6 +228,30 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 								</select></label><br>
 							<span class="description"><?php esc_html_e( 'Dezelfde drie als bij de nieuwsbrief.', 'ws-flow-mailer' ); ?></span>
 						</p>
+
+						<p>
+							<label>
+								<input type="checkbox" name="mail_eigen_kleuren" id="wsfm-mail-eigen" value="1" <?php checked( ! empty( $i['mail_eigen_kleuren'] ) ); ?>>
+								<strong><?php esc_html_e( 'Eigen kleuren in de mail', 'ws-flow-mailer' ); ?></strong>
+							</label><br>
+							<span class="description"><?php esc_html_e( 'Zonder dit vinkje houdt de mail de kleuren van de vormgeving hierboven, en die zijn wit met zwart.', 'ws-flow-mailer' ); ?></span>
+						</p>
+						<div class="wsfm-mail-kleuren">
+							<p class="wsfm-kleuren">
+								<label><?php esc_html_e( 'Achtergrond', 'ws-flow-mailer' ); ?><br>
+									<input type="color" name="mail_kleur_achtergrond" value="<?php echo esc_attr( $i['mail_kleur_achtergrond'] ); ?>"></label>
+								<label><?php esc_html_e( 'Tekst', 'ws-flow-mailer' ); ?><br>
+									<input type="color" name="mail_kleur_tekst" value="<?php echo esc_attr( $i['mail_kleur_tekst'] ); ?>"></label>
+								<label><?php esc_html_e( 'Knop', 'ws-flow-mailer' ); ?><br>
+									<input type="color" name="mail_kleur_knop" value="<?php echo esc_attr( $i['mail_kleur_knop'] ); ?>"></label>
+								<label><?php esc_html_e( 'Tekst op de knop', 'ws-flow-mailer' ); ?><br>
+									<input type="color" name="mail_kleur_knoptekst" value="<?php echo esc_attr( $i['mail_kleur_knoptekst'] ); ?>"></label>
+							</p>
+							<p class="description">
+								<?php esc_html_e( 'De knopkleur komt ook om de kortingscode te staan. De kleine lettertjes en de scheidingslijn worden hier zelf uit afgeleid, dus die hoef je niet te kiezen.', 'ws-flow-mailer' ); ?>
+							</p>
+						</div>
+
 						<p>
 							<button type="button" class="button" id="wsfm-popup-mail-bekijk"><?php esc_html_e( 'Bekijk de mail', 'ws-flow-mailer' ); ?></button>
 							<button type="button" class="button" id="wsfm-popup-mail-proef"><?php esc_html_e( 'Stuur hem naar mezelf', 'ws-flow-mailer' ); ?></button>
@@ -264,6 +288,11 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 					<div class="inside">
 						<p class="wsfm-aantal"><?php echo esc_html( number_format_i18n( $aantal ) ); ?></p>
 						<p class="description"><?php esc_html_e( 'Je kunt ze een nieuwsbrief sturen: kies bij Nieuwsbrieven de doelgroep met de inschrijvingen erin.', 'ws-flow-mailer' ); ?></p>
+						<p>
+							<a href="<?php echo esc_url( add_query_arg( array( 'page' => WSFM_Flow_Admin_UI::SLUG_ABONNEES ), admin_url( 'admin.php' ) ) ); ?>">
+								<?php esc_html_e( 'Bekijk de hele lijst', 'ws-flow-mailer' ); ?>
+							</a>
+						</p>
 
 						<?php if ( ! empty( $recent ) ) : ?>
 							<table class="widefat striped wsfm-inschrijvingen">

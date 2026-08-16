@@ -103,6 +103,16 @@ class WSFM_Popup {
 			'mail_kop'        => __( 'Welkom!', 'ws-flow-mailer' ),
 			'mail_tekst'      => __( "Leuk dat je erbij bent. Met de code hieronder krijg je korting op je eerste bestelling.\n\nVeel plezier met kijken!", 'ws-flow-mailer' ),
 			'mail_sjabloon'   => 'rustig',
+
+			/* De kleuren van de mail staan standaard UIT, en dan blijft het
+			   sjabloon precies zoals het was. Anders zou een winkel die vandaag
+			   bijwerkt morgen ineens een andere welkomstmail versturen dan
+			   gisteren, zonder dat iemand iets veranderd heeft. */
+			'mail_eigen_kleuren'     => 0,
+			'mail_kleur_achtergrond' => '#ffffff',
+			'mail_kleur_tekst'       => '#1f1f1f',
+			'mail_kleur_knop'        => '#c08b7d',
+			'mail_kleur_knoptekst'   => '#ffffff',
 		);
 	}
 
@@ -196,6 +206,12 @@ class WSFM_Popup {
 					? mb_substr( sanitize_textarea_field( wp_unslash( $ruw['mail_tekst'] ) ), 0, 1500 )
 					: $oud['mail_tekst'],
 				'mail_sjabloon'  => isset( $sjablonen[ $sjabloon ] ) ? $sjabloon : 'rustig',
+
+				'mail_eigen_kleuren'     => empty( $ruw['mail_eigen_kleuren'] ) ? 0 : 1,
+				'mail_kleur_achtergrond' => $kleur( 'mail_kleur_achtergrond' ),
+				'mail_kleur_tekst'       => $kleur( 'mail_kleur_tekst' ),
+				'mail_kleur_knop'        => $kleur( 'mail_kleur_knop' ),
+				'mail_kleur_knoptekst'   => $kleur( 'mail_kleur_knoptekst' ),
 			)
 		);
 	}
@@ -610,6 +626,12 @@ class WSFM_Popup {
 			'subject'  => $i['mail_onderwerp'],
 			'template' => $i['mail_sjabloon'],
 			'blocks'   => $blokken,
+			'kleuren'  => empty( $i['mail_eigen_kleuren'] ) ? array() : WSFM_Newsletter_Render::kleuren_uit(
+				$i['mail_kleur_achtergrond'],
+				$i['mail_kleur_tekst'],
+				$i['mail_kleur_knop'],
+				$i['mail_kleur_knoptekst']
+			),
 		);
 
 		return WSFM_Template_Engine::render_string(

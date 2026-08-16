@@ -604,3 +604,78 @@
 	font-size: 12px;
 	padding: 6px 8px;
 }
+
+/* De kleuren van de mail met de kortingscode. Verborgen zolang het vinkje uit
+   staat: vier kleurvakjes die niets doen zijn vier vragen waar de winkelier
+   over gaat nadenken. */
+.wsfm-mail-kleuren {
+	display: none;
+}
+
+/* --- De lijst met inschrijvingen --- */
+
+.wsfm-inschrijvingen-uitleg {
+	max-width: 760px;
+}
+
+.wsfm-inschrijvingen-balk {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 16px;
+	margin: 16px 0 12px;
+}
+
+.wsfm-inschrijvingen-balk .wsfm-aantal-regel {
+	margin: 0;
+	margin-right: auto;
+}
+
+.wsfm-inschrijvingen-balk .wsfm-aantal-regel strong {
+	font-size: 18px;
+}
+
+.wsfm-zoekvak,
+.wsfm-exportvak {
+	margin: 0;
+}
+
+.wsfm-zoekvak input[type="search"] {
+	min-width: 220px;
+}
+
+.wsfm-inschrijvingen-tabel .wsfm-rij-actie {
+	width: 90px;
+	text-align: right;
+}
+
+/* Het formulier om de knop mag geen regel innemen, anders staat elke rij in de
+   tabel ineens twee regels hoog. */
+.wsfm-inschrijvingen-tabel .wsfm-rij-actie form {
+	display: inline;
+}
+
+.wsfm-inschrijvingen-tabel .wsfm-weghalen {
+	color: #b32d2e;
+}
+
+.wsfm-inschrijvingen-tabel .wsfm-leeg {
+	color: #8c8f94;
+}
+
+.wsfm-importvak {
+	max-width: 760px;
+	margin-top: 24px;
+}
+
+.wsfm-importvak .description {
+	max-width: 640px;
+	display: inline-block;
+}
+
+.wsfm-toestemming {
+	background: #f6f7f7;
+	border-left: 4px solid #dba617;
+	padding: 10px 12px;
+	margin: 18px 0;
+}

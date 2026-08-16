@@ -221,8 +221,25 @@
 			minimaal: $( 'input[name="minimaal"]' ).val() || '0',
 			geldig_dagen: $( 'input[name="geldig_dagen"]' ).val() || '0',
 			code_voorvoegsel: $( 'input[name="code_voorvoegsel"]' ).val() || 'WELKOM',
+			/* Het vinkje gaat altijd mee, ook als het uit staat. Een uitgevinkt
+			   selectievakje stuurt uit zichzelf niets mee, en dan zou het
+			   voorbeeld de opgeslagen kleuren blijven tonen terwijl je ze net
+			   hebt uitgezet. */
+			mail_eigen_kleuren: $( '#wsfm-mail-eigen' ).is( ':checked' ) ? '1' : '0',
+			mail_kleur_achtergrond: $( 'input[name="mail_kleur_achtergrond"]' ).val() || '',
+			mail_kleur_tekst: $( 'input[name="mail_kleur_tekst"]' ).val() || '',
+			mail_kleur_knop: $( 'input[name="mail_kleur_knop"]' ).val() || '',
+			mail_kleur_knoptekst: $( 'input[name="mail_kleur_knoptekst"]' ).val() || '',
 		};
 	}
+
+	/* De kleurvelden hebben alleen zin als de eigen kleuren aanstaan. */
+	function mailKleurVelden() {
+		$( '.wsfm-mail-kleuren' ).toggle( $( '#wsfm-mail-eigen' ).is( ':checked' ) );
+	}
+
+	$( '#wsfm-mail-eigen' ).on( 'change', mailKleurVelden );
+	mailKleurVelden();
 
 	$( '#wsfm-popup-mail-bekijk' ).on( 'click', function () {
 		/* Het venster meteen openen, anders ziet de browser het niet meer als

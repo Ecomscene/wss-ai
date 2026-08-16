@@ -63,6 +63,7 @@ class WSFM_Admin_Settings {
 				'sending'    => __( 'Bezig met versturen…', 'ws-flow-mailer' ),
 				'confirmDeleteFlow'     => __( 'Weet je zeker dat je deze flow wilt verwijderen? Actieve wachtrij-items worden gestopt.', 'ws-flow-mailer' ),
 				'confirmDeleteTemplate' => __( 'Weet je zeker dat je deze template wilt verwijderen?', 'ws-flow-mailer' ),
+				'confirmDeleteSubscriber' => __( 'Dit adres van je lijst halen? Diegene krijgt daarna geen nieuwsbrief meer.', 'ws-flow-mailer' ),
 			)
 		);
 
