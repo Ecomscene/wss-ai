@@ -375,6 +375,14 @@ class WSS_AI_Fotostudio {
 				</p>
 				<p class="wss-ai-mut wss-ai-klein">
 					<?php esc_html_e( 'Er verandert pas iets aan je product als je op Gebruiken klikt.', 'wss-ai' ); ?>
+					<?php
+					/* Wat er nog aan tegoed over is. Geen tegoed van kracht is
+					   geen regel, en dan merkt niemand dat dit bestaat. */
+					$wss_ai_tegoed = WSS_AI_Budget::regel();
+					if ( '' !== $wss_ai_tegoed ) {
+						echo '<br>' . wp_kses_post( $wss_ai_tegoed );
+					}
+					?>
 				</p>
 			</div>
 		</div>
@@ -460,6 +468,14 @@ class WSS_AI_Fotostudio {
 		$post_id = isset( $_POST['post'] ) ? absint( $_POST['post'] ) : 0;
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_send_json_error( array( 'error' => __( 'Je mag dit product niet bewerken.', 'wss-ai' ) ) );
+		}
+
+		/* Is er nog tegoed? De echte weigering staat op de server, maar een
+		   aanvraag die daar toch afketst hoeft niet eerst dertig seconden te
+		   duren. Zie class-wss-ai-budget.php. */
+		$tegoed = WSS_AI_Budget::controleer();
+		if ( is_wp_error( $tegoed ) ) {
+			wp_send_json_error( array( 'error' => $tegoed->get_error_message() ) );
 		}
 
 		/* De winkelier kiest zelf met welke foto we beginnen: de hoofdfoto of een
@@ -578,6 +594,14 @@ class WSS_AI_Fotostudio {
 		$post_id = isset( $_POST['post'] ) ? absint( $_POST['post'] ) : 0;
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_send_json_error( array( 'error' => __( 'Je mag dit product niet bewerken.', 'wss-ai' ) ) );
+		}
+
+		/* Is er nog tegoed? De echte weigering staat op de server, maar een
+		   aanvraag die daar toch afketst hoeft niet eerst dertig seconden te
+		   duren. Zie class-wss-ai-budget.php. */
+		$tegoed = WSS_AI_Budget::controleer();
+		if ( is_wp_error( $tegoed ) ) {
+			wp_send_json_error( array( 'error' => $tegoed->get_error_message() ) );
 		}
 
 		$opdracht = isset( $_POST['opdracht'] ) ? sanitize_textarea_field( wp_unslash( $_POST['opdracht'] ) ) : '';
@@ -730,6 +754,14 @@ class WSS_AI_Fotostudio {
 		check_ajax_referer( 'wss_ai_foto', 'nonce' );
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( array( 'error' => __( 'Je hebt hier geen toegang toe.', 'wss-ai' ) ) );
+		}
+
+		/* Is er nog tegoed? De echte weigering staat op de server, maar een
+		   aanvraag die daar toch afketst hoeft niet eerst dertig seconden te
+		   duren. Zie class-wss-ai-budget.php. */
+		$tegoed = WSS_AI_Budget::controleer();
+		if ( is_wp_error( $tegoed ) ) {
+			wp_send_json_error( array( 'error' => $tegoed->get_error_message() ) );
 		}
 
 		$media = isset( $_POST['media'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['media'] ) ) : array();

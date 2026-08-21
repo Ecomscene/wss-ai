@@ -60,6 +60,7 @@ $bestanden = array_merge(
 );
 
 $fouten  = 0;
+$nagelopen = 0;
 $gezien  = array();
 
 foreach ( $bestanden as $bestand ) {
@@ -120,11 +121,50 @@ foreach ( $beschikbaar as $klasse ) {
 	}
 }
 
+/* ---------------- 4. en hetzelfde voor de hoofdmap ---------------- */
+
+/* Dezelfde fout, andere map. Een klasse in includes/ die niet in wss-ai.php
+   wordt ingeladen is een fatale fout zodra iets hem aanroept, en dat is een
+   witte pagina op een webshop. Dit kwam erbij toen class-wss-ai-budget.php
+   werd toegevoegd: op dat moment keek dit script alleen naar de mailer. */
+$hoofd = (string) file_get_contents( $wortel . '/wss-ai.php' );
+
+foreach ( (array) glob( $wortel . '/includes/class-wss-ai-*.php' ) as $bestand ) {
+	$kort   = basename( $bestand );
+	$php = (string) file_get_contents( $bestand );
+
+	if ( false === strpos( $hoofd, 'includes/' . $kort ) ) {
+		printf( "  FOUT %s staat in includes/, maar wordt in wss-ai.php niet ingeladen
+", $kort );
+		$fouten++;
+		continue;
+	}
+
+	$nagelopen++;
+
+	/* Een klasse met een init() hoort ook gestart te worden. Een module die je
+	   inlaadt maar niet start doet net zo weinig als een module die er niet is. */
+	if ( ! preg_match( '/class\s+(WSS_AI_\w+)/', $php, $k ) ) {
+		continue;
+	}
+	if ( ! preg_match( '/public static function init\s*\(/', $php ) ) {
+		continue;
+	}
+	if ( false === strpos( $hoofd, $k[1] . '::init(' ) ) {
+		printf( "  LET OP %s heeft een init() die in wss-ai.php niet aangeroepen wordt
+", $k[1] );
+		$fouten++;
+	}
+}
+
 printf(
 	"\n%d bestanden ingeladen, %d klassen gebruikt: %s\n",
 	count( $geladen ),
 	count( $gezien ),
 	0 === $fouten ? 'alles wordt ingeladen en gestart' : $fouten . ' probleem(en)'
 );
+
+printf( "%d klassen in includes/ nagelopen op wss-ai.php
+", $nagelopen );
 
 exit( 0 === $fouten ? 0 : 1 );

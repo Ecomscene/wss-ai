@@ -54,7 +54,21 @@ class WSS_AI_Koppeling {
 	 */
 	public static function module_aan( $naam ) {
 		$uit = get_option( self::OPTIE_UIT, array() );
-		return ! ( is_array( $uit ) && in_array( $naam, $uit, true ) );
+		if ( is_array( $uit ) && in_array( $naam, $uit, true ) ) {
+			return false;
+		}
+
+		/* Teksten en afbeeldingen kosten per keer geld. Die horen alleen te
+		   bestaan bij een beheerklant, en een gewone klant hoort niet eens te
+		   zien dat ze er zijn: geen menu-item, geen knop bij een product, geen
+		   bulkactie. Zolang Webshopschool niets over tegoed heeft gezegd geeft
+		   mag_ai() ja terug en blijft alles zoals het was. Zie
+		   class-wss-ai-budget.php. */
+		if ( in_array( $naam, WSS_AI_Budget::BETAALD, true ) && ! WSS_AI_Budget::mag_ai() ) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -154,6 +168,13 @@ class WSS_AI_Koppeling {
 			: array();
 		update_option( self::OPTIE_AAN, $aan );
 
+		/* Of dit een beheerklant is en wat er deze maand nog aan tegoed is. Zegt
+		   de server hier niets over, dan blijft staan wat er stond: zie de
+		   uitleg bij WSS_AI_Budget::onthoud(). */
+		if ( isset( $data['data']['budget'] ) ) {
+			WSS_AI_Budget::onthoud( $data['data']['budget'] );
+		}
+
 		/* Gaat de nieuwsbrief uit, dan moet de terugkerende verzendtaak ook echt
 		   stoppen. Die blijft anders staan in Action Scheduler en verstuurt over
 		   vijf minuten gewoon weer een ronde. */
@@ -202,6 +223,13 @@ class WSS_AI_Koppeling {
 		if ( ! is_array( $data ) ) {
 			return new WP_Error( 'onleesbaar', __( 'Er kwam een onverwacht antwoord terug.', 'wss-ai' ) );
 		}
+		/* Het bijgewerkte tegoed reist mee met het antwoord, ook als het verzoek
+		   geweigerd is. Zo klopt de meter meteen na een tekst of een foto, in
+		   plaats van pas bij de volgende aanmelding tien minuten later. */
+		if ( isset( $data['budget'] ) ) {
+			WSS_AI_Budget::onthoud( $data['budget'] );
+		}
+
 		if ( empty( $data['ok'] ) ) {
 			$fout = ! empty( $data['error'] ) ? (string) $data['error'] : __( 'Dit lukte niet.', 'wss-ai' );
 			/* Zegt de server dat we niet aanstaan, dan onthouden we dat -- anders

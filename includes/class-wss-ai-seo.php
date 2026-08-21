@@ -95,6 +95,15 @@ class WSS_AI_SEO {
 				<span class="wss-ai-melding" aria-live="polite"></span>
 			</p>
 
+			<?php
+			/* Wat er nog aan tegoed over is. Staat er geen tegoed van kracht,
+			   dan komt hier niets en merkt niemand dat dit bestaat. */
+			$wss_ai_tegoed = WSS_AI_Budget::regel();
+			if ( '' !== $wss_ai_tegoed ) {
+				echo '<p class="wss-ai-klein">' . wp_kses_post( $wss_ai_tegoed ) . '</p>';
+			}
+			?>
+
 			<div class="wss-ai-uitkomst" hidden></div>
 
 			<p class="wss-ai-mut wss-ai-klein">
@@ -165,6 +174,14 @@ class WSS_AI_SEO {
 		$soort = isset( $_POST['soort'] ) ? sanitize_key( wp_unslash( $_POST['soort'] ) ) : '';
 		if ( ! in_array( $soort, array( 'omschrijving', 'seo-titel', 'seo-omschrijving' ), true ) ) {
 			wp_send_json_error( array( 'error' => __( 'Onbekend soort tekst.', 'wss-ai' ) ) );
+		}
+
+		/* Is er nog tegoed? De echte weigering staat op de server, maar een
+		   aanvraag die daar toch afketst hoeft niet eerst dertig seconden te
+		   duren. Zie class-wss-ai-budget.php. */
+		$tegoed = WSS_AI_Budget::controleer();
+		if ( is_wp_error( $tegoed ) ) {
+			wp_send_json_error( array( 'error' => $tegoed->get_error_message() ) );
 		}
 
 		/* De tekst die nu in het scherm staat en misschien nog niet is opgeslagen.

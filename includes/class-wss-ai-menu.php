@@ -345,6 +345,7 @@ class WSS_AI_Menu {
 			<?php esc_html_e( 'Hoe meer er van een product is ingevuld en opgeslagen, hoe beter de tekst wordt. Weet je het even niet? Tik dan ruw in het omschrijvingsveld wat je erover kunt vertellen: steekwoorden, halve zinnen, typefouten maken niet uit. Dat is voer voor de AI.', 'wss-ai' ); ?>
 		</p>
 		<?php
+		WSS_AI_Budget::kaart();
 		WSS_AI_Instellingen::kaart();
 		self::voet();
 	}
@@ -365,6 +366,7 @@ class WSS_AI_Menu {
 			?>
 		</p>
 		<?php
+		WSS_AI_Budget::kaart();
 		WSS_AI_Fotostudio::kaart();
 		self::voet();
 	}

@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.25.0
+ * Version:           0.26.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,11 +33,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.25.0' );
+define( 'WSS_AI_VERSIE', '0.26.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
 require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-budget.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
@@ -179,6 +180,16 @@ function wss_ai_stijl( $hook ) {
 		. '.wss-ai-cijfer span{color:#646970;font-size:12px}'
 		. '.wss-ai-balk{height:8px;border-radius:4px;background:#f0f0f1;overflow:hidden}'
 		. '.wss-ai-balk i{display:block;height:100%;background:#2271b1}'
+		/* Het maandtegoed. Het bedrag groot, want dat is waar iemand naar kijkt,
+		   en de balk eronder omdat een bedrag weinig zegt zonder het geheel.
+		   Rood zodra het op is: dat is geen fout maar wel iets om te zien. */
+		. '.wss-ai-tegoedbedrag{margin:0 0 10px;display:flex;align-items:baseline;gap:8px}'
+		. '.wss-ai-tegoedbedrag strong{font-size:26px;line-height:1.2;letter-spacing:-.01em}'
+		. '.wss-ai-tegoedkaart .wss-ai-balk{max-width:420px}'
+		. '.wss-ai-tegoedlijst{margin:8px 0 4px 18px;list-style:disc}'
+		. '.wss-ai-tegoedlijst li{margin:0 0 2px}'
+		. '.wss-ai-tegoed{color:#646970}'
+		. '.wss-ai-tegoed.is-op{color:#b32d2e}'
 		. '.wss-ai-weken{margin:14px 0 4px}'
 		. '.wss-ai-week{display:flex;gap:14px;padding:14px 0;border-top:1px solid #f0f0f1}'
 		. '.wss-ai-week:first-child{border-top:0;padding-top:4px}'
