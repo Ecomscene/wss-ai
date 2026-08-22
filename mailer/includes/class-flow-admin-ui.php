@@ -41,6 +41,7 @@ class WSFM_Flow_Admin_UI {
 		add_action( 'admin_post_wsfm_lijst_weg', array( $this, 'handle_lijst_weg' ) );
 		add_action( 'admin_post_wsfm_afrekenen', array( $this, 'handle_afrekenen' ) );
 		add_action( 'admin_post_wsfm_lijst_lid', array( $this, 'handle_lijst_lid' ) );
+		add_action( 'admin_post_wsfm_contact', array( $this, 'handle_contact' ) );
 		add_action( 'admin_post_wsfm_import_inschrijvingen', array( $this, 'handle_import_inschrijvingen' ) );
 		add_action( 'admin_post_wsfm_delete_inschrijving', array( $this, 'handle_delete_inschrijving' ) );
 		add_action( 'admin_post_wsfm_export_inschrijvingen', array( $this, 'handle_export_inschrijvingen' ) );
@@ -163,6 +164,7 @@ class WSFM_Flow_Admin_UI {
 		}
 
 		$brieven = WSFM_Newsletters::get_all();
+		$doelgroepen = WSFM_Newsletters::doelgroepen();
 		include WSFM_PLUGIN_DIR . 'admin/newsletters-page.php';
 	}
 
@@ -204,18 +206,28 @@ class WSFM_Flow_Admin_UI {
 	public function render_inschrijvingen() {
 		$this->require_capability();
 
-		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- alleen lezen en bladeren.
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- alleen lezen, bladeren en filteren.
 		$zoek   = isset( $_GET['zoek'] ) ? sanitize_text_field( wp_unslash( $_GET['zoek'] ) ) : '';
 		$pagina = isset( $_GET['paged'] ) && is_numeric( $_GET['paged'] ) ? max( 1, (int) $_GET['paged'] ) : 1;
+		$lijst_filter = isset( $_GET['lijst'] ) && is_numeric( $_GET['lijst'] ) ? (int) $_GET['lijst'] : 0;
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		$totaal    = WSFM_Subscribers::aantal( $zoek );
-		$paginas   = max( 1, (int) ceil( $totaal / self::PER_PAGINA ) );
-		$pagina    = min( $pagina, $paginas );
-		$rijen     = WSFM_Subscribers::lijst( self::PER_PAGINA, $pagina, $zoek );
-		$alle      = WSFM_Subscribers::aantal();
 		$lijsten   = WSFM_Lijsten::alles();
 		$afrekenen = WSFM_Afrekenen::instellingen();
+
+		/* Een filter op een lijst die niet meer bestaat is geen filter maar een
+		   leeg scherm zonder uitleg. Dan tonen we gewoon alles. */
+		$bekend = wp_list_pluck( $lijsten, 'id' );
+		if ( $lijst_filter && ! in_array( $lijst_filter, array_map( 'intval', $bekend ), true ) ) {
+			$lijst_filter = 0;
+		}
+
+		$totaal  = WSFM_Subscribers::aantal( $zoek, $lijst_filter );
+		$paginas = max( 1, (int) ceil( $totaal / self::PER_PAGINA ) );
+		$pagina  = min( $pagina, $paginas );
+		$rijen   = WSFM_Subscribers::lijst( self::PER_PAGINA, $pagina, $zoek, $lijst_filter );
+		$alle    = WSFM_Subscribers::aantal();
+
 		$lidmaatschap = WSFM_Lijsten::van_meerdere( wp_list_pluck( $rijen, 'id' ) );
 
 		include WSFM_PLUGIN_DIR . 'admin/inschrijvingen-page.php';
@@ -447,6 +459,53 @@ class WSFM_Flow_Admin_UI {
 		}
 
 		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'weg' ) );
+	}
+
+	/**
+	 * Eén contact toevoegen.
+	 *
+	 * WAAROM DIT NAAST DE IMPORT STAAT
+	 * Eén persoon toevoegen via een vak waar je "joey;joey@voorbeeld.nl" in
+	 * moet typen is een gereedschap dat je eerst moet begrijpen voordat je het
+	 * kunt gebruiken. Drie velden invullen hoeft niemand uit te leggen.
+	 *
+	 * Wie zich ooit heeft afgemeld komt er ook hier niet handmatig weer in.
+	 * Dat is dezelfde regel als bij de popup, het afrekenvinkje en de import,
+	 * en een uitzondering "want ik voeg hem zelf toe" zou hem waardeloos maken.
+	 */
+	public function handle_contact() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_contact' );
+
+		$email = isset( $_POST['contact_email'] ) ? sanitize_email( wp_unslash( $_POST['contact_email'] ) ) : '';
+		$lijst = isset( $_POST['contact_lijst'] ) ? WSFM_Lijsten::geldig( $_POST['contact_lijst'] ) : 0;
+
+		if ( ! is_email( $email ) ) {
+			$this->terug_naar_inschrijvingen( array( 'wsfm-error' => rawurlencode( __( 'Dat lijkt geen geldig e-mailadres.', 'ws-flow-mailer' ) ) ) );
+		}
+
+		if ( WSFM_Suppression::is_suppressed( $email ) ) {
+			$this->terug_naar_inschrijvingen(
+				array( 'wsfm-error' => rawurlencode( __( 'Dit adres staat op je afmeldlijst. Haal het daar eerst af als je zeker weet dat diegene weer post wil.', 'ws-flow-mailer' ) ) )
+			);
+		}
+
+		$uit = WSFM_Subscribers::add(
+			$email,
+			'handmatig',
+			'',
+			isset( $_POST['contact_voornaam'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_voornaam'] ) ) : '',
+			$lijst,
+			'',
+			isset( $_POST['contact_achternaam'] ) ? sanitize_text_field( wp_unslash( $_POST['contact_achternaam'] ) ) : ''
+		);
+
+		$this->terug_naar_inschrijvingen(
+			array(
+				'wsfm-contact' => empty( $uit['nieuw'] ) ? 'bestond' : 'nieuw',
+				'lijst'        => $lijst,
+			)
+		);
 	}
 
 	/**

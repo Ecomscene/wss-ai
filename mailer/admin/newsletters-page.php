@@ -36,6 +36,7 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 				<tr>
 					<th><?php esc_html_e( 'Naam', 'ws-flow-mailer' ); ?></th>
 					<th><?php esc_html_e( 'Onderwerp', 'ws-flow-mailer' ); ?></th>
+					<th style="width:200px;"><?php esc_html_e( 'Naar wie', 'ws-flow-mailer' ); ?></th>
 					<th style="width:130px;"><?php esc_html_e( 'Status', 'ws-flow-mailer' ); ?></th>
 					<th style="width:110px;"><?php esc_html_e( 'Ontvangers', 'ws-flow-mailer' ); ?></th>
 					<th style="width:170px;"><?php esc_html_e( 'Verstuurd', 'ws-flow-mailer' ); ?></th>
@@ -51,6 +52,16 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 							<strong><a href="<?php echo esc_url( $wsfm_link ); ?>"><?php echo esc_html( $wsfm_brief->name ); ?></a></strong>
 						</td>
 						<td><?php echo esc_html( $wsfm_brief->subject ); ?></td>
+						<td>
+							<?php
+							/* De doelgroep zoals hij nu heet. Een lijst kan hernoemd of weggegooid
+							   zijn; dan tonen we de opgeslagen sleutel en niet een naam die we
+							   verzinnen, want dan zou er iets anders staan dan waar hij heen ging. */
+							echo isset( $doelgroepen[ $wsfm_brief->audience ] )
+								? esc_html( $doelgroepen[ $wsfm_brief->audience ] )
+								: '<span class="wsfm-mut">' . esc_html( $wsfm_brief->audience ) . '</span>';
+							?>
+						</td>
 						<td>
 							<?php if ( 'concept' === $wsfm_brief->status ) : ?>
 								<span class="wsfm-badge"><?php esc_html_e( 'Concept', 'ws-flow-mailer' ); ?></span>

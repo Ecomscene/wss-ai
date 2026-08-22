@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '5';
+	const DB_VERSION = '6';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -187,6 +187,7 @@ class WSFM_Install {
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			email VARCHAR(190) NOT NULL DEFAULT '',
 			first_name VARCHAR(190) NOT NULL DEFAULT '',
+			last_name VARCHAR(190) NOT NULL DEFAULT '',
 			source VARCHAR(40) NOT NULL DEFAULT 'popup',
 			coupon_code VARCHAR(60) NOT NULL DEFAULT '',
 			consent_text VARCHAR(255) NOT NULL DEFAULT '',

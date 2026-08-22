@@ -155,6 +155,21 @@
 	}
 
 	$doelgroep.on( 'change', tel );
+
+	/**
+	 * Waarschuwen als er een klantgroep gekozen wordt.
+	 *
+	 * Niet tegenhouden: naar je eigen klanten mailen mag. Maar het is een andere
+	 * beslissing dan naar een lijst mailen, en die hoort zichtbaar te zijn op het
+	 * moment dat je hem neemt, niet in een handleiding.
+	 */
+	function letOp() {
+		var gekozen = $doelgroep.find( 'option:selected' );
+		$( '.wsfm-klantgroep-let-op' ).prop( 'hidden', '1' !== String( gekozen.data( 'klantgroep' ) ) );
+	}
+
+	$doelgroep.on( 'change', letOp );
+	letOp();
 	tel();
 
 	/* ---------------- bekijken en proefmail ---------------- */
@@ -183,6 +198,124 @@
 
 		return gegevens;
 	}
+
+	/* ---------------- het voorbeeld dat meebeweegt ---------------- */
+
+	var $voorbeeld = $( '.wsfm-briefvoorbeeld' );
+	var $frame = $( '#wsfm-voorbeeld-frame' );
+	var $stand = $( '.wsfm-briefvoorbeeld-stand' );
+	var wachten = null;
+	var bezig = false;
+	var nogEens = false;
+
+	/**
+	 * De mail op ware grootte in het vak passen.
+	 *
+	 * De schaal wordt hier uitgerekend en staat niet vast in de stylesheet: de
+	 * zijbalk is op een breed scherm ruimer dan op een smal, en een vaste schaal
+	 * zou op de een een rand overhouden en op de ander afsnijden.
+	 */
+	function pasIn() {
+		if ( ! $voorbeeld.length ) {
+			return;
+		}
+
+		var breed = 'mobiel' === $voorbeeld.attr( 'data-breed' ) ? 390 : 600;
+		var ruimte = $voorbeeld.width();
+		var schaal = Math.min( 1, ruimte / breed );
+
+		$frame.css( {
+			width: breed + 'px',
+			height: Math.round( $voorbeeld.height() / schaal ) + 'px',
+			transform: 'scale(' + schaal + ')',
+			/* Bij telefoonbreedte past hij zonder schalen; dan hem centreren in
+			   plaats van links plakken. */
+			marginLeft: schaal < 1 ? 0 : Math.max( 0, ( ruimte - breed ) / 2 ) + 'px',
+		} );
+	}
+
+	/**
+	 * Het voorbeeld opnieuw ophalen.
+	 *
+	 * Er loopt er nooit meer dan een tegelijk. Wie snel typt zou anders tien
+	 * verzoeken tegelijk hebben lopen, en dan bepaalt de volgorde waarin ze
+	 * terugkomen wat je ziet: soms een oudere versie dan wat er staat.
+	 */
+	function ververs() {
+		if ( ! $frame.length ) {
+			return;
+		}
+		if ( bezig ) {
+			nogEens = true;
+			return;
+		}
+
+		bezig = true;
+		$stand.text( T.bezig || 'Momentje...' );
+
+		$.post(
+			window.wsfmAdmin.ajaxUrl,
+			inhoud().concat( [ { name: 'action', value: 'wsfm_preview_newsletter' } ] )
+		)
+			.done( function ( res ) {
+				if ( res && res.success ) {
+					/* srcdoc in plaats van in het document schrijven: dan is de
+					   inhoud van het frame afgeschermd van deze pagina, en dat is
+					   waar het thuishoort. */
+					$frame.attr( 'srcdoc', res.data.html );
+					$stand.text( '' );
+				} else {
+					$stand.text( ( res && res.data && res.data.message ) || T.fout || '' );
+				}
+			} )
+			.fail( function () {
+				$stand.text( T.fout || '' );
+			} )
+			.always( function () {
+				bezig = false;
+				if ( nogEens ) {
+					nogEens = false;
+					ververs();
+				}
+			} );
+	}
+
+	/**
+	 * Verversen, maar niet bij elke toetsaanslag.
+	 *
+	 * Een halve seconde stil betekent: hij is even klaar met typen. Elke letter
+	 * een verzoek zou de server bezighouden met tekst die een tel later toch
+	 * weer anders is.
+	 */
+	function straks() {
+		window.clearTimeout( wachten );
+		wachten = window.setTimeout( ververs, 500 );
+	}
+
+	if ( $frame.length ) {
+		/* Alles in de samensteller telt mee: de velden, de blokken, het sjabloon.
+		   Op het formulier geluisterd en niet per veld, want er komen blokken bij
+		   en die bestaan nu nog niet. */
+		$( '#wsfm-brief-form' ).on( 'input change', 'input, textarea, select', straks );
+
+		/* Een blok toevoegen, weghalen of verplaatsen verandert niets aan een
+		   veld, dus die klikken hebben hun eigen aanleiding nodig. */
+		$( '.wsfm-voeg-toe' ).on( 'click', straks );
+		$blokken.on( 'click', '.wsfm-weg, .wsfm-omhoog, .wsfm-omlaag', straks );
+
+		$( '.wsfm-briefvoorbeeld-balk .wsfm-breedtes .button' ).on( 'click', function () {
+			$( '.wsfm-briefvoorbeeld-balk .wsfm-breedtes .button' ).removeClass( 'is-actief' );
+			$( this ).addClass( 'is-actief' );
+			$voorbeeld.attr( 'data-breed', $( this ).data( 'breed' ) );
+			pasIn();
+		} );
+
+		$( window ).on( 'resize', pasIn );
+
+		pasIn();
+		ververs();
+	}
+
 
 	$( '#wsfm-bekijk' ).on( 'click', function () {
 		var $knop = $( this );

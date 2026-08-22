@@ -273,13 +273,40 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 			</div>
 
 			<div class="wsfm-brief-rechts">
+			<div class="postbox wsfm-briefvoorbeeld-vak">
+				<div class="inside">
+					<div class="wsfm-briefvoorbeeld-balk">
+						<strong><?php esc_html_e( 'Voorbeeld', 'ws-flow-mailer' ); ?></strong>
+						<span class="wsfm-briefvoorbeeld-stand" aria-live="polite"></span>
+						<span class="wsfm-breedtes">
+							<button type="button" class="button button-small is-actief" data-breed="desktop">
+								<?php esc_html_e( 'Computer', 'ws-flow-mailer' ); ?></button>
+							<button type="button" class="button button-small" data-breed="mobiel">
+								<?php esc_html_e( 'Telefoon', 'ws-flow-mailer' ); ?></button>
+						</span>
+					</div>
+
+					<div class="wsfm-briefvoorbeeld" data-breed="desktop">
+						<iframe id="wsfm-voorbeeld-frame" title="<?php esc_attr_e( 'Voorbeeld van je nieuwsbrief', 'ws-flow-mailer' ); ?>"></iframe>
+					</div>
+
+					<p class="description wsfm-briefvoorbeeld-voet">
+						<?php esc_html_e( 'Dit is precies wat er verstuurd wordt. Waar {first_name} staat vullen we hier Jan in.', 'ws-flow-mailer' ); ?>
+						<button type="button" class="button-link" id="wsfm-bekijk">
+							<?php esc_html_e( 'Groot bekijken', 'ws-flow-mailer' ); ?></button>
+					</p>
+				</div>
+			</div>
+
 				<div class="postbox">
 					<div class="inside">
 						<p><strong><?php esc_html_e( 'Naar wie gaat hij?', 'ws-flow-mailer' ); ?></strong></p>
 						<p>
 							<select name="nieuwsbrief_doelgroep" id="wsfm-doelgroep" style="width:100%;">
 								<?php foreach ( $doelgroepen as $wsfm_dk => $wsfm_dl ) : ?>
-									<option value="<?php echo esc_attr( $wsfm_dk ); ?>" <?php selected( $wsfm_doelgroep, $wsfm_dk ); ?>>
+									<option value="<?php echo esc_attr( $wsfm_dk ); ?>"
+										data-klantgroep="<?php echo WSFM_Newsletters::is_klantgroep( $wsfm_dk ) ? '1' : '0'; ?>"
+										<?php selected( $wsfm_doelgroep, $wsfm_dk ); ?>>
 										<?php echo esc_html( $wsfm_dl ); ?>
 									</option>
 								<?php endforeach; ?>
@@ -287,8 +314,15 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 						</p>
 						<p id="wsfm-aantal" class="wsfm-aantal"><?php esc_html_e( 'Bezig met tellen...', 'ws-flow-mailer' ); ?></p>
 						<p class="description">
-							<?php esc_html_e( 'Alleen mensen die bij je besteld hebben. Wie zich heeft afgemeld valt er automatisch af.', 'ws-flow-mailer' ); ?>
+							<?php esc_html_e( 'Wie zich heeft afgemeld valt er altijd af, ook als hij op de lijst staat.', 'ws-flow-mailer' ); ?>
 						</p>
+
+						<div class="wsfm-klantgroep-let-op notice notice-warning inline" hidden>
+							<p>
+								<strong><?php esc_html_e( 'Dit is geen aanmeldlijst', 'ws-flow-mailer' ); ?></strong><br>
+								<?php esc_html_e( 'Deze mensen hebben niet om je nieuwsbrief gevraagd; ze hebben bij je gekocht. Dat mag je mailen zolang het over je eigen, soortgelijke producten gaat en er een afmeldlink in staat. Maar ze openen minder en klagen vaker, en dat raakt de bezorging van al je post. Twijfel je, stuur hem dan naar een lijst.', 'ws-flow-mailer' ); ?>
+							</p>
+						</div>
 					</div>
 				</div>
 
@@ -298,11 +332,6 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 							<p>
 								<button type="submit" class="button button-primary button-large" style="width:100%;">
 									<?php esc_html_e( 'Opslaan', 'ws-flow-mailer' ); ?>
-								</button>
-							</p>
-							<p>
-								<button type="button" class="button" id="wsfm-bekijk" style="width:100%;">
-									<?php esc_html_e( 'Bekijk hoe hij eruitziet', 'ws-flow-mailer' ); ?>
 								</button>
 							</p>
 							<hr>

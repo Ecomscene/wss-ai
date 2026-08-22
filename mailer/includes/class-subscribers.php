@@ -43,11 +43,12 @@ class WSFM_Subscribers {
 	 * @param string $bron        Waar hij vandaan komt (popup, afrekenen, import).
 	 * @param string $code        Uitgegeven kortingscode.
 	 * @param string $naam        Voornaam, als we die hebben.
+	 * @param string $achternaam  Achternaam, als we die hebben.
 	 * @param int    $lijst_id    Op welke lijst. Nul betekent de hoofdlijst.
 	 * @param string $toestemming De tekst waar hij ja op zei, als die er is.
 	 * @return array { nieuw: bool, code: string, id: int }
 	 */
-	public static function add( $email, $bron = 'popup', $code = '', $naam = '', $lijst_id = 0, $toestemming = '' ) {
+	public static function add( $email, $bron = 'popup', $code = '', $naam = '', $lijst_id = 0, $toestemming = '', $achternaam = '' ) {
 		global $wpdb;
 
 		$email = strtolower( trim( (string) $email ) );
@@ -75,6 +76,7 @@ class WSFM_Subscribers {
 			array(
 				'email'        => $email,
 				'first_name'   => sanitize_text_field( $naam ),
+				'last_name'    => sanitize_text_field( $achternaam ),
 				'source'       => sanitize_key( $bron ),
 				'coupon_code'  => sanitize_text_field( $code ),
 				'consent_text' => $toestemming,
@@ -130,23 +132,62 @@ class WSFM_Subscribers {
 	}
 
 	/**
+	 * De WHERE en de waarden die bij een zoekterm en een lijstfilter horen.
+	 *
+	 * Eén plek, want tellen en ophalen moeten hetzelfde filter gebruiken. Liep
+	 * dat uiteen, dan stond er boven de tabel een ander getal dan er rijen in
+	 * staan, en dat is precies het soort verschil waar niemand meer uitkomt.
+	 *
+	 * @param string $zoek     Zoekterm.
+	 * @param int    $lijst_id Alleen deze lijst. Nul is alles.
+	 * @return array { sql: string, waarden: array }
+	 */
+	private static function filter( $zoek, $lijst_id ) {
+		global $wpdb;
+
+		$waar    = array();
+		$waarden = array();
+
+		$zoek = trim( (string) $zoek );
+		if ( '' !== $zoek ) {
+			$als = '%' . $wpdb->esc_like( $zoek ) . '%';
+			$waar[] = '( s.email LIKE %s OR s.first_name LIKE %s OR s.last_name LIKE %s )';
+			$waarden[] = $als;
+			$waarden[] = $als;
+			$waarden[] = $als;
+		}
+
+		$lijst_id = is_numeric( $lijst_id ) ? (int) $lijst_id : 0;
+		if ( $lijst_id > 0 ) {
+			$leden = WSFM_Lijsten::leden_table();
+			$waar[] = "s.id IN ( SELECT subscriber_id FROM {$leden} WHERE lijst_id = %d )";
+			$waarden[] = $lijst_id;
+		}
+
+		return array(
+			'sql'     => empty( $waar ) ? '' : ' WHERE ' . implode( ' AND ', $waar ),
+			'waarden' => $waarden,
+		);
+	}
+
+	/**
 	 * Hoeveel er zijn.
 	 *
-	 * @param string $zoek Alleen tellen wat hierop lijkt. Leeg is alles.
+	 * @param string $zoek     Alleen tellen wat hierop lijkt. Leeg is alles.
+	 * @param int    $lijst_id Alleen deze lijst. Nul is alles.
 	 * @return int
 	 */
-	public static function aantal( $zoek = '' ) {
+	public static function aantal( $zoek = '', $lijst_id = 0 ) {
 		global $wpdb;
 
 		$table = self::table();
-		$zoek  = trim( (string) $zoek );
+		$f     = self::filter( $zoek, $lijst_id );
 
-		if ( '' === $zoek ) {
-			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( '' === $f['sql'] ) {
+			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} s" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
 
-		$als = '%' . $wpdb->esc_like( $zoek ) . '%';
-		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE email LIKE %s OR first_name LIKE %s", $als, $als ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} s" . $f['sql'], $f['waarden'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**
@@ -171,10 +212,11 @@ class WSFM_Subscribers {
 	 *
 	 * @param int    $per_pagina Rijen per pagina.
 	 * @param int    $pagina     Paginanummer, vanaf 1.
-	 * @param string $zoek       Zoekterm op adres of voornaam.
+	 * @param string $zoek       Zoekterm op adres of naam.
+	 * @param int    $lijst_id   Alleen deze lijst. Nul is alles.
 	 * @return object[]
 	 */
-	public static function lijst( $per_pagina = 50, $pagina = 1, $zoek = '' ) {
+	public static function lijst( $per_pagina = 50, $pagina = 1, $zoek = '', $lijst_id = 0 ) {
 		global $wpdb;
 
 		$table = self::table();
@@ -187,14 +229,29 @@ class WSFM_Subscribers {
 		$pagina = is_numeric( $pagina ) ? (int) $pagina : 1;
 		$vanaf  = max( 0, ( max( 1, $pagina ) - 1 ) * $per_pagina );
 
-		$zoek = trim( (string) $zoek );
+		$f       = self::filter( $zoek, $lijst_id );
+		$waarden = array_merge( $f['waarden'], array( $per_pagina, $vanaf ) );
 
-		if ( '' !== $zoek ) {
-			$als = '%' . $wpdb->esc_like( $zoek ) . '%';
-			return (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE email LIKE %s OR first_name LIKE %s ORDER BY id DESC LIMIT %d OFFSET %d", $als, $als, $per_pagina, $vanaf ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		}
+		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT s.* FROM {$table} s" . $f['sql'] . ' ORDER BY s.id DESC LIMIT %d OFFSET %d', $waarden ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
 
-		return (array) $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d", $per_pagina, $vanaf ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	/**
+	 * De naam zoals je hem opschrijft.
+	 *
+	 * Voornaam en achternaam aan elkaar, en een streepje als er niets staat.
+	 * Op een scherm vol adressen is een lege cel niet te onderscheiden van een
+	 * cel die nog moet laden.
+	 *
+	 * @param object $rij Rij uit de tabel.
+	 * @return string
+	 */
+	public static function naam_van( $rij ) {
+		$naam = trim(
+			( isset( $rij->first_name ) ? $rij->first_name : '' ) . ' ' .
+			( isset( $rij->last_name ) ? $rij->last_name : '' )
+		);
+
+		return '' === $naam ? '-' : $naam;
 	}
 
 	/**
@@ -235,7 +292,7 @@ class WSFM_Subscribers {
 	 * e-mailadres IS. Alles wat overblijft en geen adres is, is de voornaam.
 	 *
 	 * @param array $regels Ruwe regels of al gesplitste velden.
-	 * @return array Lijst van array( email, naam ), ontdubbeld.
+	 * @return array Lijst van array( email, voornaam, achternaam ), ontdubbeld.
 	 */
 	public static function ontleed( array $regels ) {
 		$uit = array();
@@ -252,6 +309,7 @@ class WSFM_Subscribers {
 
 			$email = '';
 			$naam  = '';
+			$achternaam = '';
 
 			foreach ( (array) $velden as $veld ) {
 				$veld = trim( trim( (string) $veld ), "\"' " );
@@ -265,6 +323,12 @@ class WSFM_Subscribers {
 				}
 				if ( '' === $naam && ! is_email( $veld ) ) {
 					$naam = $veld;
+					continue;
+				}
+				/* Een derde veld dat geen adres is, is de achternaam. Zo werkt een
+				   export met voornaam en achternaam in aparte kolommen ook. */
+				if ( '' === $achternaam && ! is_email( $veld ) ) {
+					$achternaam = $veld;
 				}
 			}
 
@@ -272,11 +336,11 @@ class WSFM_Subscribers {
 				/* Ook de ongeldige regels teruggeven, want de teller op het scherm
 				   moet kunnen zeggen hoeveel er zijn afgevallen. Een import die
 				   stilletjes de helft weglaat is erger dan een import die weigert. */
-				$uit[] = array( '', '' );
+				$uit[] = array( '', '', '' );
 				continue;
 			}
 
-			$uit[ $email ] = array( $email, $naam );
+			$uit[ $email ] = array( $email, $naam, $achternaam );
 		}
 
 		return array_values( $uit );
@@ -301,6 +365,7 @@ class WSFM_Subscribers {
 		foreach ( $paren as $paar ) {
 			$email = isset( $paar[0] ) ? (string) $paar[0] : '';
 			$naam  = isset( $paar[1] ) ? (string) $paar[1] : '';
+			$achternaam = isset( $paar[2] ) ? (string) $paar[2] : '';
 
 			if ( ! is_email( $email ) ) {
 				$telling['ongeldig']++;
@@ -315,7 +380,7 @@ class WSFM_Subscribers {
 				continue;
 			}
 
-			$uitkomst = self::add( $email, $bron, '', $naam, $lijst_id );
+			$uitkomst = self::add( $email, $bron, '', $naam, $lijst_id, '', $achternaam );
 
 			if ( ! empty( $uitkomst['nieuw'] ) ) {
 				$telling['toegevoegd']++;

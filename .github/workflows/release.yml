@@ -81,6 +81,12 @@ jobs:
       - name: Nagaan of alles ingeladen en gestart wordt
         run: php tools/check-laden.php
 
+      # Een scherm dat scheef opbouwt lint schoon: een div die in de ene tak
+      # niet gesloten wordt, of een formulier binnen een formulier, ziet php -l
+      # niet. Dit bouwt de beheerschermen echt op en telt na.
+      - name: De schermen opbouwen en natellen
+        run: php tools/check-schermen.php
+
       # Het leesteken dat hier nergens mag staan. Het glipt er zo weer in via
       # code die van elders komt, en het staat dan in mail aan klanten.
       - name: Het verboden leesteken zoeken

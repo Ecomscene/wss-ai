@@ -227,7 +227,10 @@
 }
 
 .wsfm-brief-rechts {
-	flex: 0 0 300px;
+	/* Breder dan een gewone zijbalk, want hier staat het voorbeeld in. Een mail
+	   is 600 pixels breed; in 300 pixels is dat geen voorbeeld meer maar een
+	   postzegel. */
+	flex: 0 0 440px;
 	position: sticky;
 	top: 46px;
 }
@@ -612,79 +615,103 @@
 	display: none;
 }
 
-/* --- De lijst met inschrijvingen --- */
+/* ---------------------------------------------------------------------------
+   Inschrijvingen en lijsten
 
-.wsfm-inschrijvingen-uitleg {
-	max-width: 760px;
+   Alles binnen de vormtaal van wp-admin: dezelfde randen, dezelfde grijzen,
+   dezelfde knoppen. Dit scherm hoort er niet uit te springen maar wel prettiger
+   te werken dan een kale tabel. Wat hier gebeurt is dus vooral RUIMTE en
+   VOLGORDE, en bijna geen kleur.
+   ------------------------------------------------------------------------ */
+
+.wsfm-vak {
+	max-width: 1100px;
+	margin-bottom: 20px;
 }
 
-.wsfm-inschrijvingen-balk {
+.wsfm-vak .inside {
+	padding: 4px 16px 16px;
+}
+
+.wsfm-vak-kop {
+	font-size: 15px;
+	margin: 12px 0 4px;
+}
+
+.wsfm-vak-uitleg {
+	max-width: 680px;
+	color: #646970;
+	margin: 0 0 14px;
+}
+
+.wsfm-mut {
+	color: #646970;
+	font-size: 12px;
+}
+
+.wsfm-smal {
+	max-width: 680px;
+}
+
+/* Een rij velden die als één handeling leest: label boven het veld, alles op
+   een regel, en de knop erachter. Dat is de vorm die "vul dit in en druk op de
+   knop" het duidelijkst maakt zonder een formulier van een halve pagina. */
+.wsfm-rij-form {
 	display: flex;
 	flex-wrap: wrap;
-	align-items: center;
-	gap: 16px;
-	margin: 16px 0 12px;
+	align-items: flex-end;
+	gap: 10px;
+	margin: 14px 0 0;
+	padding-top: 14px;
+	border-top: 1px solid #f0f0f1;
 }
 
-.wsfm-inschrijvingen-balk .wsfm-aantal-regel {
+.wsfm-rij-form label {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.wsfm-rij-form label span {
+	font-size: 12px;
+	color: #646970;
+}
+
+.wsfm-rij-form input[type="text"],
+.wsfm-rij-form input[type="email"],
+.wsfm-rij-form select {
+	min-width: 160px;
 	margin: 0;
-	margin-right: auto;
 }
 
-.wsfm-inschrijvingen-balk .wsfm-aantal-regel strong {
-	font-size: 18px;
+.wsfm-rij-form .wsfm-breed input {
+	min-width: 260px;
 }
 
-.wsfm-zoekvak,
-.wsfm-exportvak {
-	margin: 0;
-}
-
-.wsfm-zoekvak input[type="search"] {
-	min-width: 220px;
-}
-
-.wsfm-inschrijvingen-tabel .wsfm-rij-actie {
-	width: 90px;
-	text-align: right;
-}
-
-/* Het formulier om de knop mag geen regel innemen, anders staat elke rij in de
-   tabel ineens twee regels hoog. */
-.wsfm-inschrijvingen-tabel .wsfm-rij-actie form {
+/* Formulieren die alleen een knop bevatten mogen geen regel innemen, anders
+   staat elke tabelrij ineens twee regels hoog. */
+.wsfm-inline {
 	display: inline;
+	margin: 0;
 }
 
-.wsfm-inschrijvingen-tabel .wsfm-weghalen {
-	color: #b32d2e;
+/* --- de lijstentabel --- */
+
+.wsfm-lijstentabel {
+	margin-top: 4px;
 }
 
-.wsfm-inschrijvingen-tabel .wsfm-leeg {
-	color: #8c8f94;
+.wsfm-lijstnaam {
+	font-weight: 600;
+	text-decoration: none;
 }
 
-.wsfm-importvak {
-	max-width: 760px;
-	margin-top: 24px;
+.wsfm-lijstentabel .wsfm-rij-actief {
+	box-shadow: inset 3px 0 0 #2271b1;
 }
 
-.wsfm-importvak .description {
-	max-width: 640px;
-	display: inline-block;
-}
-
-.wsfm-toestemming {
-	background: #f6f7f7;
-	border-left: 4px solid #dba617;
-	padding: 10px 12px;
-	margin: 18px 0;
-}
-
-/* --- Lijsten --- */
-
-.wsfm-lijstenvak,
-.wsfm-afrekenvak {
-	max-width: 900px;
+.wsfm-lijstentabel .wsfm-rij-actief .wsfm-lijstnaam {
+	color: #1d2327;
 }
 
 /* Het merkje achter de hoofdlijst. Rustig, want het is een feit en geen
@@ -701,61 +728,258 @@
 	vertical-align: middle;
 }
 
-.wsfm-nieuwe-lijst {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: flex-end;
-	gap: 10px;
-	margin-top: 14px;
-	padding-top: 14px;
-	border-top: 1px solid #dcdcde;
-}
-
-.wsfm-lijstenvak .wsfm-rij-actie {
+.wsfm-kol-getal {
 	width: 90px;
+}
+
+.wsfm-kol-acties {
+	width: 190px;
 	text-align: right;
+	white-space: nowrap;
 }
 
-.wsfm-lijstenvak .wsfm-rij-actie form {
-	display: inline;
+.wsfm-kol-bron {
+	width: 150px;
 }
 
-.wsfm-lijstenvak .wsfm-weghalen {
+.wsfm-kol-datum {
+	width: 110px;
+}
+
+.wsfm-kol-adres {
+	word-break: break-all;
+}
+
+.wsfm-weghalen {
 	color: #b32d2e;
 }
 
-/* De lijstentabel is bewerkbaar: naam en omschrijving staan als velden in de
-   rij zelf. Dat scheelt een apart bewerkscherm voor twee tekstvelden. */
-.wsfm-lijst-bewerk {
+/* --- uitklappers ---
+   Hernoemen en lidmaatschap zitten achter een <details>. Twee tekstvelden per
+   rij die altijd openstaan maken van een overzicht een formulier, en dan zie je
+   niet meer wat er staat. Native details, dus geen JavaScript dat kan uitvallen. */
+
+.wsfm-hernoem,
+.wsfm-lidbeheer {
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.wsfm-hernoem summary,
+.wsfm-lidbeheer summary,
+.wsfm-uitklap summary {
+	cursor: pointer;
+	color: #2271b1;
+	font-size: 12px;
+	list-style: none;
+}
+
+.wsfm-hernoem summary::-webkit-details-marker,
+.wsfm-lidbeheer summary::-webkit-details-marker,
+.wsfm-uitklap summary::-webkit-details-marker {
+	display: none;
+}
+
+.wsfm-hernoem summary::before,
+.wsfm-lidbeheer summary::before,
+.wsfm-uitklap summary::before {
+	content: "\25B8";
+	margin-right: 4px;
+	font-size: 10px;
+}
+
+.wsfm-hernoem[open] summary::before,
+.wsfm-lidbeheer[open] summary::before,
+.wsfm-uitklap[open] summary::before {
+	content: "\25BE";
+}
+
+.wsfm-hernoem form,
+.wsfm-lidbeheer form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+	text-align: left;
+}
+
+.wsfm-hernoem input[type="text"] {
+	max-width: 150px;
+}
+
+.wsfm-uitklap {
+	margin-top: 18px;
+	padding-top: 14px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.wsfm-uitklap summary {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.wsfm-importvorm {
+	max-width: 720px;
+	margin-top: 12px;
+}
+
+.wsfm-toestemming {
+	background: #f6f7f7;
+	border-left: 4px solid #dba617;
+	padding: 10px 12px;
+	margin: 16px 0;
+}
+
+/* --- de adressen --- */
+
+.wsfm-sectiekop {
+	margin: 26px 0 0;
+	font-size: 16px;
+}
+
+.wsfm-balk {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 6px;
+	gap: 12px;
+	margin: 8px 0 10px;
 }
 
-.wsfm-lijst-bewerk input[type="text"] {
-	max-width: 220px;
-}
-
-/* De omschrijving staat al in het bewerkveld ernaast; de losse kolom is er
-   alleen voor het overzicht op een breed scherm. */
-.wsfm-lijstentabel .wsfm-lijst-uitleg {
+.wsfm-telling {
+	margin: 0 auto 0 0;
 	color: #646970;
 }
 
-@media screen and (max-width: 1200px) {
-	.wsfm-lijstentabel .wsfm-lijst-uitleg {
-		display: none;
-	}
+.wsfm-telling strong {
+	font-size: 17px;
+	color: #1d2327;
 }
 
-.wsfm-lijstkolom .wsfm-lidvorm {
-	display: flex;
-	gap: 4px;
-	margin-top: 4px;
-}
-
-.wsfm-lijstkolom select {
-	max-width: 140px;
+.wsfm-filter-weg {
+	margin-left: 8px;
 	font-size: 12px;
+}
+
+.wsfm-zoekvak {
+	margin: 0;
+	display: flex;
+	gap: 6px;
+}
+
+.wsfm-zoekvak input[type="search"] {
+	min-width: 220px;
+	margin: 0;
+}
+
+.wsfm-niets {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 24px;
+	color: #646970;
+	max-width: 1100px;
+}
+
+.wsfm-adrestabel {
+	max-width: 1100px;
+}
+
+/* De lijsten waar iemand op staat, als merkjes. Rustiger dan komma's, en je
+   ziet in een oogopslag of iemand op meer dan een lijst staat. */
+.wsfm-merkje {
+	display: inline-block;
+	margin: 0 4px 2px 0;
+	padding: 1px 7px;
+	border-radius: 10px;
+	background: #f0f0f1;
+	color: #3c434a;
+	font-size: 11px;
+}
+
+.wsfm-lidbeheer {
+	margin-left: 2px;
+}
+
+.wsfm-afrekenvak {
+	margin-top: 26px;
+}
+
+/* ---------------------------------------------------------------------------
+   Het voorbeeld naast de samensteller
+
+   WAAROM DIT GEEN KNOP MEER IS
+   Het voorbeeld zat in een popupvenster achter een knop. Dat betekende: typen,
+   klikken, kijken, venster sluiten, weer typen. Niemand doet dat vaker dan twee
+   keer, en dus werd er verstuurd zonder te kijken. Nu staat het ernaast en
+   beweegt het mee terwijl je typt.
+
+   WAAROM EEN IFRAME EN GEEN NAGEBOUWD VOORBEELD
+   Het is dezelfde HTML die de ontvanger krijgt, opgehaald bij dezelfde
+   renderfunctie die ook echt verstuurt. Een nagemaakt voorbeeld groeit uit de
+   pas met het echte werk, en dan lieg je juist op het moment dat iemand
+   controleert.
+
+   EIGEN NAMEN, GEEN HERGEBRUIK
+   De popup-pagina heeft al een .wsfm-voorbeeldvak met een eigen betekenis.
+   Dezelfde naam voor iets anders is hoe je een scherm sloopt dat je niet aan
+   het bewerken bent.
+   ------------------------------------------------------------------------ */
+
+.wsfm-briefvoorbeeld-vak .inside {
+	padding: 10px 12px 8px;
+}
+
+.wsfm-briefvoorbeeld-balk {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.wsfm-briefvoorbeeld-balk .wsfm-breedtes {
+	margin-left: auto;
+	white-space: nowrap;
+}
+
+.wsfm-briefvoorbeeld-stand {
+	color: #646970;
+	font-size: 12px;
+}
+
+/* De hoogte staat vast en de inhoud wordt geschaald ingepast. Een vak dat
+   meegroeit met de nieuwsbrief zou bij een lange brief de hele pagina
+   uitrekken, en dan is de zijbalk zijn plek kwijt. */
+.wsfm-briefvoorbeeld {
+	position: relative;
+	overflow: hidden;
+	height: 520px;
+	border: 1px solid #dcdcde;
+	background: #f6f7f7;
+}
+
+.wsfm-briefvoorbeeld iframe {
+	display: block;
+	border: 0;
+	background: #fff;
+	transform-origin: top left;
+}
+
+.wsfm-briefvoorbeeld[data-breed="mobiel"] iframe {
+	box-shadow: 0 0 0 1px #dcdcde;
+}
+
+.wsfm-briefvoorbeeld-voet {
+	margin: 8px 0 0;
+}
+
+.wsfm-briefvoorbeeld-voet .button-link {
+	margin-left: 4px;
+}
+
+/* Op een smal scherm valt de kolom onder de samensteller; dan mag het voorbeeld
+   wat hoger zijn, want de breedte is er dan wel. */
+@media screen and (max-width: 1100px) {
+	.wsfm-briefvoorbeeld {
+		height: 640px;
+	}
 }
