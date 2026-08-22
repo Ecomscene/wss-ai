@@ -23,6 +23,16 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 		</div>
 	<?php endif; ?>
 
+	<?php
+	/* Van welk adres deze webshop mag mailen. Staat bovenaan omdat het de eerste
+	   vraag is die je hebt als je hier komt. De opbouw en de uitleg staan in
+	   class-wss-ai-mailer.php; hier alleen de aanroep, zodat er in de overgenomen
+	   mailercode zo min mogelijk verandert. */
+	if ( class_exists( 'WSS_AI_Mailer' ) ) {
+		WSS_AI_Mailer::afzenderkaart();
+	}
+	?>
+
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 		<input type="hidden" name="action" value="wsfm_save_settings" />
 		<?php wp_nonce_field( WSFM_Admin_Settings::NONCE ); ?>

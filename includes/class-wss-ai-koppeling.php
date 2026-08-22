@@ -295,6 +295,54 @@ class WSS_AI_Koppeling {
 		delete_transient( 'wss_ai_foto_opties' );
 		delete_transient( 'wss_ai_fotomodellen' );
 		delete_transient( 'wss_ai_upgrades' );
+		delete_transient( 'wss_ai_afzender' );
+	}
+
+	/**
+	 * Van welk adres deze webshop mag mailen, en of dat al rond is.
+	 *
+	 * Het instellen gebeurt bij Webshopschool: daar wordt het domein bij Amazon
+	 * aangemeld en worden de DNS-regels gezet. Hier halen we alleen op hoe ver
+	 * dat staat, zodat de winkelier het kan zien zonder te hoeven bellen.
+	 *
+	 * Tien minuten onthouden. Dit verandert hooguit een paar keer in het leven
+	 * van een webshop, en dan hoeft niet elke schermlading erom te vragen.
+	 *
+	 * Lukt het ophalen niet, dan komt er 'onbekend' terug en GEEN verzonnen
+	 * stand. "We konden het niet ophalen" en "het is nog niet geregeld" zijn
+	 * twee verschillende dingen, en het tweede tonen terwijl het eerste waar is
+	 * stuurt iemand op pad voor een probleem dat er niet is.
+	 *
+	 * @return array { stand, domein, afzender }
+	 */
+	public static function afzender() {
+		$onthouden = get_transient( 'wss_ai_afzender' );
+		if ( is_array( $onthouden ) ) {
+			return $onthouden;
+		}
+
+		$leeg = array( 'stand' => 'onbekend', 'domein' => '', 'afzender' => '' );
+
+		if ( ! self::is_actief() ) {
+			return $leeg;
+		}
+
+		$uit = self::vraag_get( '/afzender', 15 );
+		if ( is_wp_error( $uit ) || ! is_array( $uit ) ) {
+			return $leeg;
+		}
+
+		$standen = array( 'geen', 'wacht', 'gelukt', 'mislukt' );
+		$stand   = isset( $uit['stand'] ) ? sanitize_key( $uit['stand'] ) : '';
+
+		$antwoord = array(
+			'stand'    => in_array( $stand, $standen, true ) ? $stand : 'onbekend',
+			'domein'   => isset( $uit['domein'] ) ? sanitize_text_field( $uit['domein'] ) : '',
+			'afzender' => isset( $uit['afzender'] ) ? sanitize_email( $uit['afzender'] ) : '',
+		);
+
+		set_transient( 'wss_ai_afzender', $antwoord, 10 * MINUTE_IN_SECONDS );
+		return $antwoord;
 	}
 
 	/**

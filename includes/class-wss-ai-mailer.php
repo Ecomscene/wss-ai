@@ -113,6 +113,60 @@ class WSS_AI_Mailer {
 		}
 	}
 
+	/**
+	 * Het kaartje bovenaan de mailerinstellingen: van welk adres mag deze shop
+	 * mailen, en is dat al rond?
+	 *
+	 * WAAROM DIT HIER STAAT EN NIET IN DE MAILER ZELF
+	 * De mailer is overgenomen zoals hij was, en dat blijft zo. Dit is iets van
+	 * WSS Tools: het gaat over wat Webshopschool voor deze webshop heeft
+	 * ingericht. In de mailerpagina staat er dus maar één regel die hierheen
+	 * wijst.
+	 *
+	 * WAAROM ER GEEN DNS-REGELS IN STAAN
+	 * De winkelier kan die niet zetten; Joey beheert de DNS. Ze hier tonen zou
+	 * hem ongerust maken over iets waar hij niets aan kan doen. Ze staan in het
+	 * beheerpaneel, bij degene die ze wel kan plaatsen.
+	 */
+	public static function afzenderkaart() {
+		$a      = WSS_AI_Koppeling::afzender();
+		$domein = $a['domein'];
+
+		/* Niets weten is geen boodschap. Een kaartje dat zegt dat we het even
+		   niet konden ophalen helpt niemand en staat er alleen maar. */
+		if ( 'onbekend' === $a['stand'] ) {
+			return;
+		}
+
+		if ( 'gelukt' === $a['stand'] ) {
+			$soort = 'notice-success';
+			$kop   = __( 'Je afzender is klaar', 'wss-ai' );
+			$tekst = $domein
+				/* translators: %s: het domein van de webshop. */
+				? sprintf( __( 'Je nieuwsbrief en je automatische mails gaan uit vanaf %s. Dat is ingesteld en gecontroleerd; je hoeft er niets voor te doen.', 'wss-ai' ), $domein )
+				: __( 'Je afzender is ingesteld en gecontroleerd. Je hoeft er niets voor te doen.', 'wss-ai' );
+		} elseif ( 'wacht' === $a['stand'] ) {
+			$soort = 'notice-warning';
+			$kop   = __( 'We zijn je afzender aan het instellen', 'wss-ai' );
+			$tekst = $domein
+				/* translators: %s: het domein van de webshop. */
+				? sprintf( __( 'We regelen dat je mail vanaf %s verstuurd mag worden. Dat duurt meestal een paar uur. Je hoeft niets te doen; zodra het rond is staat het hier.', 'wss-ai' ), $domein )
+				: __( 'We regelen op dit moment vanaf welk adres je mail verstuurd mag worden. Je hoeft niets te doen.', 'wss-ai' );
+		} elseif ( 'mislukt' === $a['stand'] ) {
+			$soort = 'notice-error';
+			$kop   = __( 'Het instellen van je afzender is niet gelukt', 'wss-ai' );
+			$tekst = __( 'Webshopschool kijkt hiernaar. Je hoeft zelf niets te doen, en je bestaande mail blijft gewoon werken.', 'wss-ai' );
+		} else {
+			$soort = 'notice-info';
+			$kop   = __( 'Je afzender is nog niet ingesteld', 'wss-ai' );
+			$tekst = __( 'Webshopschool regelt dit voor je voordat er post uitgaat. Je hoeft zelf niets te doen.', 'wss-ai' );
+		}
+
+		echo '<div class="notice ' . esc_attr( $soort ) . ' inline" style="margin:16px 0;padding:10px 12px">';
+		echo '<p style="margin:0"><strong>' . esc_html( $kop ) . '</strong><br>' . esc_html( $tekst ) . '</p>';
+		echo '</div>';
+	}
+
 	public static function melding_oude_plugin() {
 		if ( ! current_user_can( 'activate_plugins' ) ) {
 			return;
