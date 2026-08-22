@@ -238,7 +238,11 @@ class WSS_AI_Koppeling {
 				update_option( self::OPTIE_STATUS, 'wacht' );
 				update_option( self::OPTIE_UITLEG, $fout );
 			}
-			return new WP_Error( 'geweigerd', $fout );
+			/* De rest van het antwoord gaat mee als foutgegevens. De verzendkant
+			   heeft dat nodig: weigert Amazon een adres omdat het ooit hard is
+			   gebounced, dan staat dat in een veld en niet in de tekst, en dat
+			   signaal willen we onderweg niet kwijtraken. */
+			return new WP_Error( 'geweigerd', $fout, is_array( $data ) ? $data : null );
 		}
 
 		return isset( $data['data'] ) ? $data['data'] : array();

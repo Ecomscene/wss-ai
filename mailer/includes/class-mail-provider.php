@@ -72,6 +72,18 @@ class WSFM_Provider_Factory {
 	 */
 	public static function create( $provider = null ) {
 		$settings = WSFM_Credentials::get_settings();
+
+		/* Neemt Webshopschool het versturen over? Dan gaat het daarheen en heeft
+		   deze webshop geen eigen sleutels nodig. Alleen als er niet met zoveel
+		   woorden om een andere provider gevraagd is: een expliciete keuze hoort
+		   te blijven werken, al was het maar om te kunnen vergelijken.
+
+		   Staat het afzenderdomein daar nog niet klaar, dan verandert er niets en
+		   blijft een eigen SES-instelling gewoon werken. Zo valt een shop nooit
+		   tussen wal en schip tijdens de overstap. */
+		if ( null === $provider && class_exists( 'WSFM_Provider_Hub' ) && WSFM_Provider_Hub::beschikbaar() ) {
+			return new WSFM_Provider_Hub();
+		}
 		$provider = $provider ? $provider : $settings['provider'];
 
 		switch ( $provider ) {

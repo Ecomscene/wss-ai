@@ -69,6 +69,7 @@ class WSS_AI_Mailer {
 		foreach ( array(
 			'class-install', 'class-credentials', 'class-mail-provider', 'class-sigv4',
 			'providers/class-provider-ses', 'providers/class-provider-brevo',
+			'providers/class-provider-hub',
 			'class-suppression', 'class-template-engine', 'class-templates',
 			'class-newsletter-render', 'class-newsletters',
 			'class-subscribers', 'class-popup',
@@ -143,8 +144,8 @@ class WSS_AI_Mailer {
 			$kop   = __( 'Je afzender is klaar', 'wss-ai' );
 			$tekst = $domein
 				/* translators: %s: het domein van de webshop. */
-				? sprintf( __( 'Je nieuwsbrief en je automatische mails gaan uit vanaf %s. Dat is ingesteld en gecontroleerd; je hoeft er niets voor te doen.', 'wss-ai' ), $domein )
-				: __( 'Je afzender is ingesteld en gecontroleerd. Je hoeft er niets voor te doen.', 'wss-ai' );
+				? sprintf( __( 'Je nieuwsbrief en je automatische mails gaan uit vanaf %s, via Webshopschool. Je hoeft hieronder geen sleutels of afzenderadres in te vullen; dat is allemaal geregeld.', 'wss-ai' ), $domein )
+				: __( 'Je mail gaat via Webshopschool. Je hoeft hieronder geen sleutels in te vullen; dat is allemaal geregeld.', 'wss-ai' );
 		} elseif ( 'wacht' === $a['stand'] ) {
 			$soort = 'notice-warning';
 			$kop   = __( 'We zijn je afzender aan het instellen', 'wss-ai' );
