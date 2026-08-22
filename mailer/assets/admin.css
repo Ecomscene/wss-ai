@@ -723,3 +723,39 @@
 .wsfm-lijstenvak .wsfm-weghalen {
 	color: #b32d2e;
 }
+
+/* De lijstentabel is bewerkbaar: naam en omschrijving staan als velden in de
+   rij zelf. Dat scheelt een apart bewerkscherm voor twee tekstvelden. */
+.wsfm-lijst-bewerk {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.wsfm-lijst-bewerk input[type="text"] {
+	max-width: 220px;
+}
+
+/* De omschrijving staat al in het bewerkveld ernaast; de losse kolom is er
+   alleen voor het overzicht op een breed scherm. */
+.wsfm-lijstentabel .wsfm-lijst-uitleg {
+	color: #646970;
+}
+
+@media screen and (max-width: 1200px) {
+	.wsfm-lijstentabel .wsfm-lijst-uitleg {
+		display: none;
+	}
+}
+
+.wsfm-lijstkolom .wsfm-lidvorm {
+	display: flex;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.wsfm-lijstkolom select {
+	max-width: 140px;
+	font-size: 12px;
+}

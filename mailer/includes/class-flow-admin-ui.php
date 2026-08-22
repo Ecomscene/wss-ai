@@ -40,6 +40,7 @@ class WSFM_Flow_Admin_UI {
 		add_action( 'admin_post_wsfm_lijst_hernoem', array( $this, 'handle_lijst_hernoem' ) );
 		add_action( 'admin_post_wsfm_lijst_weg', array( $this, 'handle_lijst_weg' ) );
 		add_action( 'admin_post_wsfm_afrekenen', array( $this, 'handle_afrekenen' ) );
+		add_action( 'admin_post_wsfm_lijst_lid', array( $this, 'handle_lijst_lid' ) );
 		add_action( 'admin_post_wsfm_import_inschrijvingen', array( $this, 'handle_import_inschrijvingen' ) );
 		add_action( 'admin_post_wsfm_delete_inschrijving', array( $this, 'handle_delete_inschrijving' ) );
 		add_action( 'admin_post_wsfm_export_inschrijvingen', array( $this, 'handle_export_inschrijvingen' ) );
@@ -215,6 +216,7 @@ class WSFM_Flow_Admin_UI {
 		$alle      = WSFM_Subscribers::aantal();
 		$lijsten   = WSFM_Lijsten::alles();
 		$afrekenen = WSFM_Afrekenen::instellingen();
+		$lidmaatschap = WSFM_Lijsten::van_meerdere( wp_list_pluck( $rijen, 'id' ) );
 
 		include WSFM_PLUGIN_DIR . 'admin/inschrijvingen-page.php';
 	}
@@ -445,6 +447,34 @@ class WSFM_Flow_Admin_UI {
 		}
 
 		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'weg' ) );
+	}
+
+	/**
+	 * Iemand op een lijst zetten of eraf halen.
+	 *
+	 * Eraf halen is nadrukkelijk NIET afmelden. Wie iemand van "testers" haalt,
+	 * bedoelt niet dat die persoon nooit meer post mag krijgen. Daar is de
+	 * afmeldlijst voor, en die zit ergens anders.
+	 */
+	public function handle_lijst_lid() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_lijst_lid' );
+
+		$wie   = isset( $_POST['inschrijving_id'] ) && is_numeric( $_POST['inschrijving_id'] ) ? (int) $_POST['inschrijving_id'] : 0;
+		$lijst = isset( $_POST['lijst_id'] ) && is_numeric( $_POST['lijst_id'] ) ? (int) $_POST['lijst_id'] : 0;
+		$eraf  = ! empty( $_POST['eraf'] );
+
+		if ( $wie < 1 || $lijst < 1 ) {
+			$this->terug_naar_inschrijvingen( array( 'wsfm-error' => rawurlencode( __( 'Kies een lijst.', 'ws-flow-mailer' ) ) ) );
+		}
+
+		if ( $eraf ) {
+			WSFM_Lijsten::schrijf_uit( $lijst, $wie );
+		} else {
+			WSFM_Lijsten::schrijf_in( $lijst, $wie );
+		}
+
+		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'bewaard' ) );
 	}
 
 	/**

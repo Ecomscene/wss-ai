@@ -103,10 +103,11 @@ if ( '' !== $zoek ) {
 				<?php esc_html_e( 'Meestal heb je aan een hoofdlijst genoeg. Een losse lijst is handig om iets te proberen voor je het naar iedereen stuurt, of voor een groep vaste klanten.', 'ws-flow-mailer' ); ?>
 			</p>
 
-			<table class="widefat striped">
+			<table class="widefat striped wsfm-lijstentabel">
 				<thead>
 					<tr>
-						<th scope="col"><?php esc_html_e( 'Lijst', 'ws-flow-mailer' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Naam', 'ws-flow-mailer' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Waar hij voor is', 'ws-flow-mailer' ); ?></th>
 						<th scope="col"><?php esc_html_e( 'Mensen', 'ws-flow-mailer' ); ?></th>
 						<th scope="col"><span class="screen-reader-text"><?php esc_html_e( 'Acties', 'ws-flow-mailer' ); ?></span></th>
 					</tr>
@@ -115,15 +116,22 @@ if ( '' !== $zoek ) {
 					<?php foreach ( $lijsten as $wsfm_l ) : ?>
 						<tr>
 							<td>
-								<strong><?php echo esc_html( $wsfm_l->naam ); ?></strong>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wsfm-lijst-bewerk">
+									<input type="hidden" name="action" value="wsfm_lijst_hernoem">
+									<input type="hidden" name="lijst_id" value="<?php echo esc_attr( (int) $wsfm_l->id ); ?>">
+									<?php wp_nonce_field( 'wsfm_lijst' ); ?>
+									<input type="text" name="lijst_naam" value="<?php echo esc_attr( $wsfm_l->naam ); ?>" required>
+									<input type="text" name="lijst_omschrijving" class="regular-text"
+										value="<?php echo esc_attr( $wsfm_l->omschrijving ); ?>"
+										placeholder="<?php esc_attr_e( 'mag leeg', 'ws-flow-mailer' ); ?>">
+									<button type="submit" class="button button-small"><?php esc_html_e( 'Bewaren', 'ws-flow-mailer' ); ?></button>
+								</form>
 								<?php if ( ! empty( $wsfm_l->is_hoofdlijst ) ) : ?>
 									<span class="wsfm-hoofdlijst"><?php esc_html_e( 'hoofdlijst', 'ws-flow-mailer' ); ?></span>
 								<?php endif; ?>
-								<?php if ( '' !== $wsfm_l->omschrijving ) : ?>
-									<div class="klein"><?php echo esc_html( $wsfm_l->omschrijving ); ?></div>
-								<?php endif; ?>
 							</td>
-							<td><?php echo esc_html( number_format_i18n( (int) $wsfm_l->aantal ) ); ?></td>
+							<td class="wsfm-lijst-uitleg"><?php echo esc_html( $wsfm_l->omschrijving ); ?></td>
+							<td><strong><?php echo esc_html( number_format_i18n( (int) $wsfm_l->aantal ) ); ?></strong></td>
 							<td class="wsfm-rij-actie">
 								<?php if ( empty( $wsfm_l->is_hoofdlijst ) ) : ?>
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -238,6 +246,7 @@ if ( '' !== $zoek ) {
 					<th scope="col"><?php esc_html_e( 'E-mailadres', 'ws-flow-mailer' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Voornaam', 'ws-flow-mailer' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Waar vandaan', 'ws-flow-mailer' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Lijsten', 'ws-flow-mailer' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Kortingscode', 'ws-flow-mailer' ); ?></th>
 					<th scope="col"><?php esc_html_e( 'Ingeschreven op', 'ws-flow-mailer' ); ?></th>
 					<th scope="col"><span class="screen-reader-text"><?php esc_html_e( 'Acties', 'ws-flow-mailer' ); ?></span></th>
@@ -256,6 +265,28 @@ if ( '' !== $zoek ) {
 									: $wsfm_rij->source
 							);
 							?>
+						</td>
+						<td class="wsfm-lijstkolom">
+							<?php
+							$wsfm_op = isset( $lidmaatschap[ (int) $wsfm_rij->id ] ) ? $lidmaatschap[ (int) $wsfm_rij->id ] : array();
+							if ( empty( $wsfm_op ) ) {
+								echo '<span class="wsfm-leeg">' . esc_html__( 'geen', 'ws-flow-mailer' ) . '</span>';
+							} else {
+								echo esc_html( implode( ', ', $wsfm_op ) );
+							}
+							?>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wsfm-lidvorm">
+								<input type="hidden" name="action" value="wsfm_lijst_lid">
+								<input type="hidden" name="inschrijving_id" value="<?php echo esc_attr( (int) $wsfm_rij->id ); ?>">
+								<?php wp_nonce_field( 'wsfm_lijst_lid' ); ?>
+								<select name="lijst_id">
+									<?php foreach ( $lijsten as $wsfm_l ) : ?>
+										<option value="<?php echo esc_attr( (int) $wsfm_l->id ); ?>"><?php echo esc_html( $wsfm_l->naam ); ?></option>
+									<?php endforeach; ?>
+								</select>
+								<button type="submit" class="button button-small"><?php esc_html_e( 'Erbij', 'ws-flow-mailer' ); ?></button>
+								<button type="submit" name="eraf" value="1" class="button button-small"><?php esc_html_e( 'Eraf', 'ws-flow-mailer' ); ?></button>
+							</form>
 						</td>
 						<td>
 							<?php if ( '' !== $wsfm_rij->coupon_code ) : ?>

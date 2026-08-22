@@ -3,7 +3,7 @@ Contributors: webshopschool
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.30.0
+Stable tag: 0.31.0
 License: GPLv2 or later
 
 AI-gereedschap voor je webshop, beheerd door Webshopschool.

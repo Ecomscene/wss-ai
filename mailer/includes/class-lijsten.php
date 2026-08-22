@@ -161,6 +161,38 @@ class WSFM_Lijsten {
 	}
 
 	/**
+	 * Op welke lijsten een hele pagina mensen staat, in EEN query.
+	 *
+	 * Voor het overzichtsscherm. Per rij vragen zou bij vijftig regels vijftig
+	 * keer de database bevragen, en dat is precies het soort traagheid dat later
+	 * niemand meer kan verklaren.
+	 *
+	 * @param int[] $ids Inschrijving-ids.
+	 * @return array id => array van lijstnamen
+	 */
+	public static function van_meerdere( array $ids ) {
+		global $wpdb;
+
+		$ids = array_values( array_filter( array_map( 'intval', $ids ) ) );
+		if ( empty( $ids ) ) {
+			return array();
+		}
+
+		$leden   = self::leden_table();
+		$lijsten = self::table();
+		$plek    = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+
+		$rijen = (array) $wpdb->get_results( $wpdb->prepare( "SELECT m.subscriber_id, l.naam FROM {$leden} m INNER JOIN {$lijsten} l ON l.id = m.lijst_id WHERE m.subscriber_id IN ({$plek}) ORDER BY l.is_hoofdlijst DESC, l.naam ASC", $ids ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		$uit = array();
+		foreach ( $rijen as $rij ) {
+			$uit[ (int) $rij->subscriber_id ][] = (string) $rij->naam;
+		}
+
+		return $uit;
+	}
+
+	/**
 	 * Op welke lijsten iemand staat.
 	 *
 	 * @param int $subscriber_id Inschrijving-id.
