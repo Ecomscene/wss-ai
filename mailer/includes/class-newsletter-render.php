@@ -501,6 +501,24 @@ class WSFM_Newsletter_Render {
 	 * producten naast elkaar in een mail van 600 pixels breed levert postzegels
 	 * op, en dat is geen keuze die je iemand moet laten maken.
 	 *
+	 * WAAROM DIT DRIE RIJEN IS EN GEEN RASTER VAN CELLEN
+	 * Eerst stond elk product in EEN cel, met de foto, de naam en de prijs onder
+	 * elkaar. Productfoto's hebben zelden dezelfde verhouding: naast een staande
+	 * foto van een kind staat een liggende foto van een doosje. De ene cel werd
+	 * daardoor hoger dan de andere, en de naam en de prijs zakten mee. Het raster
+	 * stond scheef, en bij drie kolommen viel dat helemaal uit elkaar.
+	 *
+	 * Nu is het per groep drie tabelrijen: alle foto's, dan alle namen, dan alle
+	 * prijzen. Cellen in dezelfde rij zijn per definitie even hoog, dus de namen
+	 * beginnen op dezelfde hoogte en de prijzen ook, wat de foto's ook doen. Een
+	 * lange productnaam die over twee regels valt duwt de prijzen van de hele rij
+	 * netjes samen omlaag in plaats van er een trap van te maken.
+	 *
+	 * De foto's staan op de onderkant uitgelijnd. Verschillen ze toch in hoogte,
+	 * dan staan ze op een gemeenschappelijke vloer met de naam er direct onder,
+	 * en dat leest rustiger dan een rij die aan de bovenkant gelijk hangt en
+	 * onderaan rafelt.
+	 *
 	 * @param array $blok Blokgegevens.
 	 * @param array $s    Stijlwaarden.
 	 * @return string
@@ -520,8 +538,8 @@ class WSFM_Newsletter_Render {
 		$tussen   = 12;
 		$cel      = (int) floor( ( $binnen - ( $kolommen - 1 ) * $tussen ) / $kolommen );
 
-		$uit   = '';
-		$kop   = isset( $blok['kop'] ) ? trim( (string) $blok['kop'] ) : '';
+		$uit = '';
+		$kop = isset( $blok['kop'] ) ? trim( (string) $blok['kop'] ) : '';
 		if ( '' !== $kop ) {
 			$uit .= '<h2 style="margin:0 0 14px 0;font-family:' . $s['kopfont'] . ';font-size:' . $s['kopgrootte']
 				. ';font-weight:' . $s['kopgewicht'] . ';letter-spacing:' . $s['kopspatie']
@@ -529,62 +547,111 @@ class WSFM_Newsletter_Render {
 				. esc_html( $kop ) . '</h2>';
 		}
 
-		$rijen = array_chunk( $ids, $kolommen );
-
-		foreach ( $rijen as $rij ) {
-			$uit .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:' . $tussen . 'px;"><tr>';
-
-			foreach ( $rij as $index => $product_id ) {
-				$uit .= '<td width="' . $cel . '" valign="top" style="width:' . $cel . 'px;padding-right:'
-					. ( $index === count( $rij ) - 1 ? 0 : $tussen ) . 'px;">'
-					. self::product_cel( (int) $product_id, $s, $cel )
-					. '</td>';
+		foreach ( array_chunk( $ids, $kolommen ) as $groep ) {
+			$producten = array();
+			foreach ( $groep as $product_id ) {
+				$producten[] = self::product_gegevens( (int) $product_id, $s, $cel );
 			}
 
-			/* De laatste rij aanvullen met lege cellen, anders rekken drie
-			   producten in een raster van drie zich uit tot halve pagina's. */
-			for ( $i = count( $rij ); $i < $kolommen; $i++ ) {
-				$uit .= '<td width="' . $cel . '" style="width:' . $cel . 'px;">&nbsp;</td>';
-			}
+			$uit .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"'
+				. ' style="margin-bottom:' . ( $tussen + 6 ) . 'px;">';
 
-			$uit .= '</tr></table>';
+			$uit .= self::product_rij( $producten, $kolommen, $cel, $tussen, 'beeld', 'bottom', $s );
+			$uit .= self::product_rij( $producten, $kolommen, $cel, $tussen, 'naam', 'top', $s );
+			$uit .= self::product_rij( $producten, $kolommen, $cel, $tussen, 'prijs', 'top', $s );
+
+			$uit .= '</table>';
 		}
 
 		return self::rij( $uit, $s );
 	}
 
 	/**
-	 * Eén product in het raster.
+	 * Een van de drie rijen van een productengroep.
+	 *
+	 * @param array  $producten Wat product_gegevens() opleverde.
+	 * @param int    $kolommen  Aantal kolommen in het sjabloon.
+	 * @param int    $cel       Celbreedte in pixels.
+	 * @param int    $tussen    Ruimte tussen de kolommen.
+	 * @param string $welk      beeld, naam of prijs.
+	 * @param string $lijn      Verticale uitlijning.
+	 * @param array  $s         Stijlwaarden.
+	 * @return string
+	 */
+	private static function product_rij( array $producten, $kolommen, $cel, $tussen, $welk, $lijn, array $s ) {
+		$onder = 'beeld' === $welk ? 8 : 2;
+		$uit   = '<tr>';
+
+		foreach ( $producten as $index => $product ) {
+			$rechts = $index === $kolommen - 1 ? 0 : $tussen;
+
+			$uit .= '<td width="' . $cel . '" valign="' . $lijn . '"'
+				. ' style="width:' . $cel . 'px;padding:0 ' . $rechts . 'px ' . $onder . 'px 0;">'
+				. $product[ $welk ]
+				. '</td>';
+		}
+
+		/* De groep aanvullen met lege cellen, anders rekken twee producten in een
+		   raster van drie zich uit tot halve pagina's. */
+		for ( $i = count( $producten ); $i < $kolommen; $i++ ) {
+			$uit .= '<td width="' . $cel . '" style="width:' . $cel . 'px;">&nbsp;</td>';
+		}
+
+		return $uit . '</tr>';
+	}
+
+	/**
+	 * De drie stukken van een product, klaar om in een cel te zetten.
+	 *
+	 * WAAROM DE FOTO VAN WOOCOMMERCE KOMT EN NIET DE VOLLE
+	 * WooCommerce maakt zelf een catalogusformaat aan, en bij de standaardinstelling
+	 * is dat bijgesneden op een vaste verhouding. Dan zijn alle foto's in het
+	 * raster even hoog, en dat is precies wat een raster nodig heeft. Staat het
+	 * bijsnijden bij die shop uit, dan verschillen ze nog steeds in hoogte, maar
+	 * dan vangt de rijenopbouw dat op.
 	 *
 	 * @param int   $product_id Product-id.
 	 * @param array $s          Stijlwaarden.
 	 * @param int   $breedte    Celbreedte in pixels.
-	 * @return string
+	 * @return array { beeld, naam, prijs }
 	 */
-	private static function product_cel( $product_id, array $s, $breedte ) {
+	private static function product_gegevens( $product_id, array $s, $breedte ) {
+		$leeg = array( 'beeld' => '&nbsp;', 'naam' => '&nbsp;', 'prijs' => '&nbsp;' );
+
 		$product = wc_get_product( $product_id );
 		if ( ! $product ) {
-			return '&nbsp;';
+			return $leeg;
 		}
 
-		$link = get_permalink( $product_id );
-		$beeld = '';
+		$link  = get_permalink( $product_id );
+		$beeld = '&nbsp;';
 
 		$beeld_id = (int) $product->get_image_id();
 		if ( $beeld_id ) {
-			$src = wp_get_attachment_image_url( $beeld_id, 'medium_large' );
+			$src = wp_get_attachment_image_url( $beeld_id, 'woocommerce_thumbnail' );
+			if ( ! $src ) {
+				$src = wp_get_attachment_image_url( $beeld_id, 'medium_large' );
+			}
 			if ( $src ) {
-				$beeld = '<img src="' . esc_url( $src ) . '" alt="' . esc_attr( $product->get_name() ) . '" width="' . $breedte . '"'
-					. ' style="display:block;width:100%;max-width:' . $breedte . 'px;height:auto;border:0;border-radius:' . $s['rond'] . ';margin-bottom:8px;">';
+				$beeld = '<a href="' . esc_url( $link ) . '" style="text-decoration:none;">'
+					. '<img src="' . esc_url( $src ) . '" alt="' . esc_attr( $product->get_name() ) . '" width="' . $breedte . '"'
+					. ' style="display:block;width:100%;max-width:' . $breedte . 'px;height:auto;border:0;'
+					. 'border-radius:' . $s['rond'] . ';">'
+					. '</a>';
 			}
 		}
 
 		$prijs = html_entity_decode( wp_strip_all_tags( (string) $product->get_price_html() ), ENT_QUOTES, 'UTF-8' );
 
-		return '<a href="' . esc_url( $link ) . '" style="text-decoration:none;color:' . $s['tekst'] . ';">'
-			. $beeld
-			. '<span style="display:block;font-size:14px;line-height:1.4;color:' . $s['tekst'] . ';">' . esc_html( $product->get_name() ) . '</span>'
-			. ( '' === $prijs ? '' : '<span style="display:block;font-size:14px;line-height:1.6;color:' . $s['zacht'] . ';">' . esc_html( $prijs ) . '</span>' )
-			. '</a>';
+		return array(
+			'beeld' => $beeld,
+			'naam'  => '<a href="' . esc_url( $link ) . '" style="text-decoration:none;">'
+				. '<span style="display:block;font-size:14px;line-height:1.4;color:' . $s['tekst'] . ';">'
+				. esc_html( $product->get_name() ) . '</span></a>',
+			'prijs' => '' === $prijs
+				? '&nbsp;'
+				: '<span style="display:block;font-size:14px;line-height:1.5;color:' . $s['zacht'] . ';">'
+					. esc_html( $prijs ) . '</span>',
+		);
 	}
 }

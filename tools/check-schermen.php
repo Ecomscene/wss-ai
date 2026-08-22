@@ -23,6 +23,13 @@
  * worden hier nagebootst. Dat is genoeg om de HTML op te bouwen, en het scheelt
  * een hele WordPress-installatie in een controle die in een seconde moet lopen.
  *
+ * EN DE MAIL ZELF
+ * Onderaan wordt ook de nieuwsbrief opgebouwd. Die HTML zie je pas als hij in
+ * een inbox ligt, en Outlook vat een tabel die niet uitkomt heel anders op dan
+ * een browser. Het productenraster stond er eerder scheef in doordat foto's
+ * met verschillende verhoudingen de naam en de prijs meetrokken; sindsdien is
+ * dat drie tabelrijen en wordt hier nageteld dat het zo blijft.
+ *
  * Draaien: php tools/check-schermen.php
  */
 
@@ -56,9 +63,32 @@ function wp_unslash( $v ) { return $v; }
 function sanitize_text_field( $v ) { return $v; }
 function get_option( $n, $d = false ) { return 'beheerder@voorbeeld.nl'; }
 function get_bloginfo( $w = '' ) { return 'Voorbeeldshop'; }
-function wp_get_attachment_image_url( $id, $s = '' ) { return 'https://voorbeeld.nl/foto.jpg'; }
+/* Alleen het catalogusformaat bestaat, zodat ook de terugval naar een andere
+   maat langskomt. */
+function wp_get_attachment_image_url( $id, $maat = '' ) {
+	return 'woocommerce_thumbnail' === $maat ? 'https://voorbeeld.nl/foto-' . $id . '.jpg' : '';
+}
 function wp_list_pluck( $l, $f ) { $u = array(); foreach ( $l as $r ) { $u[] = is_object( $r ) ? $r->$f : $r[ $f ]; } return $u; }
 function submit_button( $t = null ) { echo '<p class="submit"><button>Opslaan</button></p>'; }
+
+function get_theme_mod( $n, $d = false ) { return 0; }
+function get_permalink( $id ) { return 'https://voorbeeld.nl/product/' . $id; }
+function get_post_meta( $id, $k, $enkel = false ) { return ''; }
+function wp_strip_all_tags( $t ) { return strip_tags( (string) $t ); }
+
+/* Een product zoals WooCommerce het teruggeeft, met precies de methodes die de
+   opbouw aanroept. Nummer 4 heeft geen foto, 3 geen prijs en een lange naam,
+   en 5 bestaat niet: samen de gevallen waar een raster op stukloopt. */
+class WSFM_Proef_Product {
+	public $id;
+	public function __construct( $id ) { $this->id = $id; }
+	public function get_image_id() { return 4 === $this->id ? 0 : $this->id; }
+	public function get_name() {
+		return 3 === $this->id ? 'Een naam die zo lang is dat hij over twee regels valt' : 'Product ' . $this->id;
+	}
+	public function get_price_html() { return 3 === $this->id ? '' : '&euro; 4,95'; }
+}
+function wc_get_product( $id ) { return 5 === $id ? false : new WSFM_Proef_Product( $id ); }
 
 class WSFM_Flow_Admin_UI {
 	const SLUG_DASHBOARD = 'ws-flow-mailer';
@@ -264,9 +294,76 @@ $brieven = array();
 $html    = scherm( 'dashboard, niets aangemaakt', $map . 'dashboard-page.php' );
 moet( $html, 'Er zijn nog geen lijsten', 'dashboard' );
 
+/* ---------------- en de mail zelf ---------------- */
+
+require_once $wortel . '/mailer/includes/class-newsletter-render.php';
+
+/**
+ * Een nieuwsbrief opbouwen en het productenraster natellen.
+ *
+ * @param string $sjabloon Sjabloonsleutel.
+ * @param int    $kolommen Wat dat sjabloon aan kolommen doet.
+ * @return void
+ */
+function mailraster( $sjabloon, $kolommen ) {
+	global $fouten;
+
+	printf( "\n  nieuwsbrief, %s\n", $sjabloon );
+
+	$brief = (object) array(
+		'subject'  => 'Nieuw',
+		'template' => $sjabloon,
+		'blocks'   => array(
+			array( 'soort' => 'producten', 'kop' => 'Nieuw', 'producten' => array( 1, 2, 3, 4, 5 ) ),
+		),
+	);
+
+	$html = WSFM_Newsletter_Render::render( $brief );
+	$leeg = WSFM_Newsletter_Render::render(
+		(object) array( 'subject' => 'x', 'template' => $sjabloon, 'blocks' => array() )
+	);
+
+	/* Per groep producten horen er precies drie rijen bij te komen: de foto's,
+	   de namen en de prijzen. Dat is wat het raster recht houdt. */
+	$erbij    = substr_count( $html, '<tr>' ) - substr_count( $leeg, '<tr>' );
+	$verwacht = ( (int) ceil( 5 / $kolommen ) ) * 3;
+
+	if ( $erbij !== $verwacht ) {
+		printf( "    FOUT %d rijen erbij, verwacht %d: het raster is geen drie rijen per groep meer\n", $erbij, $verwacht );
+		$fouten++;
+	}
+
+	foreach ( array(
+		'valign="bottom"'    => 'de fotorij staat niet meer op de onderkant uitgelijnd',
+		'valign="top"'       => 'namen en prijzen staan niet meer bovenaan',
+		'foto-1.jpg'         => 'het catalogusformaat wordt niet meer gebruikt',
+		'Product 4'          => 'een product zonder foto valt weg',
+	) as $stuk => $klacht ) {
+		if ( false === strpos( $html, $stuk ) ) {
+			printf( "    FOUT %s\n", $klacht );
+			$fouten++;
+		}
+	}
+
+	/* Outlook vat een tabel die niet uitkomt heel anders op dan een browser: daar
+	   valt het hele raster uit elkaar in plaats van dat er een randje scheef staat. */
+	foreach ( array( 'table', 'tr', 'td' ) as $tag ) {
+		$open  = substr_count( $html, '<' . $tag );
+		$dicht = substr_count( $html, '</' . $tag . '>' );
+		if ( $open !== $dicht ) {
+			printf( "    FOUT %s in de mail: %d geopend, %d gesloten\n", $tag, $open, $dicht );
+			$fouten++;
+		}
+	}
+}
+
+mailraster( 'rustig', 2 );
+mailraster( 'strak', 3 );
+
+
 printf(
 	"\n%s\n",
-	0 === $fouten ? 'alle schermen komen heel uit de bouw' : $fouten . ' probleem(en)'
+	0 === $fouten ? 'de schermen en de mail komen heel uit de bouw' : $fouten . ' probleem(en)'
 );
 
 exit( 0 === $fouten ? 0 : 1 );
