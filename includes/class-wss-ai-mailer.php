@@ -102,6 +102,54 @@ class WSS_AI_Mailer {
 	}
 
 	/**
+	 * Bounces en klachten ophalen bij Webshopschool en op de afmeldlijst zetten.
+	 *
+	 * WAAROM DIT ERBIJ MOEST
+	 * Zolang de shop zelf met Amazon praatte, kwamen bounces via een webhook
+	 * rechtstreeks binnen. Nu het versturen via Webshopschool loopt, komen ze
+	 * daar aan. Zonder dit zou de afmeldlijst alleen nog groeien van afmeldingen
+	 * en van adressen die Amazon weigert, en dus nooit van een klacht.
+	 *
+	 * Een klacht is juist het signaal dat telt: iemand die op "dit is spam" drukt
+	 * blijven mailen is hoe je bezorging voor alle klanten kapotmaakt.
+	 *
+	 * Draait op de terugkerende taak die er al is, dus geen tweede ritme om in de
+	 * gaten te houden. Het onthouden id staat in een optie; blijft dat staan, dan
+	 * halen we niets twee keer op.
+	 */
+	public static function haal_afmeldingen() {
+		if ( ! class_exists( 'WSFM_Suppression' ) || ! WSS_AI_Koppeling::is_actief() ) {
+			return;
+		}
+
+		$tot = (int) get_option( 'wss_ai_afmeldingen_tot', 0 );
+		$uit = WSS_AI_Koppeling::vraag_get( '/afmeldingen?na=' . $tot, 20 );
+
+		if ( is_wp_error( $uit ) || ! isset( $uit['meldingen'] ) || ! is_array( $uit['meldingen'] ) ) {
+			return;
+		}
+
+		foreach ( $uit['meldingen'] as $melding ) {
+			$adres = isset( $melding['email'] ) ? sanitize_email( $melding['email'] ) : '';
+			if ( ! is_email( $adres ) ) {
+				continue;
+			}
+
+			/* De reden houden we uit elkaar. Een klacht is iets anders dan een
+			   dood adres, en dat verschil wil je terugzien als je later kijkt
+			   waarom iemand geen post meer krijgt. */
+			$reden = isset( $melding['soort'] ) && 'complaint' === $melding['soort'] ? 'complaint' : 'bounce';
+			WSFM_Suppression::add( $adres, $reden );
+		}
+
+		/* Pas bijwerken als het gelukt is. Zou dit erboven staan, dan zou een
+		   halve ronde de rest voorgoed overslaan. */
+		if ( ! empty( $uit['tot'] ) ) {
+			update_option( 'wss_ai_afmeldingen_tot', (int) $uit['tot'] );
+		}
+	}
+
+	/**
 	 * Alles stilzetten als de module wordt uitgezet.
 	 *
 	 * De terugkerende taak in Action Scheduler blijft anders staan, en die zou
