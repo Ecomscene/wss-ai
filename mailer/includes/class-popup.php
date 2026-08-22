@@ -77,6 +77,10 @@ class WSFM_Popup {
 			'gelukt_tekst'    => __( 'Dit is je kortingscode. Hij staat ook in je mail.', 'ws-flow-mailer' ),
 			'afbeelding'      => 0,
 
+			/* In welke lijst nieuwe aanmeldingen komen. Nul betekent de hoofdlijst,
+			   en dat is precies waar ze voor de lijsten bestonden ook al heen gingen. */
+			'lijst_id'        => 0,
+
 			'kleur_achtergrond' => '#ffffff',
 			'kleur_tekst'       => '#111111',
 			'kleur_knop'        => '#c08b7d',
@@ -180,6 +184,9 @@ class WSFM_Popup {
 				'gelukt_kop'     => $tekst( 'gelukt_kop', 80 ),
 				'gelukt_tekst'   => $tekst( 'gelukt_tekst', 300 ),
 				'afbeelding'     => isset( $ruw['afbeelding'] ) ? absint( $ruw['afbeelding'] ) : $oud['afbeelding'],
+				'lijst_id'       => class_exists( 'WSFM_Lijsten' )
+					? WSFM_Lijsten::geldig( isset( $ruw['lijst_id'] ) ? $ruw['lijst_id'] : 0 )
+					: 0,
 
 				'kleur_achtergrond' => $kleur( 'kleur_achtergrond' ),
 				'kleur_tekst'       => $kleur( 'kleur_tekst' ),
@@ -474,7 +481,12 @@ class WSFM_Popup {
 
 		$code = self::code_voor( $email, $i );
 
-		WSFM_Subscribers::add( $email, 'popup', $code );
+		/* De tekst waar iemand ja op zei gaat mee. Bij een popup is dat de kop
+		   plus de kleine letters eronder: dat is wat er op het scherm stond op het
+		   moment dat hij op Inschrijven drukte. */
+		$toestemming = trim( $i['kop'] . ' - ' . $i['kleine_letters'] );
+
+		WSFM_Subscribers::add( $email, 'popup', $code, '', isset( $i['lijst_id'] ) ? $i['lijst_id'] : 0, $toestemming );
 		self::stuur_welkomstmail( $email, $code, $i );
 
 		return new WP_REST_Response( array( 'ok' => true, 'code' => $code, 'melding' => '' ) );

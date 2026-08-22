@@ -72,7 +72,7 @@ class WSS_AI_Mailer {
 			'providers/class-provider-hub',
 			'class-suppression', 'class-template-engine', 'class-templates',
 			'class-newsletter-render', 'class-newsletters',
-			'class-subscribers', 'class-popup',
+			'class-subscribers', 'class-lijsten', 'class-popup', 'class-afrekenen',
 			'class-flows', 'class-flow-conditions', 'class-queue', 'class-queue-processor',
 			'class-cart-tracking', 'class-flow-engine',
 			'class-unsubscribe', 'class-sns-webhook', 'class-identity',
@@ -91,6 +91,7 @@ class WSS_AI_Mailer {
 		WSFM_SNS_Webhook::init();
 		WSFM_Identity::init();
 		WSFM_Popup::init();
+		WSFM_Afrekenen::init();
 
 		if ( is_admin() ) {
 			new WSFM_Flow_Admin_UI();

@@ -137,6 +137,24 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 				</div>
 
 				<div class="postbox">
+					<h2 class="hndle"><span><?php esc_html_e( 'Waar aanmeldingen terechtkomen', 'ws-flow-mailer' ); ?></span></h2>
+					<div class="inside">
+						<p>
+							<label><?php esc_html_e( 'Lijst', 'ws-flow-mailer' ); ?><br>
+								<select name="lijst_id">
+									<?php foreach ( $lijsten as $wsfm_l ) : ?>
+										<option value="<?php echo esc_attr( (int) $wsfm_l->id ); ?>"
+											<?php selected( (int) ( isset( $i['lijst_id'] ) ? $i['lijst_id'] : 0 ), (int) $wsfm_l->id ); ?>>
+											<?php echo esc_html( $wsfm_l->naam ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select></label><br>
+							<span class="description"><?php esc_html_e( 'Iedereen die zich via de popup aanmeldt komt op deze lijst. Nieuwe lijsten maak je bij Inschrijvingen.', 'ws-flow-mailer' ); ?></span>
+						</p>
+					</div>
+				</div>
+
+				<div class="postbox">
 					<h2 class="hndle"><span><?php esc_html_e( 'Wanneer hij verschijnt', 'ws-flow-mailer' ); ?></span></h2>
 					<div class="inside">
 						<p class="wsfm-tweeling">

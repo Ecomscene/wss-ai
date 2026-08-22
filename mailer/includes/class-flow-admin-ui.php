@@ -36,6 +36,10 @@ class WSFM_Flow_Admin_UI {
 
 		add_action( 'admin_post_wsfm_save_popup', array( $this, 'handle_save_popup' ) );
 
+		add_action( 'admin_post_wsfm_lijst_maak', array( $this, 'handle_lijst_maak' ) );
+		add_action( 'admin_post_wsfm_lijst_hernoem', array( $this, 'handle_lijst_hernoem' ) );
+		add_action( 'admin_post_wsfm_lijst_weg', array( $this, 'handle_lijst_weg' ) );
+		add_action( 'admin_post_wsfm_afrekenen', array( $this, 'handle_afrekenen' ) );
 		add_action( 'admin_post_wsfm_import_inschrijvingen', array( $this, 'handle_import_inschrijvingen' ) );
 		add_action( 'admin_post_wsfm_delete_inschrijving', array( $this, 'handle_delete_inschrijving' ) );
 		add_action( 'admin_post_wsfm_export_inschrijvingen', array( $this, 'handle_export_inschrijvingen' ) );
@@ -127,6 +131,8 @@ class WSFM_Flow_Admin_UI {
 		$stats      = WSFM_Queue::get_stats( 30 );
 		$flow_stats = WSFM_Queue::get_stats_per_flow( 30 );
 		$recent     = WSFM_Queue::get_recent_log( 20, $trigger_filter ? $trigger_filter : null );
+		$lijsten    = WSFM_Lijsten::alles();
+		$brieven    = array_slice( WSFM_Newsletters::get_all(), 0, 8 );
 
 		include WSFM_PLUGIN_DIR . 'admin/dashboard-page.php';
 	}
@@ -169,6 +175,7 @@ class WSFM_Flow_Admin_UI {
 		$sjablonen = WSFM_Newsletter_Render::templates();
 		$recent    = WSFM_Subscribers::recent( 15 );
 		$aantal    = WSFM_Subscribers::aantal();
+		$lijsten   = WSFM_Lijsten::alles();
 
 		include WSFM_PLUGIN_DIR . 'admin/popup-page.php';
 	}
@@ -206,6 +213,8 @@ class WSFM_Flow_Admin_UI {
 		$pagina    = min( $pagina, $paginas );
 		$rijen     = WSFM_Subscribers::lijst( self::PER_PAGINA, $pagina, $zoek );
 		$alle      = WSFM_Subscribers::aantal();
+		$lijsten   = WSFM_Lijsten::alles();
+		$afrekenen = WSFM_Afrekenen::instellingen();
 
 		include WSFM_PLUGIN_DIR . 'admin/inschrijvingen-page.php';
 	}
@@ -245,7 +254,9 @@ class WSFM_Flow_Admin_UI {
 			$regels = array_slice( $regels, 0, self::MAX_IMPORT );
 		}
 
-		$telling = WSFM_Subscribers::importeer( WSFM_Subscribers::ontleed( $regels ) );
+		$lijst = isset( $_POST['import_lijst'] ) ? WSFM_Lijsten::geldig( $_POST['import_lijst'] ) : 0;
+
+		$telling = WSFM_Subscribers::importeer( WSFM_Subscribers::ontleed( $regels ), 'import', $lijst );
 
 		$this->terug_naar_inschrijvingen(
 			array(
@@ -374,6 +385,78 @@ class WSFM_Flow_Admin_UI {
 
 		fclose( $uit ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
 		exit;
+	}
+
+	/**
+	 * Een lijst aanmaken.
+	 */
+	public function handle_lijst_maak() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_lijst' );
+
+		$uit = WSFM_Lijsten::maak(
+			isset( $_POST['lijst_naam'] ) ? sanitize_text_field( wp_unslash( $_POST['lijst_naam'] ) ) : '',
+			isset( $_POST['lijst_omschrijving'] ) ? sanitize_text_field( wp_unslash( $_POST['lijst_omschrijving'] ) ) : ''
+		);
+
+		if ( is_wp_error( $uit ) ) {
+			$this->terug_naar_inschrijvingen( array( 'wsfm-error' => rawurlencode( $uit->get_error_message() ) ) );
+		}
+
+		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'gemaakt' ) );
+	}
+
+	/**
+	 * Naam of omschrijving van een lijst wijzigen.
+	 */
+	public function handle_lijst_hernoem() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_lijst' );
+
+		$id  = isset( $_POST['lijst_id'] ) && is_numeric( $_POST['lijst_id'] ) ? (int) $_POST['lijst_id'] : 0;
+		$uit = WSFM_Lijsten::hernoem(
+			$id,
+			isset( $_POST['lijst_naam'] ) ? sanitize_text_field( wp_unslash( $_POST['lijst_naam'] ) ) : '',
+			isset( $_POST['lijst_omschrijving'] ) ? sanitize_text_field( wp_unslash( $_POST['lijst_omschrijving'] ) ) : ''
+		);
+
+		if ( is_wp_error( $uit ) ) {
+			$this->terug_naar_inschrijvingen( array( 'wsfm-error' => rawurlencode( $uit->get_error_message() ) ) );
+		}
+
+		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'bewaard' ) );
+	}
+
+	/**
+	 * Een lijst weggooien.
+	 *
+	 * De mensen zelf blijven staan; ze zijn alleen geen lid meer. Zie de
+	 * uitleg bij WSFM_Lijsten::verwijder().
+	 */
+	public function handle_lijst_weg() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_lijst' );
+
+		$id  = isset( $_POST['lijst_id'] ) && is_numeric( $_POST['lijst_id'] ) ? (int) $_POST['lijst_id'] : 0;
+		$uit = WSFM_Lijsten::verwijder( $id );
+
+		if ( is_wp_error( $uit ) ) {
+			$this->terug_naar_inschrijvingen( array( 'wsfm-error' => rawurlencode( $uit->get_error_message() ) ) );
+		}
+
+		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'weg' ) );
+	}
+
+	/**
+	 * Het aanmeldvinkje op de afrekenpagina instellen.
+	 */
+	public function handle_afrekenen() {
+		$this->require_capability();
+		check_admin_referer( 'wsfm_afrekenen' );
+
+		WSFM_Afrekenen::opslaan( wp_unslash( $_POST ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- veld voor veld opgeschoond in opslaan().
+
+		$this->terug_naar_inschrijvingen( array( 'wsfm-lijst' => 'bewaard' ) );
 	}
 
 	/**

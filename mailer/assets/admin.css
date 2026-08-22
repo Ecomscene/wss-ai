@@ -679,3 +679,47 @@
 	padding: 10px 12px;
 	margin: 18px 0;
 }
+
+/* --- Lijsten --- */
+
+.wsfm-lijstenvak,
+.wsfm-afrekenvak {
+	max-width: 900px;
+}
+
+/* Het merkje achter de hoofdlijst. Rustig, want het is een feit en geen
+   waarschuwing: dit is gewoon de lijst waar nieuwe aanmeldingen heen gaan. */
+.wsfm-hoofdlijst {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 7px;
+	border-radius: 10px;
+	background: #f0f6fc;
+	color: #2271b1;
+	font-size: 11px;
+	font-weight: 600;
+	vertical-align: middle;
+}
+
+.wsfm-nieuwe-lijst {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 10px;
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid #dcdcde;
+}
+
+.wsfm-lijstenvak .wsfm-rij-actie {
+	width: 90px;
+	text-align: right;
+}
+
+.wsfm-lijstenvak .wsfm-rij-actie form {
+	display: inline;
+}
+
+.wsfm-lijstenvak .wsfm-weghalen {
+	color: #b32d2e;
+}

@@ -41,15 +41,57 @@ class WSFM_Newsletters {
 	/**
 	 * De doelgroepen waar de winkelier uit kan kiezen.
 	 *
+	 * TWEE SOORTEN, EN DAT VERSCHIL IS GEEN DETAIL
+	 * Een LIJST bestaat uit mensen die er zelf om gevraagd hebben: via de
+	 * popup, of via het vinkje bij het afrekenen. Bij een KLANTGROEP is dat
+	 * niet gevraagd; die mag je mailen omdat er een koopovereenkomst ligt en
+	 * er een afmeldlink in staat, en dat geldt alleen voor je eigen,
+	 * soortgelijke producten.
+	 *
+	 * De lijsten staan daarom bovenaan en de klantgroepen eronder, met een
+	 * waarschuwing in het scherm. Wie snel klikt hoort niet per ongeluk zijn
+	 * hele klantenbestand te pakken.
+	 *
 	 * @return array key => label
 	 */
 	public static function doelgroepen() {
-		return array(
-			'klanten_jaar' => __( 'Klanten die het afgelopen jaar besteld hebben', 'ws-flow-mailer' ),
-			'klanten_alle'   => __( 'Alle klanten die ooit besteld hebben', 'ws-flow-mailer' ),
-			'inschrijvingen' => __( 'Iedereen die zich via de popup heeft ingeschreven', 'ws-flow-mailer' ),
-			'alles'          => __( 'Klanten en inschrijvingen samen', 'ws-flow-mailer' ),
-		);
+		$uit = array();
+
+		if ( class_exists( 'WSFM_Lijsten' ) ) {
+			foreach ( WSFM_Lijsten::alles() as $lijst ) {
+				$uit[ 'lijst_' . (int) $lijst->id ] = sprintf(
+					/* translators: 1: naam van de lijst, 2: aantal mensen erop. */
+					_n( '%1$s (%2$s persoon)', '%1$s (%2$s personen)', (int) $lijst->aantal, 'ws-flow-mailer' ),
+					$lijst->naam,
+					number_format_i18n( (int) $lijst->aantal )
+				);
+			}
+		}
+
+		/* Blijft bestaan voor nieuwsbrieven die al op deze doelgroep stonden
+		   voordat er lijsten waren. */
+		$uit['inschrijvingen'] = __( 'Iedereen die zich ooit heeft aangemeld', 'ws-flow-mailer' );
+
+		$uit['klanten_jaar'] = __( 'Klanten die het afgelopen jaar besteld hebben', 'ws-flow-mailer' );
+		$uit['klanten_alle'] = __( 'Alle klanten die ooit besteld hebben', 'ws-flow-mailer' );
+		$uit['alles']        = __( 'Klanten en aanmeldingen samen', 'ws-flow-mailer' );
+
+		return $uit;
+	}
+
+	/**
+	 * Is dit een doelgroep waarvoor niemand om post gevraagd heeft?
+	 *
+	 * Gebruikt door het scherm om er een waarschuwing bij te zetten. Het
+	 * blokkeert niets: mailen naar je eigen klanten mag, maar het is wel een
+	 * andere beslissing dan mailen naar een lijst, en die hoort zichtbaar te
+	 * zijn op het moment dat je hem neemt.
+	 *
+	 * @param string $doelgroep Doelgroepsleutel.
+	 * @return bool
+	 */
+	public static function is_klantgroep( $doelgroep ) {
+		return in_array( $doelgroep, array( 'klanten_jaar', 'klanten_alle', 'alles' ), true );
 	}
 
 	/**
@@ -137,7 +179,12 @@ class WSFM_Newsletters {
 		$doelgroepen = self::doelgroepen();
 		$doelgroep   = isset( $data['audience'] ) ? sanitize_key( $data['audience'] ) : '';
 		if ( ! isset( $doelgroepen[ $doelgroep ] ) ) {
-			$doelgroep = 'klanten_jaar';
+			/* Terugvallen op de hoofdlijst en NIET op een klantgroep. Een lijst die
+			   is weggegooid zou anders bij het volgende opslaan stilletjes veranderen
+			   in "alle klanten van het afgelopen jaar", en dat merk je pas nadat de
+			   post weg is. Bij twijfel de kleinste groep, niet de grootste. */
+			$hoofd     = class_exists( 'WSFM_Lijsten' ) ? WSFM_Lijsten::hoofdlijst() : 0;
+			$doelgroep = $hoofd ? 'lijst_' . $hoofd : 'inschrijvingen';
 		}
 
 		$row = array(
@@ -295,6 +342,15 @@ class WSFM_Newsletters {
 	 */
 	public static function ontvangers( $doelgroep ) {
 		global $wpdb;
+
+		/* Een eigen lijst: dat zijn precies de mensen die erop staan, en verder
+		   niemand. Geen bestellingen erbij, geen slimmigheden. */
+		if ( 0 === strpos( (string) $doelgroep, 'lijst_' ) ) {
+			if ( ! class_exists( 'WSFM_Lijsten' ) ) {
+				return array();
+			}
+			return WSFM_Lijsten::adressen( (int) substr( $doelgroep, 6 ), self::MAX_ONTVANGERS );
+		}
 
 		/* De inschrijvingen zijn een eigen lijst met een eigen grond: die mensen
 		   hebben er zelf om gevraagd. Ze staan los van de bestellingen en worden

@@ -79,6 +79,10 @@ if ( '' !== $zoek ) {
 		</div>
 	<?php endif; ?>
 
+	<?php if ( isset( $_GET['wsfm-lijst'] ) ) : ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Opgeslagen.', 'ws-flow-mailer' ); ?></p></div>
+	<?php endif; ?>
+
 	<?php if ( isset( $_GET['wsfm-deleted'] ) ) : ?>
 		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Weggehaald.', 'ws-flow-mailer' ); ?></p></div>
 	<?php endif; ?>
@@ -91,6 +95,106 @@ if ( '' !== $zoek ) {
 	<p class="wsfm-inschrijvingen-uitleg">
 		<?php esc_html_e( 'Iedereen die zich via de popup heeft ingeschreven of die je zelf hebt toegevoegd. Je kunt ze een nieuwsbrief sturen: kies bij Nieuwsbrieven de doelgroep met de inschrijvingen erin.', 'ws-flow-mailer' ); ?>
 	</p>
+
+	<div class="postbox wsfm-lijstenvak">
+		<h2 class="hndle"><span><?php esc_html_e( 'Je lijsten', 'ws-flow-mailer' ); ?></span></h2>
+		<div class="inside">
+			<p class="klein" style="margin-top:0">
+				<?php esc_html_e( 'Meestal heb je aan een hoofdlijst genoeg. Een losse lijst is handig om iets te proberen voor je het naar iedereen stuurt, of voor een groep vaste klanten.', 'ws-flow-mailer' ); ?>
+			</p>
+
+			<table class="widefat striped">
+				<thead>
+					<tr>
+						<th scope="col"><?php esc_html_e( 'Lijst', 'ws-flow-mailer' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Mensen', 'ws-flow-mailer' ); ?></th>
+						<th scope="col"><span class="screen-reader-text"><?php esc_html_e( 'Acties', 'ws-flow-mailer' ); ?></span></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $lijsten as $wsfm_l ) : ?>
+						<tr>
+							<td>
+								<strong><?php echo esc_html( $wsfm_l->naam ); ?></strong>
+								<?php if ( ! empty( $wsfm_l->is_hoofdlijst ) ) : ?>
+									<span class="wsfm-hoofdlijst"><?php esc_html_e( 'hoofdlijst', 'ws-flow-mailer' ); ?></span>
+								<?php endif; ?>
+								<?php if ( '' !== $wsfm_l->omschrijving ) : ?>
+									<div class="klein"><?php echo esc_html( $wsfm_l->omschrijving ); ?></div>
+								<?php endif; ?>
+							</td>
+							<td><?php echo esc_html( number_format_i18n( (int) $wsfm_l->aantal ) ); ?></td>
+							<td class="wsfm-rij-actie">
+								<?php if ( empty( $wsfm_l->is_hoofdlijst ) ) : ?>
+									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+										<input type="hidden" name="action" value="wsfm_lijst_weg">
+										<input type="hidden" name="lijst_id" value="<?php echo esc_attr( (int) $wsfm_l->id ); ?>">
+										<?php wp_nonce_field( 'wsfm_lijst' ); ?>
+										<button type="submit" class="button-link wsfm-weghalen"><?php esc_html_e( 'Weghalen', 'ws-flow-mailer' ); ?></button>
+									</form>
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wsfm-nieuwe-lijst">
+				<input type="hidden" name="action" value="wsfm_lijst_maak">
+				<?php wp_nonce_field( 'wsfm_lijst' ); ?>
+				<label class="klein"><?php esc_html_e( 'Naam', 'ws-flow-mailer' ); ?><br>
+					<input type="text" name="lijst_naam" placeholder="<?php esc_attr_e( 'Vaste klanten', 'ws-flow-mailer' ); ?>" required></label>
+				<label class="klein"><?php esc_html_e( 'Waar is hij voor? (mag leeg)', 'ws-flow-mailer' ); ?><br>
+					<input type="text" name="lijst_omschrijving" class="regular-text"></label>
+				<button type="submit" class="button"><?php esc_html_e( 'Lijst toevoegen', 'ws-flow-mailer' ); ?></button>
+			</form>
+		</div>
+	</div>
+
+	<div class="postbox wsfm-afrekenvak">
+		<h2 class="hndle"><span><?php esc_html_e( 'Aanmelden bij het afrekenen', 'ws-flow-mailer' ); ?></span></h2>
+		<div class="inside">
+			<p class="klein" style="margin-top:0">
+				<?php esc_html_e( 'Een vinkje op je afrekenpagina waarmee klanten zich kunnen aanmelden. Dit is de netste manier om je lijst te laten groeien: deze mensen vragen er zelf om, en dat merk je aan hoe vaak ze je post openen.', 'ws-flow-mailer' ); ?>
+			</p>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="wsfm_afrekenen">
+				<?php wp_nonce_field( 'wsfm_afrekenen' ); ?>
+
+				<p>
+					<label>
+						<input type="checkbox" name="afrekenen_aan" value="1" <?php checked( ! empty( $afrekenen['aan'] ) ); ?>>
+						<strong><?php esc_html_e( 'Zet het vinkje op mijn afrekenpagina', 'ws-flow-mailer' ); ?></strong>
+					</label>
+				</p>
+
+				<p>
+					<label><?php esc_html_e( 'Wat er naast het vinkje staat', 'ws-flow-mailer' ); ?><br>
+						<input type="text" name="afrekenen_label" class="large-text" maxlength="200"
+							value="<?php echo esc_attr( $afrekenen['label'] ); ?>"></label><br>
+					<span class="description"><?php esc_html_e( 'Zeg wat ze kunnen verwachten. "Houd me op de hoogte" werkt beter dan "Schrijf me in voor de nieuwsbrief".', 'ws-flow-mailer' ); ?></span>
+				</p>
+
+				<p>
+					<label><?php esc_html_e( 'Op welke lijst komen ze', 'ws-flow-mailer' ); ?><br>
+						<select name="afrekenen_lijst">
+							<?php foreach ( $lijsten as $wsfm_l ) : ?>
+								<option value="<?php echo esc_attr( (int) $wsfm_l->id ); ?>" <?php selected( (int) $afrekenen['lijst_id'], (int) $wsfm_l->id ); ?>>
+									<?php echo esc_html( $wsfm_l->naam ); ?>
+								</option>
+							<?php endforeach; ?>
+						</select></label>
+				</p>
+
+				<p class="description" style="max-width:640px">
+					<?php esc_html_e( 'Het vinkje staat nooit vooraf aangevinkt. Dat mag niet: een vakje dat al aanstaat is geen toestemming. We bewaren ook de tekst zoals die op dat moment naast het vinkje stond, zodat je later kunt laten zien waar iemand ja op zei.', 'ws-flow-mailer' ); ?>
+				</p>
+
+				<p><button type="submit" class="button button-primary"><?php esc_html_e( 'Opslaan', 'ws-flow-mailer' ); ?></button></p>
+			</form>
+		</div>
+	</div>
 
 	<div class="wsfm-inschrijvingen-balk">
 		<p class="wsfm-aantal-regel">
@@ -226,6 +330,17 @@ if ( '' !== $zoek ) {
 					<label for="wsfm-import-plakken"><strong><?php esc_html_e( 'Of plak ze hier, een per regel', 'ws-flow-mailer' ); ?></strong></label><br>
 					<textarea id="wsfm-import-plakken" name="plakken" rows="6" class="large-text code" placeholder="jan@voorbeeld.nl&#10;Marieke;marieke@voorbeeld.nl"></textarea><br>
 					<span class="description"><?php esc_html_e( 'Je mag ook een naam ernaast zetten, gescheiden door een puntkomma of een komma.', 'ws-flow-mailer' ); ?></span>
+				</p>
+
+				<p>
+					<label for="wsfm-import-lijst"><strong><?php esc_html_e( 'Op welke lijst komen ze', 'ws-flow-mailer' ); ?></strong></label><br>
+					<select id="wsfm-import-lijst" name="import_lijst">
+						<?php foreach ( $lijsten as $wsfm_l ) : ?>
+							<option value="<?php echo esc_attr( (int) $wsfm_l->id ); ?>" <?php selected( ! empty( $wsfm_l->is_hoofdlijst ) ); ?>>
+								<?php echo esc_html( $wsfm_l->naam ); ?>
+							</option>
+						<?php endforeach; ?>
+					</select>
 				</p>
 
 				<p class="wsfm-toestemming">

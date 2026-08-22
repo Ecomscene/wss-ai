@@ -43,6 +43,81 @@ $wsfm_status_labels = array(
 		</div>
 	</div>
 
+	<h2><?php esc_html_e( 'Je lijsten', 'ws-flow-mailer' ); ?></h2>
+	<?php if ( empty( $lijsten ) ) : ?>
+		<p class="description"><?php esc_html_e( 'Er zijn nog geen lijsten.', 'ws-flow-mailer' ); ?></p>
+	<?php else : ?>
+		<table class="wp-list-table widefat fixed striped">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Lijst', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Mensen', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Waar hij voor is', 'ws-flow-mailer' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $lijsten as $wsfm_l ) : ?>
+					<tr>
+						<td>
+							<strong><?php echo esc_html( $wsfm_l->naam ); ?></strong>
+							<?php if ( ! empty( $wsfm_l->is_hoofdlijst ) ) : ?>
+								<span class="wsfm-hoofdlijst"><?php esc_html_e( 'hoofdlijst', 'ws-flow-mailer' ); ?></span>
+							<?php endif; ?>
+						</td>
+						<td><strong><?php echo esc_html( number_format_i18n( (int) $wsfm_l->aantal ) ); ?></strong></td>
+						<td><?php echo esc_html( $wsfm_l->omschrijving ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<p class="description">
+			<a href="<?php echo esc_url( add_query_arg( array( 'page' => WSFM_Flow_Admin_UI::SLUG_ABONNEES ), admin_url( 'admin.php' ) ) ); ?>">
+				<?php esc_html_e( 'Lijsten beheren en adressen bekijken', 'ws-flow-mailer' ); ?>
+			</a>
+		</p>
+	<?php endif; ?>
+
+	<h2 style="margin-top:2em;"><?php esc_html_e( 'Laatste nieuwsbrieven', 'ws-flow-mailer' ); ?></h2>
+	<?php if ( empty( $brieven ) ) : ?>
+		<p class="description"><?php esc_html_e( 'Je hebt nog geen nieuwsbrief gemaakt.', 'ws-flow-mailer' ); ?></p>
+	<?php else : ?>
+		<table class="wp-list-table widefat fixed striped">
+			<thead>
+				<tr>
+					<th><?php esc_html_e( 'Nieuwsbrief', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Stand', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Verstuurd op', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Ontvangers', 'ws-flow-mailer' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $brieven as $wsfm_b ) : ?>
+					<tr>
+						<td>
+							<a href="<?php echo esc_url( add_query_arg( array( 'page' => WSFM_Flow_Admin_UI::SLUG_BRIEVEN, 'action' => 'edit', 'nieuwsbrief' => (int) $wsfm_b->id ), admin_url( 'admin.php' ) ) ); ?>">
+								<strong><?php echo esc_html( $wsfm_b->name ); ?></strong>
+							</a>
+							<div class="description"><?php echo esc_html( $wsfm_b->subject ); ?></div>
+						</td>
+						<td><?php echo esc_html( $wsfm_b->status ); ?></td>
+						<td>
+							<?php
+							/* Een concept is nooit verstuurd, en dan is een datum tonen
+							   erger dan een streepje: het suggereert dat hij weg is. */
+							if ( ! empty( $wsfm_b->sent_at ) && '0000-00-00 00:00:00' !== $wsfm_b->sent_at ) {
+								echo esc_html( date_i18n( 'j M Y H:i', strtotime( $wsfm_b->sent_at ) ) );
+							} else {
+								echo '<span class="description">' . esc_html__( 'nog niet', 'ws-flow-mailer' ) . '</span>';
+							}
+							?>
+						</td>
+						<td><?php echo $wsfm_b->recipients ? esc_html( number_format_i18n( (int) $wsfm_b->recipients ) ) : '<span class="description">-</span>'; ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+	<?php endif; ?>
+
 	<h2><?php esc_html_e( 'Per flow', 'ws-flow-mailer' ); ?></h2>
 	<?php if ( empty( $flow_stats ) ) : ?>
 		<p><?php esc_html_e( 'Nog geen flows aangemaakt.', 'ws-flow-mailer' ); ?>

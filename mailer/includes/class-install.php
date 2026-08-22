@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '4';
+	const DB_VERSION = '5';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -28,6 +28,7 @@ class WSFM_Install {
 		self::create_tables();
 		self::migrate_legacy_columns();
 		self::seed_default_templates();
+		self::seed_hoofdlijst();
 		self::strip_em_dashes();
 		update_option( 'wsfm_db_version', self::DB_VERSION );
 		update_option( 'wsfm_plugin_version', WSFM_VERSION );
@@ -188,10 +189,37 @@ class WSFM_Install {
 			first_name VARCHAR(190) NOT NULL DEFAULT '',
 			source VARCHAR(40) NOT NULL DEFAULT 'popup',
 			coupon_code VARCHAR(60) NOT NULL DEFAULT '',
+			consent_text VARCHAR(255) NOT NULL DEFAULT '',
+			consent_at DATETIME NULL DEFAULT NULL,
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),
 			UNIQUE KEY email (email),
 			KEY source (source)
+			) $charset_collate;";
+
+		// Lists. A shop usually has one main list plus the occasional side
+		// list for testing or for a group of regulars.
+		$sql_lijsten = "CREATE TABLE {$prefix}wsfm_lijsten (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			naam VARCHAR(190) NOT NULL DEFAULT '',
+			omschrijving VARCHAR(255) NOT NULL DEFAULT '',
+			is_hoofdlijst TINYINT UNSIGNED NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+			PRIMARY KEY  (id),
+			KEY is_hoofdlijst (is_hoofdlijst)
+			) $charset_collate;";
+
+		// Who is on which list. A separate table and not a column on
+		// subscribers, because one address belongs on more than one list:
+		// "newsletter" and "regulars" is not a choice between two things.
+		$sql_lijst_leden = "CREATE TABLE {$prefix}wsfm_lijst_leden (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			lijst_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			subscriber_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+			PRIMARY KEY  (id),
+			UNIQUE KEY lid (lijst_id, subscriber_id),
+			KEY subscriber_id (subscriber_id)
 			) $charset_collate;";
 
 		dbDelta( $sql_flows );
@@ -203,6 +231,8 @@ class WSFM_Install {
 		dbDelta( $sql_templates );
 		dbDelta( $sql_newsletters );
 		dbDelta( $sql_subscribers );
+		dbDelta( $sql_lijsten );
+		dbDelta( $sql_lijst_leden );
 	}
 
 	/**
@@ -253,6 +283,52 @@ class WSFM_Install {
 			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET {$column} = REPLACE({$column}, %s, %s) WHERE {$column} LIKE %s", $dash, '-', '%' . $wpdb->esc_like( $dash ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET {$column} = REPLACE({$column}, %s, %s) WHERE {$column} LIKE %s", '&mdash;', '-', '%' . $wpdb->esc_like( '&mdash;' ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
+	}
+
+	/**
+	 * Make sure there is a main list, and that everyone who signed up before
+	 * lists existed is on it.
+	 *
+	 * WHY THIS RUNS ON EVERY UPGRADE AND NOT ONCE
+	 * It is written to be harmless when there is nothing to do: it creates
+	 * the list only when there is none, and only adds members who are not on
+	 * it yet. Running it again costs two queries and changes nothing. A
+	 * migration that may only run once is a migration that breaks when it
+	 * half-fails.
+	 *
+	 * Nobody loses their subscription over this, and the popup keeps writing
+	 * to the same place it always did.
+	 */
+	private static function seed_hoofdlijst() {
+		global $wpdb;
+
+		$lijsten = $wpdb->prefix . 'wsfm_lijsten';
+		$leden   = $wpdb->prefix . 'wsfm_lijst_leden';
+		$subs    = $wpdb->prefix . 'wsfm_subscribers';
+
+		$id = (int) $wpdb->get_var( "SELECT id FROM {$lijsten} WHERE is_hoofdlijst = 1 ORDER BY id ASC LIMIT 1" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( ! $id ) {
+			$wpdb->insert(
+				$lijsten,
+				array(
+					'naam'          => __( 'Nieuwsbrief', 'ws-flow-mailer' ),
+					'omschrijving'  => __( 'Iedereen die zich heeft aangemeld voor je nieuwsbrief.', 'ws-flow-mailer' ),
+					'is_hoofdlijst' => 1,
+					'created_at'    => current_time( 'mysql' ),
+				)
+			);
+			$id = (int) $wpdb->insert_id;
+		}
+
+		if ( ! $id ) {
+			return;
+		}
+
+		/* Iedereen die er nog niet op staat erbij, in EEN query. Bij een shop
+		   met twintigduizend adressen wil je hier geen twintigduizend losse
+		   inserts doen; dat is precies waar een verhuizing op time-out gaat. */
+		$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$leden} (lijst_id, subscriber_id, created_at) SELECT %d, s.id, s.created_at FROM {$subs} s LEFT JOIN {$leden} l ON l.subscriber_id = s.id AND l.lijst_id = %d WHERE l.id IS NULL", $id, $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**

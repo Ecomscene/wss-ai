@@ -28,45 +28,71 @@ class WSFM_Subscribers {
 	}
 
 	/**
-	 * Iemand toevoegen.
+	 * Iemand toevoegen, en op een lijst zetten.
 	 *
 	 * Bestaat het adres al, dan wordt er niets overschreven: de eerste
 	 * inschrijving telt, inclusief de code die toen is uitgegeven. Anders zou
 	 * iemand het formulier tien keer kunnen invullen voor tien kortingscodes.
 	 *
-	 * @param string $email  E-mailadres.
-	 * @param string $bron   Waar hij vandaan komt (popup, afrekenen).
-	 * @param string $code   Uitgegeven kortingscode.
-	 * @param string $naam   Voornaam, als we die hebben.
-	 * @return array { nieuw: bool, code: string }
+	 * Hij komt WEL op de gevraagde lijst te staan, ook als hij al bestond. Wie
+	 * zich via de popup had aangemeld en later bij het afrekenen een vinkje
+	 * zet, hoort op allebei de lijsten te belanden; dat is geen dubbele
+	 * inschrijving maar een tweede plek waar hij thuishoort.
+	 *
+	 * @param string $email       E-mailadres.
+	 * @param string $bron        Waar hij vandaan komt (popup, afrekenen, import).
+	 * @param string $code        Uitgegeven kortingscode.
+	 * @param string $naam        Voornaam, als we die hebben.
+	 * @param int    $lijst_id    Op welke lijst. Nul betekent de hoofdlijst.
+	 * @param string $toestemming De tekst waar hij ja op zei, als die er is.
+	 * @return array { nieuw: bool, code: string, id: int }
 	 */
-	public static function add( $email, $bron = 'popup', $code = '', $naam = '' ) {
+	public static function add( $email, $bron = 'popup', $code = '', $naam = '', $lijst_id = 0, $toestemming = '' ) {
 		global $wpdb;
 
 		$email = strtolower( trim( (string) $email ) );
+		$lijst = class_exists( 'WSFM_Lijsten' ) ? WSFM_Lijsten::geldig( $lijst_id ) : 0;
 
 		$bestaand = self::get( $email );
 		if ( $bestaand ) {
+			if ( $lijst ) {
+				WSFM_Lijsten::schrijf_in( $lijst, (int) $bestaand->id );
+			}
 			return array(
 				'nieuw' => false,
 				'code'  => (string) $bestaand->coupon_code,
+				'id'    => (int) $bestaand->id,
 			);
 		}
+
+		/* De tekst waar iemand ja op zei bewaren we mee. Toestemming moet je
+		   kunnen aantonen, en "hij heeft ooit een vinkje gezet" is geen bewijs
+		   als je niet weet waar dat vinkje bij stond. */
+		$toestemming = mb_substr( sanitize_text_field( (string) $toestemming ), 0, 255 );
 
 		$wpdb->insert(
 			self::table(),
 			array(
-				'email'       => $email,
-				'first_name'  => sanitize_text_field( $naam ),
-				'source'      => sanitize_key( $bron ),
-				'coupon_code' => sanitize_text_field( $code ),
-				'created_at'  => current_time( 'mysql' ),
+				'email'        => $email,
+				'first_name'   => sanitize_text_field( $naam ),
+				'source'       => sanitize_key( $bron ),
+				'coupon_code'  => sanitize_text_field( $code ),
+				'consent_text' => $toestemming,
+				'consent_at'   => '' === $toestemming ? null : current_time( 'mysql' ),
+				'created_at'   => current_time( 'mysql' ),
 			)
 		);
+
+		$id = (int) $wpdb->insert_id;
+
+		if ( $lijst && $id ) {
+			WSFM_Lijsten::schrijf_in( $lijst, $id );
+		}
 
 		return array(
 			'nieuw' => true,
 			'code'  => (string) $code,
+			'id'    => $id,
 		);
 	}
 
@@ -190,6 +216,12 @@ class WSFM_Subscribers {
 			return false;
 		}
 
+		/* Ook van alle lijsten af. Blijven die regels staan, dan wijzen ze naar
+		   niemand meer en tellen ze wel mee in het aantal op het scherm. */
+		if ( class_exists( 'WSFM_Lijsten' ) ) {
+			WSFM_Lijsten::vergeet_lid( $id );
+		}
+
 		return (bool) $wpdb->delete( self::table(), array( 'id' => $id ) );
 	}
 
@@ -255,9 +287,10 @@ class WSFM_Subscribers {
 	 *
 	 * @param array  $paren Lijst van array( email, naam ), uit ontleed().
 	 * @param string $bron  Waar ze vandaan komen.
+	 * @param int    $lijst_id Op welke lijst ze komen. Nul is de hoofdlijst.
 	 * @return array { toegevoegd, bestond, ongeldig, afgemeld }
 	 */
-	public static function importeer( array $paren, $bron = 'import' ) {
+	public static function importeer( array $paren, $bron = 'import', $lijst_id = 0 ) {
 		$telling = array(
 			'toegevoegd' => 0,
 			'bestond'    => 0,
@@ -282,7 +315,7 @@ class WSFM_Subscribers {
 				continue;
 			}
 
-			$uitkomst = self::add( $email, $bron, '', $naam );
+			$uitkomst = self::add( $email, $bron, '', $naam, $lijst_id );
 
 			if ( ! empty( $uitkomst['nieuw'] ) ) {
 				$telling['toegevoegd']++;
