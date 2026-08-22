@@ -13,6 +13,14 @@ defined( 'ABSPATH' ) || exit;
 $wsfm_access_key_mask = WSFM_Credentials::get_mask( 'ses_access_key' );
 $wsfm_secret_key_set  = WSFM_Credentials::has_secret( 'ses_secret_key' );
 $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
+
+/* Neemt Webshopschool het versturen over? Dan zijn de sleutelvelden hieronder
+   zinloos: er gaat niets meer rechtstreeks naar Amazon vanaf deze webshop. Ze
+   blijven wel BESTAAN, want een opgeslagen sleutel weggooien omdat een scherm
+   hem niet toont is precies hoe je iemand kwijtraakt die morgen terug wil. Ze
+   staan alleen niet meer in de weg. */
+$wsfm_via_hub = class_exists( 'WSFM_Provider_Hub' ) && WSFM_Provider_Hub::beschikbaar();
+$wsfm_hub_domein = $wsfm_via_hub ? WSS_AI_Koppeling::afzender()['domein'] : '';
 ?>
 <div class="wrap wsfm-settings">
 	<h1><?php esc_html_e( 'WS Flow Mailer - Instellingen', 'ws-flow-mailer' ); ?></h1>
@@ -37,6 +45,7 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 		<input type="hidden" name="action" value="wsfm_save_settings" />
 		<?php wp_nonce_field( WSFM_Admin_Settings::NONCE ); ?>
 
+		<?php if ( ! $wsfm_via_hub ) : ?>
 		<table class="form-table" role="presentation">
 			<tr>
 				<th scope="row">
@@ -51,11 +60,20 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 				</td>
 			</tr>
 		</table>
+		<?php endif; ?>
 
 		<!-- Amazon SES -->
 		<div class="wsfm-provider-fields" data-provider="ses">
+		<?php if ( $wsfm_via_hub ) : ?>
+			<h2><?php esc_html_e( 'Van welk adres je mail komt', 'ws-flow-mailer' ); ?></h2>
+			<p class="description" style="max-width:640px">
+				<?php esc_html_e( 'Het versturen gebeurt bij Webshopschool. Je hoeft hier geen sleutels in te vullen; alleen van welk adres je post moet komen en welke naam je klant ziet staan.', 'ws-flow-mailer' ); ?>
+			</p>
+		<?php else : ?>
 			<h2><?php esc_html_e( 'Amazon SES', 'ws-flow-mailer' ); ?></h2>
+		<?php endif; ?>
 			<table class="form-table" role="presentation">
+			<?php if ( ! $wsfm_via_hub ) : ?>
 				<tr>
 					<th scope="row">
 						<label for="wsfm_ses_access_key"><?php esc_html_e( 'Access Key ID', 'ws-flow-mailer' ); ?></label>
@@ -94,14 +112,24 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 						</select>
 					</td>
 				</tr>
+			<?php endif; ?>
 				<tr>
 					<th scope="row">
-						<label for="wsfm_ses_from_email"><?php esc_html_e( 'Geverifieerd afzenderadres', 'ws-flow-mailer' ); ?></label>
+						<label for="wsfm_ses_from_email"><?php echo $wsfm_via_hub
+							? esc_html__( 'Afzenderadres', 'ws-flow-mailer' )
+							: esc_html__( 'Geverifieerd afzenderadres', 'ws-flow-mailer' ); ?></label>
 					</th>
 					<td>
 						<input type="email" id="wsfm_ses_from_email" name="wsfm_ses_from_email" class="regular-text"
 							value="<?php echo esc_attr( $settings['ses_from_email'] ); ?>" placeholder="shop@voorbeeld.nl" />
-						<p class="description"><?php esc_html_e( 'Moet als identiteit geverifieerd zijn in Amazon SES.', 'ws-flow-mailer' ); ?></p>
+						<?php if ( $wsfm_via_hub ) : ?>
+							<p class="description"><?php
+							/* translators: 1: het domein van de webshop, 2: hetzelfde domein. */
+							printf( esc_html__( 'Moet een adres op %1$s zijn. Laat je het leeg, dan gebruiken we nieuwsbrief@%2$s.', 'ws-flow-mailer' ), esc_html( $wsfm_hub_domein ), esc_html( $wsfm_hub_domein ) );
+							?></p>
+						<?php else : ?>
+							<p class="description"><?php esc_html_e( 'Moet als identiteit geverifieerd zijn in Amazon SES.', 'ws-flow-mailer' ); ?></p>
+						<?php endif; ?>
 					</td>
 				</tr>
 				<tr>
@@ -116,6 +144,7 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 			</table>
 		</div>
 
+		<?php if ( ! $wsfm_via_hub ) : ?>
 		<!-- Brevo -->
 		<div class="wsfm-provider-fields" data-provider="brevo">
 			<h2><?php esc_html_e( 'Brevo', 'ws-flow-mailer' ); ?></h2>
@@ -144,6 +173,7 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 				</tr>
 			</table>
 		</div>
+		<?php endif; ?>
 
 		<h2><?php esc_html_e( 'Identity stitching (cookie-herkenning)', 'ws-flow-mailer' ); ?></h2>
 		<table class="form-table" role="presentation">
@@ -197,6 +227,12 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 	<hr />
 
 	<!-- SNS bounce & complaint webhook -->
+	<?php
+	/* Deze koppeling gaat over de SES van DEZE webshop. Loopt het versturen via
+	   Webshopschool, dan komt er hier niets meer binnen en zou dit blok een
+	   instelling beloven die niets doet. */
+	if ( ! $wsfm_via_hub ) :
+	?>
 	<h2><?php esc_html_e( 'Bounce- en klachtafhandeling (Amazon SNS)', 'ws-flow-mailer' ); ?></h2>
 	<p class="description" style="max-width:720px;">
 		<?php esc_html_e( 'Zonder bounce-afhandeling blijf je mailen naar niet-bestaande adressen en beschadig je je verzendreputatie. Koppel SES daarom eenmalig aan deze webhook - bounces en klachten komen dan automatisch op de suppressielijst.', 'ws-flow-mailer' ); ?>
@@ -243,6 +279,8 @@ $wsfm_brevo_key_set   = WSFM_Credentials::has_secret( 'brevo_api_key' );
 	<hr />
 
 	<!-- Suppression list management -->
+	<?php endif; ?>
+
 	<h2 id="wsfm-suppression"><?php esc_html_e( 'Suppressielijst', 'ws-flow-mailer' ); ?></h2>
 	<p class="description" style="max-width:720px;">
 		<?php esc_html_e( 'Adressen op deze lijst ontvangen nooit flow-e-mails. Ze komen hier via bounces, klachten of afmeldingen. Handmatig verwijderen kan, bijv. na een fout-positieve klacht - doe dat alleen als je zeker weet dat het adres bereikbaar is en wíl blijven ontvangen.', 'ws-flow-mailer' ); ?>

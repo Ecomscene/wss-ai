@@ -74,18 +74,26 @@ class WSFM_Provider_Hub implements WSFM_Mail_Provider {
 	 * @return WSFM_Send_Result
 	 */
 	public function send( $to, $subject, $html_body, array $merge_data ) {
-		/* Ruim de tijd: dit is één HTTPS-verzoek naar onze eigen server, die er
-		   daarna nog een naar Amazon doet. Dertig seconden is genoeg voor allebei
-		   en kort genoeg om de wachtrij niet op te houden als er iets hangt. */
+		/* Het afzenderadres en de naam blijven van de winkelier: dat is zijn
+		   huisstijl en niet de onze. Webshopschool controleert alleen of het
+		   adres op zijn eigen, geverifieerde domein zit; wat ervoor staat en
+		   welke naam de klant ziet, kiest hij hier zelf. */
+		$instellingen = WSFM_Credentials::get_settings();
+
 		$uit = WSS_AI_Koppeling::vraag(
 			'/mail',
 			array(
 				'naar'      => $to,
 				'onderwerp' => $subject,
 				'html'      => $html_body,
+				'van'       => $instellingen['ses_from_email'],
+				'vanNaam'   => $instellingen['ses_from_name'],
 				/* Antwoorden horen bij de winkelier te belanden en niet bij ons. */
 				'antwoordNaar' => get_option( 'admin_email' ),
 			),
+			/* Ruim de tijd: dit is één verzoek naar onze eigen server, die er daarna
+			   nog een naar Amazon doet. Dertig seconden is genoeg voor allebei, en
+			   kort genoeg om de wachtrij niet op te houden als er iets hangt. */
 			30
 		);
 
