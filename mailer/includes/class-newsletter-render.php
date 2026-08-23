@@ -553,8 +553,13 @@ class WSFM_Newsletter_Render {
 				$producten[] = self::product_gegevens( (int) $product_id, $s, $cel );
 			}
 
-			$uit .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"'
-				. ' style="margin-bottom:' . ( $tussen + 6 ) . 'px;">';
+			/* table-layout:fixed is hier het verschil tussen een raster en een
+			   rommeltje. Zonder verdeelt de browser de kolommen naar INHOUD: een
+			   productfoto die intrinsiek groter is krijgt dan meer breedte, en het
+			   width-attribuut is niet meer dan een suggestie. Precies dat maakte de
+			   ene kolom breder dan de andere terwijl er 262 bij allebei stond. */
+			$uit .= '<table role="presentation" width="' . $binnen . '" cellpadding="0" cellspacing="0" border="0"'
+				. ' style="width:' . $binnen . 'px;table-layout:fixed;margin-bottom:' . ( $tussen + 6 ) . 'px;">';
 
 			$uit .= self::product_rij( $producten, $kolommen, $cel, $tussen, 'beeld', 'bottom', $s );
 			$uit .= self::product_rij( $producten, $kolommen, $cel, $tussen, 'naam', 'top', $s );
@@ -582,19 +587,21 @@ class WSFM_Newsletter_Render {
 		$onder = 'beeld' === $welk ? 8 : 2;
 		$uit   = '<tr>';
 
-		foreach ( $producten as $index => $product ) {
-			$rechts = $index === $kolommen - 1 ? 0 : $tussen;
+		for ( $i = 0; $i < $kolommen; $i++ ) {
+			/* De ruimte tussen de kolommen is een eigen cel en geen padding op de
+			   productcel. Padding telt in de ene mailclient bij de celbreedte op en
+			   in de andere niet, en dan klopt de optelsom van het raster net niet
+			   meer. Een lege cel van twaalf pixels is overal twaalf pixels. */
+			if ( $i > 0 ) {
+				$uit .= '<td width="' . $tussen . '" style="width:' . $tussen . 'px;font-size:1px;line-height:1px;">&nbsp;</td>';
+			}
+
+			$inhoud = isset( $producten[ $i ] ) ? $producten[ $i ][ $welk ] : '&nbsp;';
 
 			$uit .= '<td width="' . $cel . '" valign="' . $lijn . '"'
-				. ' style="width:' . $cel . 'px;padding:0 ' . $rechts . 'px ' . $onder . 'px 0;">'
-				. $product[ $welk ]
+				. ' style="width:' . $cel . 'px;padding:0 0 ' . $onder . 'px 0;">'
+				. $inhoud
 				. '</td>';
-		}
-
-		/* De groep aanvullen met lege cellen, anders rekken twee producten in een
-		   raster van drie zich uit tot halve pagina's. */
-		for ( $i = count( $producten ); $i < $kolommen; $i++ ) {
-			$uit .= '<td width="' . $cel . '" style="width:' . $cel . 'px;">&nbsp;</td>';
 		}
 
 		return $uit . '</tr>';
@@ -633,9 +640,13 @@ class WSFM_Newsletter_Render {
 				$src = wp_get_attachment_image_url( $beeld_id, 'medium_large' );
 			}
 			if ( $src ) {
+				/* Vaste breedte en geen max-width. Met width:100% in een cel die door
+				   een mailclient toch anders wordt opgevat, krijg je een foto die
+				   meebeweegt met de fout in plaats van hem te verbergen. */
 				$beeld = '<a href="' . esc_url( $link ) . '" style="text-decoration:none;">'
-					. '<img src="' . esc_url( $src ) . '" alt="' . esc_attr( $product->get_name() ) . '" width="' . $breedte . '"'
-					. ' style="display:block;width:100%;max-width:' . $breedte . 'px;height:auto;border:0;'
+					. '<img src="' . esc_url( $src ) . '" alt="' . esc_attr( $product->get_name() ) . '"'
+					. ' width="' . $breedte . '"'
+					. ' style="display:block;width:' . $breedte . 'px;height:auto;border:0;'
 					. 'border-radius:' . $s['rond'] . ';">'
 					. '</a>';
 			}

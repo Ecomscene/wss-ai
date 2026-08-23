@@ -338,11 +338,26 @@ function mailraster( $sjabloon, $kolommen ) {
 		'valign="top"'       => 'namen en prijzen staan niet meer bovenaan',
 		'foto-1.jpg'         => 'het catalogusformaat wordt niet meer gebruikt',
 		'Product 4'          => 'een product zonder foto valt weg',
+		'table-layout:fixed' => 'de kolombreedte ligt niet meer vast',
 	) as $stuk => $klacht ) {
 		if ( false === strpos( $html, $stuk ) ) {
 			printf( "    FOUT %s\n", $klacht );
 			$fouten++;
 		}
+	}
+
+	/* Alle productcellen even breed. Dit is waar het echt op misging: zonder
+	   table-layout:fixed verdeelt de browser de kolommen naar INHOUD, en dan
+	   krijgt een intrinsiek grotere foto meer ruimte. Het width-attribuut is in
+	   die stand niet meer dan een suggestie, dus stond er bij allebei 262 terwijl
+	   de ene kolom zichtbaar breder was. */
+	preg_match_all( '/<td width="(\d+)"/', $html, $treffers );
+	$breed = array_values( array_filter( array_map( 'intval', $treffers[1] ), function ( $b ) { return $b > 20; } ) );
+
+	if ( count( array_unique( $breed ) ) > 1 ) {
+		printf( "    FOUT de productkolommen zijn niet even breed: %s
+", implode( ', ', array_unique( $breed ) ) );
+		$fouten++;
 	}
 
 	/* Outlook vat een tabel die niet uitkomt heel anders op dan een browser: daar
