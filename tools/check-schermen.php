@@ -339,6 +339,8 @@ function mailraster( $sjabloon, $kolommen ) {
 		'foto-1.jpg'         => 'het catalogusformaat wordt niet meer gebruikt',
 		'Product 4'          => 'een product zonder foto valt weg',
 		'table-layout:fixed' => 'de kolombreedte ligt niet meer vast',
+		'object-fit:cover'   => 'de foto wordt niet meer bijgesneden',
+		'[if mso]'           => 'de uitzondering voor Outlook is weg, daar rekt de foto nu uit',
 	) as $stuk => $klacht ) {
 		if ( false === strpos( $html, $stuk ) ) {
 			printf( "    FOUT %s\n", $klacht );
@@ -358,6 +360,25 @@ function mailraster( $sjabloon, $kolommen ) {
 		printf( "    FOUT de productkolommen zijn niet even breed: %s
 ", implode( ', ', array_unique( $breed ) ) );
 		$fouten++;
+	}
+
+	/* De bijgesneden foto hoort vierkant te zijn. Staat er een hoogte die niet
+	   bij de breedte past, dan snijdt hij wel bij maar naar een verhouding die
+	   per sjabloon verschilt, en dan is het raster alsnog ongelijk. */
+	preg_match_all( '/width:(\d+)px;height:(\d+)px;object-fit/', $html, $vlakken, PREG_SET_ORDER );
+
+	if ( empty( $vlakken ) ) {
+		printf( "    FOUT er staat geen bijgesneden vlak in de mail
+" );
+		$fouten++;
+	}
+
+	foreach ( $vlakken as $vlak ) {
+		if ( (int) $vlak[1] !== (int) $vlak[2] ) {
+			printf( "    FOUT de foto is niet vierkant: %s bij %s
+", $vlak[1], $vlak[2] );
+			$fouten++;
+		}
 	}
 
 	/* Outlook vat een tabel die niet uitkomt heel anders op dan een browser: daar

@@ -78,6 +78,7 @@ class WSFM_Newsletter_Render {
 				'blokruimte'  => 32,
 				'kolommen'    => 2,
 				'vollebreed'  => false,
+					'beeldratio'  => 1,
 			),
 			'warm'   => array(
 				'pagina'      => '#f6f1ea',
@@ -100,6 +101,7 @@ class WSFM_Newsletter_Render {
 				'blokruimte'  => 32,
 				'kolommen'    => 2,
 				'vollebreed'  => false,
+					'beeldratio'  => 1,
 			),
 			'strak'  => array(
 				'pagina'      => '#ffffff',
@@ -122,6 +124,7 @@ class WSFM_Newsletter_Render {
 				'blokruimte'  => 24,
 				'kolommen'    => 3,
 				'vollebreed'  => true,
+					'beeldratio'  => 1,
 			),
 		);
 
@@ -640,14 +643,8 @@ class WSFM_Newsletter_Render {
 				$src = wp_get_attachment_image_url( $beeld_id, 'medium_large' );
 			}
 			if ( $src ) {
-				/* Vaste breedte en geen max-width. Met width:100% in een cel die door
-				   een mailclient toch anders wordt opgevat, krijg je een foto die
-				   meebeweegt met de fout in plaats van hem te verbergen. */
 				$beeld = '<a href="' . esc_url( $link ) . '" style="text-decoration:none;">'
-					. '<img src="' . esc_url( $src ) . '" alt="' . esc_attr( $product->get_name() ) . '"'
-					. ' width="' . $breedte . '"'
-					. ' style="display:block;width:' . $breedte . 'px;height:auto;border:0;'
-					. 'border-radius:' . $s['rond'] . ';">'
+					. self::product_foto( $src, $product->get_name(), $breedte, $s )
 					. '</a>';
 			}
 		}
@@ -664,5 +661,55 @@ class WSFM_Newsletter_Render {
 				: '<span style="display:block;font-size:14px;line-height:1.5;color:' . $s['zacht'] . ';">'
 					. esc_html( $prijs ) . '</span>',
 		);
+	}
+
+	/**
+	 * Een productfoto die altijd dezelfde verhouding heeft.
+	 *
+	 * WAAROM DIT MOET
+	 * Webshops gebruiken door elkaar staande, liggende en vierkante foto's. In een
+	 * raster levert dat een rommeltje op, en de winkelier vragen om het bijsnijden
+	 * van zijn HELE winkel om te zetten omdat zijn nieuwsbrief scheef staat, is de
+	 * verkeerde kant op. Een productslider op een webshop snijdt ook gewoon bij;
+	 * dit hoort dat ook te doen.
+	 *
+	 * WAAROM HET TWEE KEER IN DE MAIL STAAT
+	 * Bijsnijden in e-mail kan alleen met object-fit, en dat werkt overal behalve
+	 * in Outlook op Windows: die rendert met de opmaakmotor van Word, negeert
+	 * object-fit, en rekt de foto dan uit tot het opgegeven vierkant. Een
+	 * uitgerekt kind is erger dan een raster dat niet helemaal uitkomt.
+	 *
+	 * Dus staat de foto er twee keer in, achter voorwaardelijke blokken. Outlook
+	 * ziet alleen de tweede en krijgt de foto op zijn eigen verhouding; alle
+	 * andere clients zien alleen de eerste en krijgen een net bijgesneden vlak.
+	 * De rijenopbouw houdt Outlook ondertussen alsnog recht.
+	 *
+	 * @param string $src     Adres van de foto.
+	 * @param string $alt     Beschrijving.
+	 * @param int    $breedte Celbreedte in pixels.
+	 * @param array  $s       Stijlwaarden.
+	 * @return string
+	 */
+	private static function product_foto( $src, $alt, $breedte, array $s ) {
+		$ratio  = isset( $s['beeldratio'] ) ? (float) $s['beeldratio'] : 1;
+		$hoogte = (int) round( $breedte * ( $ratio > 0 ? $ratio : 1 ) );
+
+		$gemeen = ' src="' . esc_url( $src ) . '" alt="' . esc_attr( $alt ) . '" width="' . $breedte . '"';
+
+		/* Downlevel-revealed: alles behalve Outlook leest dit als gewone HTML,
+		   Outlook slaat het over. */
+		$uit = '<!--[if !mso]><!-->'
+			. '<img' . $gemeen . ' height="' . $hoogte . '"'
+			. ' style="display:block;width:' . $breedte . 'px;height:' . $hoogte . 'px;'
+			. 'object-fit:cover;object-position:center;border:0;border-radius:' . $s['rond'] . ';">'
+			. '<!--<![endif]-->';
+
+		/* En alleen voor Outlook: geen hoogte, dus geen uitgerekte foto. */
+		$uit .= '<!--[if mso]>'
+			. '<img' . $gemeen
+			. ' style="display:block;width:' . $breedte . 'px;height:auto;border:0;">'
+			. '<![endif]-->';
+
+		return $uit;
 	}
 }
