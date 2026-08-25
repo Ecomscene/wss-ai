@@ -70,6 +70,18 @@ function wp_get_attachment_image_url( $id, $maat = '' ) {
 }
 function wp_list_pluck( $l, $f ) { $u = array(); foreach ( $l as $r ) { $u[] = is_object( $r ) ? $r->$f : $r[ $f ]; } return $u; }
 function submit_button( $t = null ) { echo '<p class="submit"><button>Opslaan</button></p>'; }
+function mysql2date( $f, $d, $lokaal = true ) { return strtotime( $d ); }
+/* Zo dicht mogelijk bij wat WordPress ervan maakt, anders staat er in de
+   proefuitvoer "260000 seconden" en dat leest niemand na. */
+function human_time_diff( $van, $tot = 0 ) {
+	$s = abs( (int) $tot - (int) $van );
+	if ( $s < 3600 ) { return round( $s / 60 ) . ' minuten'; }
+	if ( $s < 86400 ) { return round( $s / 3600 ) . ' uur'; }
+	return round( $s / 86400 ) . ' dagen';
+}
+function paginate_links( $a = array() ) { return '<a class="page-numbers" href="#">2</a>'; }
+function wp_kses_post( $t ) { return $t; }
+function add_query_arg_dummy() {}
 
 function get_theme_mod( $n, $d = false ) { return 0; }
 function get_permalink( $id ) { return 'https://voorbeeld.nl/product/' . $id; }
@@ -97,6 +109,7 @@ class WSFM_Flow_Admin_UI {
 	const SLUG_ABONNEES  = 'ws-flow-mailer-inschrijvingen';
 	const SLUG_FLOWS     = 'ws-flow-mailer-flows';
 	const SLUG_TEMPLATES = 'ws-flow-mailer-templates';
+	const SLUG_POSTLOG   = 'ws-flow-mailer-postlog';
 	public static function mask_email( $e ) { return 'j***@voorbeeld.nl'; }
 }
 class WSFM_Flows { const TRIGGER_TYPES = array(); }
@@ -107,6 +120,7 @@ require_once dirname( __DIR__ ) . '/mailer/includes/class-eigen-html.php';
 require_once dirname( __DIR__ ) . '/mailer/includes/class-template-engine.php';
 require_once dirname( __DIR__ ) . '/mailer/includes/class-newsletter-render.php';
 require_once dirname( __DIR__ ) . '/mailer/includes/class-newsletters.php';
+require_once dirname( __DIR__ ) . '/mailer/includes/class-postlog.php';
 class WSFM_Subscribers {
 	public static function naam_van( $r ) {
 		$n = trim( ( isset( $r->first_name ) ? $r->first_name : '' ) . ' ' . ( isset( $r->last_name ) ? $r->last_name : '' ) );
@@ -136,6 +150,7 @@ function scherm( $naam, $pad ) {
 	global $rijen, $lidmaatschap, $totaal, $alle, $pagina, $paginas, $zoek, $lijst_filter;
 	global $brief, $voortgang, $brieven;
 	global $stats, $flow_stats, $recent, $trigger_filter;
+	global $doorlichting, $log, $aantallen, $stand, $zoek;
 
 	ob_start();
 	include $pad;
@@ -285,6 +300,72 @@ foreach ( array( 'nieuw', 'concept', 'verzonden', 'eigen' ) as $stand ) {
 		}
 		moet( $html, '&lt;!DOCTYPE html&gt;', 'samensteller' );
 		magniet( $html, '<p>Hoi %FIRSTNAME%', 'de aangeleverde HTML staat onontweken in het tekstvak' );
+	}
+}
+
+/* ---- het postlog ---- */
+
+/* Twee standen die er in het echt allebei zijn, en die allebei fout kunnen
+   gaan: een gevuld log, en het lege log van iemand bij wie niets aankomt.
+   Juist die tweede moet kloppen, want dat is het scherm waar iemand naar
+   kijkt als hij een probleem heeft. */
+$standen_log = array(
+	array( 'postlog, gevuld', array(
+		(object) array(
+			'id' => 9, 'status' => 'sent', 'recipient' => 'klant@voorbeeld.nl',
+			'subject' => 'De nieuwe collectie', 'error_message' => null,
+			'sent_at' => '2026-08-22 09:30:00', 'bron_naam' => 'Najaar 2026',
+			'bron_soort' => 'nieuwsbrief', 'sjabloon_naam' => 'Najaar 2026',
+		),
+		(object) array(
+			'id' => 8, 'status' => 'failed', 'recipient' => 'weg@voorbeeld.nl',
+			'subject' => 'De nieuwe collectie', 'error_message' => 'Adres bestaat niet.',
+			'sent_at' => '2026-08-22 09:29:00', 'bron_naam' => 'Najaar 2026',
+			'bron_soort' => 'nieuwsbrief', 'sjabloon_naam' => 'Najaar 2026',
+		),
+		(object) array(
+			'id' => 7, 'status' => 'stopped', 'recipient' => 'stil@voorbeeld.nl',
+			'subject' => '', 'error_message' => 'Niet verzonden: adres staat op de suppressielijst.',
+			'sent_at' => '2026-08-22 09:28:00', 'bron_naam' => null,
+			'bron_soort' => null, 'sjabloon_naam' => null,
+		),
+	) ),
+	array( 'postlog, niets verstuurd', array() ),
+);
+
+foreach ( $standen_log as $geval ) {
+	$log = array( 'rijen' => $geval[1], 'totaal' => count( $geval[1] ), 'paginas' => 2, 'pagina' => 1 );
+	$aantallen = $geval[1] ? array( 'sent' => 1, 'failed' => 1, 'stopped' => 1 ) : array();
+	$stand = '';
+	$zoek = '';
+
+	/* De doorlichting met gegevens die we zelf zetten, zodat het scherm ook
+	   zonder database iets te tonen heeft. */
+	$doorlichting = WSFM_Postlog::doorlichting( array(
+		'nu' => 1787000000,
+		'provider_fout' => $geval[1] ? '' : 'Er is nog geen verzendmethode gekozen.',
+		'planner' => true,
+		'volgende_run' => 1787000180,
+		'wachtrij' => array( 'wacht' => $geval[1] ? 0 : 412, 'bezig' => 0, 'oudste' => $geval[1] ? 0 : 1786900000 ),
+		'laatst' => $geval[1] ? 1786999000 : 0,
+		'geblokkeerd' => 3,
+	) );
+
+	$html = scherm( $geval[0], $map . 'postlog-page.php' );
+	moet( $html, 'wsfm-doorlichting', 'postlog' );
+
+	if ( $geval[1] ) {
+		moet( $html, 'weg@voorbeeld.nl', 'postlog' );
+		moet( $html, 'Adres bestaat niet.', 'postlog' );
+		/* Een afgeschermd adres maakt dit scherm nutteloos: je kunt dan niet
+		   nakijken of jouw eigen adres erbij zat. */
+		magniet( $html, '***@', 'de adressen staan afgeschermd, en dan is het log niet te gebruiken' );
+	} else {
+		/* Het lege log moet zelf vertellen wat er aan de hand is. Een lege
+		   tabel zonder uitleg is precies waar niemand wat aan heeft. */
+		moet( $html, 'is-fout', 'postlog' );
+		moet( $html, 'verzendmethode', 'postlog' );
+		moet( $html, '412', 'postlog' );
 	}
 }
 

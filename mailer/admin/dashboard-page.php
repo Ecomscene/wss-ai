@@ -17,6 +17,7 @@ $wsfm_status_labels = array(
 	'sent'       => __( 'Verzonden', 'ws-flow-mailer' ),
 	'failed'     => __( 'Mislukt', 'ws-flow-mailer' ),
 	'bounced'    => __( 'Gebounced', 'ws-flow-mailer' ),
+	'stopped'    => __( 'Niet verstuurd', 'ws-flow-mailer' ),
 	'complained' => __( 'Klacht', 'ws-flow-mailer' ),
 );
 ?>

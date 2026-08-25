@@ -19,6 +19,7 @@ class WSFM_Flow_Admin_UI {
 	const SLUG_ABONNEES  = 'ws-flow-mailer-inschrijvingen';
 	const SLUG_FLOWS     = 'ws-flow-mailer-flows';
 	const SLUG_TEMPLATES = 'ws-flow-mailer-templates';
+	const SLUG_POSTLOG   = 'ws-flow-mailer-postlog';
 
 	/** Inschrijvingen per pagina in het overzicht. */
 	const PER_PAGINA = 50;
@@ -90,6 +91,7 @@ class WSFM_Flow_Admin_UI {
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Inschrijvingen', 'ws-flow-mailer' ), __( 'Inschrijvingen', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_ABONNEES, array( $this, 'render_inschrijvingen' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Flows', 'ws-flow-mailer' ), __( 'Flows', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_FLOWS, array( $this, 'render_flows' ) );
 		add_submenu_page( self::SLUG_DASHBOARD, __( 'Templates', 'ws-flow-mailer' ), __( 'Templates', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_TEMPLATES, array( $this, 'render_templates' ) );
+		add_submenu_page( self::SLUG_DASHBOARD, __( 'Verstuurde mail', 'ws-flow-mailer' ), __( 'Verstuurde mail', 'ws-flow-mailer' ), self::CAPABILITY, self::SLUG_POSTLOG, array( $this, 'render_postlog' ) );
 	}
 
 	/**
@@ -607,6 +609,35 @@ class WSFM_Flow_Admin_UI {
 
 		$templates = WSFM_Templates::get_all();
 		include WSFM_PLUGIN_DIR . 'admin/templates-page.php';
+	}
+
+	/**
+	 * Wat er verstuurd is, met de doorlichting erboven.
+	 */
+	public function render_postlog() {
+		$this->require_capability();
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- alleen filters, niets wordt gewijzigd.
+		$stand = isset( $_GET['stand'] ) ? sanitize_key( wp_unslash( $_GET['stand'] ) ) : '';
+		$zoek  = isset( $_GET['zoek'] ) ? sanitize_text_field( wp_unslash( $_GET['zoek'] ) ) : '';
+		$pagina = isset( $_GET['paged'] ) ? (int) $_GET['paged'] : 1;
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		if ( ! isset( WSFM_Postlog::standen()[ $stand ] ) ) {
+			$stand = '';
+		}
+
+		$doorlichting = WSFM_Postlog::doorlichting();
+		$aantallen    = WSFM_Postlog::aantallen();
+		$log          = WSFM_Postlog::regels(
+			array(
+				'stand'  => $stand,
+				'zoek'   => $zoek,
+				'pagina' => $pagina,
+			)
+		);
+
+		include WSFM_PLUGIN_DIR . 'admin/postlog-page.php';
 	}
 
 	/**

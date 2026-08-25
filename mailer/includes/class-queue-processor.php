@@ -75,12 +75,19 @@ class WSFM_Queue_Processor {
 			return 'skipped';
 		}
 
+		/* Een nieuwsbrief hoort hier niet verder. Hij heeft geen flow en geen
+		   stap, dus de controle hieronder zou hem altijd afkeuren: geen flow,
+		   dus stoppen. Dat gebeurde ook, stilzwijgend, voor elke ontvanger. */
+		if ( (int) $item->newsletter_id > 0 ) {
+			return self::process_newsletter_item( $item );
+		}
+
 		// Flow or step no longer exists, or the flow is paused → stop.
 		$flow = WSFM_Flows::get( $item->flow_id );
 		$step = ( $flow && isset( $flow->steps[ $item->step_index ] ) ) ? $flow->steps[ $item->step_index ] : null;
 
 		if ( ! $flow || ! $step || 'active' !== $flow->status ) {
-			return self::finish( $item, 'stopped' );
+			return self::finish( $item, 'stopped', 0, __( 'De flow of de stap bestaat niet meer, of de flow staat uit.', 'ws-flow-mailer' ) );
 		}
 
 		// 1. Suppression list - the safety layer, always first.
@@ -92,7 +99,12 @@ class WSFM_Queue_Processor {
 
 		// 2. Stop condition (e.g. customer ordered after all).
 		if ( WSFM_Flow_Conditions::should_stop( $item, $flow, $step ) ) {
-			return self::finish( $item, 'stopped' );
+			return self::finish(
+				$item,
+				'stopped',
+				(int) $step['template_id'],
+				__( 'Niet verstuurd omdat de voorwaarde van de flow niet meer gold, bijvoorbeeld doordat de klant alsnog besteld heeft.', 'ws-flow-mailer' )
+			);
 		}
 
 		// 3. Build merge context.
@@ -146,7 +158,7 @@ class WSFM_Queue_Processor {
 		$brief = WSFM_Newsletters::get( (int) $item->newsletter_id );
 
 		if ( ! $brief ) {
-			return self::finish( $item, 'stopped' );
+			return self::finish( $item, 'stopped', 0, __( 'Deze nieuwsbrief bestaat niet meer; hij is weggegooid terwijl hij nog verstuurd werd.', 'ws-flow-mailer' ) );
 		}
 
 		if ( WSFM_Suppression::is_suppressed( $item->customer_email ) ) {
@@ -181,13 +193,13 @@ class WSFM_Queue_Processor {
 	/**
 	 * Retry with backoff, or fail permanently after MAX_ATTEMPTS.
 	 *
-	 * @param object $item    Queue row.
-	 * @param array  $step    Step config.
-	 * @param string $error   Error message.
-	 * @param string $subject Rendered subject (when available).
+	 * @param object $item        Queue row.
+	 * @param int    $template_id Sjabloon, of 0 bij een nieuwsbrief.
+	 * @param string $error       Error message.
+	 * @param string $subject     Rendered subject (when available).
 	 * @return string
 	 */
-	private static function handle_failure( $item, array $step, $error, $subject = '' ) {
+	private static function handle_failure( $item, $template_id, $error, $subject = '' ) {
 		global $wpdb;
 
 		$table    = WSFM_Queue::table();
@@ -208,21 +220,35 @@ class WSFM_Queue_Processor {
 		}
 
 		$wpdb->update( $table, array( 'status' => 'failed', 'attempts' => $attempts ), array( 'id' => $item->id ) );
-		WSFM_Queue::log( $item, $step['template_id'], 'failed', $subject, '', $error );
+		WSFM_Queue::log( $item, (int) $template_id, 'failed', $subject, '', $error );
 		return 'failed';
 	}
 
 	/**
 	 * Set the final status of a claimed item.
 	 *
-	 * @param object $item   Queue row.
-	 * @param string $status Final status.
+	 * WAAROM HIER OOK EEN REGEL IN HET LOG KAN
+	 * Een item dat stopt schreef vroeger niets weg. Die stilte is precies wat
+	 * een verdwenen mail onvindbaar maakte: het item stond op 'stopped', het
+	 * log was leeg, en het scherm telde nul verzonden en nul mislukt. Wie dan
+	 * vraagt waar zijn post is heeft geen enkel aanknopingspunt. Een reden
+	 * meegeven is dus geen extra, het is het verschil tussen zoeken en zien.
+	 *
+	 * @param object $item        Queue row.
+	 * @param string $status      Final status.
+	 * @param int    $template_id Sjabloon, of 0 bij een nieuwsbrief.
+	 * @param string $reden       Waarom, als het geen gewone verzending is.
 	 * @return string
 	 */
-	private static function finish( $item, $status ) {
+	private static function finish( $item, $status, $template_id = 0, $reden = '' ) {
 		global $wpdb;
 
 		$wpdb->update( WSFM_Queue::table(), array( 'status' => $status ), array( 'id' => $item->id ) );
+
+		if ( '' !== $reden ) {
+			WSFM_Queue::log( $item, (int) $template_id, 'stopped', '', '', $reden );
+		}
+
 		return $status;
 	}
 

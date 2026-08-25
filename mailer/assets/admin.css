@@ -1071,3 +1071,98 @@
 	border-left-color: #d63638;
 	background: #fcf0f1;
 }
+
+/* De doorlichting boven het postlog. De schakels staan in de volgorde van de
+   keten zelf, dus de eerste rode regel is waar je moet zijn. */
+.wsfm-doorlichting .inside {
+	padding-bottom: 4px;
+}
+
+.wsfm-schakel {
+	position: relative;
+	padding: 8px 12px 8px 30px;
+	margin-bottom: 8px;
+	border-left: 4px solid #00a32a;
+	background: #f2f8f3;
+}
+
+.wsfm-schakel::before {
+	position: absolute;
+	left: 10px;
+	top: 8px;
+	font-weight: 700;
+	color: #00a32a;
+	content: "\2713";
+}
+
+.wsfm-schakel.is-fout {
+	border-left-color: #d63638;
+	background: #fcf0f1;
+}
+
+.wsfm-schakel.is-fout::before {
+	color: #d63638;
+	content: "\2717";
+}
+
+.wsfm-schakel.is-let-op {
+	border-left-color: #dba617;
+	background: #fcf9e8;
+}
+
+.wsfm-schakel.is-let-op::before {
+	color: #dba617;
+	content: "!";
+}
+
+.wsfm-schakel-kop {
+	display: block;
+	font-weight: 600;
+}
+
+.wsfm-schakel-uitleg {
+	display: block;
+	color: #50575e;
+	font-size: 13px;
+	line-height: 1.5;
+	margin-top: 2px;
+}
+
+/* Het log zelf. */
+.wsfm-postlog-zoek {
+	margin: 6px 0 10px;
+}
+
+.wsfm-postlog-fout {
+	color: #b32d2e;
+	font-size: 12px;
+	line-height: 1.5;
+	margin-top: 3px;
+}
+
+.wsfm-stand {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: 10px;
+	background: #f0f0f1;
+	color: #3c434a;
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.wsfm-stand-sent {
+	background: #edfaef;
+	color: #00652b;
+}
+
+.wsfm-stand-failed,
+.wsfm-stand-bounced,
+.wsfm-stand-complained {
+	background: #fcf0f1;
+	color: #b32d2e;
+}
+
+.wsfm-stand-stopped {
+	background: #fcf9e8;
+	color: #8a6d1c;
+}
