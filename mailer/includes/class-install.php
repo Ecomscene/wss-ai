@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '6';
+	const DB_VERSION = '7';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -172,6 +172,8 @@ class WSFM_Install {
 			template VARCHAR(40) NOT NULL DEFAULT 'rustig',
 			audience VARCHAR(40) NOT NULL DEFAULT 'klanten_jaar',
 			blocks LONGTEXT NULL,
+			soort VARCHAR(20) NOT NULL DEFAULT 'blokken',
+			eigen_html LONGTEXT NULL,
 			status VARCHAR(20) NOT NULL DEFAULT 'concept',
 			recipients INT UNSIGNED NOT NULL DEFAULT 0,
 			sent_at DATETIME NULL DEFAULT NULL,

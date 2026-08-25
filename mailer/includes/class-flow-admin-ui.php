@@ -640,12 +640,14 @@ class WSFM_Flow_Admin_UI {
 
 		$result = WSFM_Newsletters::save(
 			array(
-				'id'       => isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0,
-				'name'     => isset( $_POST['nieuwsbrief_naam'] ) ? sanitize_text_field( wp_unslash( $_POST['nieuwsbrief_naam'] ) ) : '',
-				'subject'  => isset( $_POST['nieuwsbrief_onderwerp'] ) ? sanitize_text_field( wp_unslash( $_POST['nieuwsbrief_onderwerp'] ) ) : '',
-				'template' => isset( $_POST['nieuwsbrief_sjabloon'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_sjabloon'] ) ) : '',
-				'audience' => isset( $_POST['nieuwsbrief_doelgroep'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_doelgroep'] ) ) : '',
-				'blocks'   => $blokken,
+				'id'         => isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0,
+				'name'       => isset( $_POST['nieuwsbrief_naam'] ) ? sanitize_text_field( wp_unslash( $_POST['nieuwsbrief_naam'] ) ) : '',
+				'subject'    => isset( $_POST['nieuwsbrief_onderwerp'] ) ? sanitize_text_field( wp_unslash( $_POST['nieuwsbrief_onderwerp'] ) ) : '',
+				'template'   => isset( $_POST['nieuwsbrief_sjabloon'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_sjabloon'] ) ) : '',
+				'audience'   => isset( $_POST['nieuwsbrief_doelgroep'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_doelgroep'] ) ) : '',
+				'soort'      => isset( $_POST['nieuwsbrief_soort'] ) ? sanitize_key( wp_unslash( $_POST['nieuwsbrief_soort'] ) ) : 'blokken',
+				'eigen_html' => $this->geposte_html(),
+				'blocks'     => $blokken,
 			)
 		);
 
@@ -935,10 +937,15 @@ class WSFM_Flow_Admin_UI {
 
 		$rendered = $this->render_posted_newsletter();
 
+		/* Bij een aangeleverde mail hoort de klant nu al te horen wat er straks
+		   misgaat. Na het versturen is die informatie niets meer waard. */
+		$eigen = isset( $_POST['soort'] ) && 'eigen' === $_POST['soort']; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- check_ajax_referer hierboven.
+
 		wp_send_json_success(
 			array(
-				'subject' => $rendered['subject'],
-				'html'    => $rendered['html_body'],
+				'subject'        => $rendered['subject'],
+				'html'           => $rendered['html_body'],
+				'waarschuwingen' => $eigen ? WSFM_Eigen_Html::controle( $this->geposte_html() ) : array(),
 			)
 		);
 	}
@@ -1096,6 +1103,26 @@ class WSFM_Flow_Admin_UI {
 	}
 
 	/**
+	 * De aangeleverde HTML uit het formulier.
+	 *
+	 * @return string
+	 */
+	private function geposte_html() {
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- geverifieerd door de aanroepers.
+		if ( ! isset( $_POST['nieuwsbrief_html'] ) ) {
+			return '';
+		}
+
+		/* Geen sanitize_text_field en geen wp_kses: dit is een compleet
+		   HTML-document en die halen er precies het spul uit waar een mail uit
+		   bestaat. Wat er wel uit moet gaat via WSFM_Eigen_Html::schoon(). */
+		$ruw = wp_unslash( $_POST['nieuwsbrief_html'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- zie hierboven.
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		return is_string( $ruw ) ? $ruw : '';
+	}
+
+	/**
 	 * De ingezonden nieuwsbrief opmaken met verzonnen gegevens.
 	 *
 	 * @return array { subject, html_body }
@@ -1107,9 +1134,11 @@ class WSFM_Flow_Admin_UI {
 			: array();
 
 		$brief = (object) array(
-			'subject'  => isset( $_POST['onderwerp'] ) ? sanitize_text_field( wp_unslash( $_POST['onderwerp'] ) ) : '',
-			'template' => isset( $_POST['sjabloon'] ) ? sanitize_key( wp_unslash( $_POST['sjabloon'] ) ) : 'rustig',
-			'blocks'   => WSFM_Newsletters::schoon_blokken( $blokken ),
+			'subject'    => isset( $_POST['onderwerp'] ) ? sanitize_text_field( wp_unslash( $_POST['onderwerp'] ) ) : '',
+			'template'   => isset( $_POST['sjabloon'] ) ? sanitize_key( wp_unslash( $_POST['sjabloon'] ) ) : 'rustig',
+			'soort'      => isset( $_POST['soort'] ) && 'eigen' === $_POST['soort'] ? 'eigen' : 'blokken',
+			'eigen_html' => $this->geposte_html(),
+			'blocks'     => WSFM_Newsletters::schoon_blokken( $blokken ),
 		);
 		// phpcs:enable WordPress.Security.NonceVerification.Missing
 

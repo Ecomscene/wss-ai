@@ -90,6 +90,79 @@
 		hernummer();
 	} );
 
+	/* ---------------- zelf samenstellen of eigen HTML ---------------- */
+
+	var $html = $( '#wsfm-html' );
+	var $controle = $( '#wsfm-html-controle' );
+
+	function soort() {
+		return $( 'input[name="nieuwsbrief_soort"]:checked' ).val() || 'blokken';
+	}
+
+	/**
+	 * Laten zien wat bij de gekozen manier hoort.
+	 *
+	 * De verborgen helft blijft in het formulier staan en wordt dus ook
+	 * opgeslagen. Dat is met opzet: wie heen en weer schakelt om te vergelijken
+	 * moet niet ontdekken dat zijn blokken weg zijn.
+	 */
+	function toonSoort() {
+		var eigen = 'eigen' === soort();
+
+		$( '.wsfm-alleen-blokken' ).toggle( ! eigen );
+		$( '.wsfm-alleen-eigen' ).toggle( eigen );
+		$( '.wsfm-soort' ).each( function () {
+			$( this ).toggleClass( 'is-gekozen', !! $( this ).find( 'input' ).prop( 'checked' ) );
+		} );
+	}
+
+	$( 'input[name="nieuwsbrief_soort"]' ).on( 'change', toonSoort );
+	toonSoort();
+
+	/* Het bestand wordt hier in de browser gelezen en in het tekstvak gezet.
+	   Een echte upload zou een multipart-formulier, een tijdelijke map en een
+	   opruimactie kosten, en dat alles om tekst te verplaatsen die we ook
+	   gewoon kunnen inlezen. */
+	$( '#wsfm-html-bestand' ).on( 'change', function () {
+		var bestand = this.files && this.files[ 0 ];
+		if ( ! bestand ) {
+			return;
+		}
+
+		var lezer = new window.FileReader();
+		lezer.onload = function () {
+			$html.val( String( lezer.result ) ).trigger( 'change' );
+		};
+		lezer.onerror = function () {
+			window.alert( T.bestandFout || 'Dat bestand kon niet gelezen worden.' );
+		};
+		lezer.readAsText( bestand );
+	} );
+
+	/**
+	 * Wat er straks misgaat, onder het tekstvak.
+	 *
+	 * @param {Array} lijst Waarschuwingen van de server.
+	 */
+	function toonControle( lijst ) {
+		if ( ! $controle.length ) {
+			return;
+		}
+
+		$controle.empty();
+
+		if ( ! lijst || ! lijst.length ) {
+			return;
+		}
+
+		$.each( lijst, function ( i, punt ) {
+			$( '<p></p>' )
+				.addClass( 'wsfm-html-punt is-' + ( 'fout' === punt.soort ? 'fout' : 'letop' ) )
+				.text( punt.tekst )
+				.appendTo( $controle );
+		} );
+	}
+
 	/* ---------------- de gekozen sjabloonkaart ---------------- */
 
 	function markeerSjabloon() {
@@ -194,6 +267,14 @@
 			name: 'sjabloon',
 			value: $( 'input[name="nieuwsbrief_sjabloon"]:checked' ).val() || 'rustig',
 		} );
+		gegevens.push( { name: 'soort', value: soort() } );
+
+		/* Alleen meesturen als hij ook gebruikt wordt. Wie een ontwerp geplakt
+		   heeft en daarna terugschakelt naar de samensteller, stuurt anders bij
+		   elke toetsaanslag honderd kilobyte mee die niets doet. */
+		if ( 'eigen' === soort() ) {
+			gegevens.push( { name: 'nieuwsbrief_html', value: $html.val() || '' } );
+		}
 		gegevens.push( { name: '_ajax_nonce', value: window.wsfmAdmin.adminNonce } );
 
 		return gegevens;
@@ -264,6 +345,7 @@
 					   waar het thuishoort. */
 					$frame.attr( 'srcdoc', res.data.html );
 					$stand.text( '' );
+					toonControle( res.data.waarschuwingen );
 				} else {
 					$stand.text( ( res && res.data && res.data.message ) || T.fout || '' );
 				}
@@ -345,10 +427,20 @@
 					return;
 				}
 
+				/* Niet de mail zelf in het venster schrijven maar in een
+				   afgeschermd frame erbinnen. Een aangeleverde nieuwsbrief is
+				   HTML van buiten; die hoort niet te kunnen draaien alsof het
+				   een stuk van wp-admin is. srcdoc als eigenschap zetten en
+				   niet als attribuut, dan hoeft er niets ontweken te worden. */
 				venster.document.open();
-				venster.document.write( res.data.html );
+				venster.document.write(
+					'<!DOCTYPE html><html><head><meta charset="utf-8"></head>' +
+						'<body style="margin:0"><iframe id="wsfm-v" sandbox="" ' +
+						'style="border:0;width:100%;height:100vh;display:block"></iframe></body></html>'
+				);
 				venster.document.close();
 				venster.document.title = res.data.subject;
+				venster.document.getElementById( 'wsfm-v' ).srcdoc = res.data.html;
 			} )
 			.fail( function () {
 				$knop.prop( 'disabled', false ).text( oud );

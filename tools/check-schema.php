@@ -115,12 +115,39 @@ foreach ( $bestanden as $bestand ) {
 		}
 	}
 
-	if ( ! preg_match_all( '/\$wpdb->(insert|update)\(\s*([^,]+),\s*array\((.*?)\n\s*\)/s', $code, $treffers, PREG_SET_ORDER ) ) {
-		continue;
+	/* Arrays die eerst in een variabele gezet worden. WSFM_Newsletters::save()
+	   doet dat, en daardoor viel die functie hier buiten: het patroon zocht naar
+	   array( direct achter de komma. Dat is erger dan een gat, want de slotregel
+	   zei "0 overgeslagen" en klonk dus alsof er wel gekeken was. */
+	$arrays = array();
+	if ( preg_match_all( '/\$(\w+)\s*=\s*(array\(.*?\n\t*\));/s', $code, $treffers, PREG_SET_ORDER ) ) {
+		foreach ( $treffers as $t ) {
+			$arrays[ $t[1] ] = $t[2];
+		}
 	}
 
-	foreach ( $treffers as $t ) {
-		$doel  = trim( $t[2] );
+	/* Elke schrijfactie als (doel, de tekst waar de kolomnamen in staan). */
+	$plekken = array();
+
+	if ( preg_match_all( '/\$wpdb->(insert|update)\(\s*([^,]+),\s*array\((.*?)\n\s*\)/s', $code, $treffers, PREG_SET_ORDER ) ) {
+		foreach ( $treffers as $t ) {
+			$plekken[] = array( trim( $t[2] ), $t[3] );
+		}
+	}
+
+	/* En dezelfde aanroep met een variabele op de plek van de array. */
+	if ( preg_match_all( '/\$wpdb->(insert|update)\(\s*([^,]+),\s*\$(\w+)\s*[,)]/', $code, $treffers, PREG_SET_ORDER ) ) {
+		foreach ( $treffers as $t ) {
+			if ( isset( $arrays[ $t[3] ] ) ) {
+				$plekken[] = array( trim( $t[2] ), $arrays[ $t[3] ] );
+			} else {
+				$overgeslagen[] = $kort . ': $' . $t[3] . ' (geen array gevonden om bij te horen)';
+			}
+		}
+	}
+
+	foreach ( $plekken as $plek ) {
+		$doel  = $plek[0];
 		$tabel = tabel_uit( $doel );
 
 		if ( '' === $tabel && preg_match( '/(self|WSFM_\w+)::(\w*table)\s*\(/', $doel, $h ) ) {
@@ -137,7 +164,7 @@ foreach ( $bestanden as $bestand ) {
 			continue;
 		}
 
-		preg_match_all( "/'(\w+)'\s*=>/", $t[3], $sleutels );
+		preg_match_all( "/'(\w+)'\s*=>/", $plek[1], $sleutels );
 
 		foreach ( $sleutels[1] as $kolom ) {
 			$gezien++;

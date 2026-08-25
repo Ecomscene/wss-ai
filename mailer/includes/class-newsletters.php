@@ -176,6 +176,16 @@ class WSFM_Newsletters {
 			$sjabloon = 'rustig';
 		}
 
+		/* Zelf samengesteld of aangeleverd. Alles wat we niet herkennen valt
+		   terug op de samensteller: dat is de stand waarin de rest van het
+		   scherm klopt. */
+		$soort = isset( $data['soort'] ) && 'eigen' === $data['soort'] ? 'eigen' : 'blokken';
+		$eigen = isset( $data['eigen_html'] ) ? WSFM_Eigen_Html::schoon( (string) $data['eigen_html'] ) : '';
+
+		if ( 'eigen' === $soort && '' === trim( $eigen ) ) {
+			return new WP_Error( 'wsfm_nb_leeg', __( 'Je hebt gekozen voor een eigen HTML-nieuwsbrief, maar er staat nog niets in. Plak je HTML of kies een bestand.', 'ws-flow-mailer' ) );
+		}
+
 		$doelgroepen = self::doelgroepen();
 		$doelgroep   = isset( $data['audience'] ) ? sanitize_key( $data['audience'] ) : '';
 		if ( ! isset( $doelgroepen[ $doelgroep ] ) ) {
@@ -192,6 +202,8 @@ class WSFM_Newsletters {
 			'subject'    => $onderwerp,
 			'template'   => $sjabloon,
 			'audience'   => $doelgroep,
+			'soort'      => $soort,
+			'eigen_html' => $eigen,
 			'blocks'     => wp_json_encode( self::schoon_blokken( isset( $data['blocks'] ) ? $data['blocks'] : array() ) ),
 			'updated_at' => current_time( 'mysql' ),
 		);
@@ -317,11 +329,13 @@ class WSFM_Newsletters {
 
 		return self::save(
 			array(
-				'name'     => sprintf( __( 'Kopie van %s', 'ws-flow-mailer' ), $brief->name ),
-				'subject'  => $brief->subject,
-				'template' => $brief->template,
-				'audience' => $brief->audience,
-				'blocks'   => $brief->blocks,
+				'name'       => sprintf( __( 'Kopie van %s', 'ws-flow-mailer' ), $brief->name ),
+				'subject'    => $brief->subject,
+				'template'   => $brief->template,
+				'audience'   => $brief->audience,
+				'soort'      => isset( $brief->soort ) ? $brief->soort : 'blokken',
+				'eigen_html' => isset( $brief->eigen_html ) ? $brief->eigen_html : '',
+				'blocks'     => $brief->blocks,
 			)
 		);
 	}
@@ -478,8 +492,13 @@ class WSFM_Newsletters {
 		if ( ! $brief ) {
 			return new WP_Error( 'wsfm_nb_weg', __( 'Deze nieuwsbrief bestaat niet meer.', 'ws-flow-mailer' ) );
 		}
-		if ( empty( $brief->blocks ) ) {
-			return new WP_Error( 'wsfm_nb_leeg', __( 'Er staat nog niets in deze nieuwsbrief. Voeg eerst een afbeelding, tekst of producten toe.', 'ws-flow-mailer' ) );
+		if ( self::leeg( $brief ) ) {
+			return new WP_Error(
+				'wsfm_nb_leeg',
+				self::is_eigen( $brief )
+					? __( 'Er staat nog geen HTML in deze nieuwsbrief. Plak je eigen ontwerp of kies een bestand.', 'ws-flow-mailer' )
+					: __( 'Er staat nog niets in deze nieuwsbrief. Voeg eerst een afbeelding, tekst of producten toe.', 'ws-flow-mailer' )
+			);
 		}
 
 		$provider = WSFM_Provider_Factory::create();
@@ -522,11 +541,44 @@ class WSFM_Newsletters {
 	 * @return array { subject, html_body }
 	 */
 	public static function render( $brief, array $context ) {
-		return WSFM_Template_Engine::render_string(
-			$brief->subject,
-			WSFM_Newsletter_Render::render( $brief ),
-			$context
-		);
+		/* Een aangeleverde mail is al een compleet document. Daar de kop en de
+		   voet van de samensteller omheen zetten zou een tweede <html> in het
+		   bestand opleveren en de opmaak van de klant overschrijven. */
+		$body = self::is_eigen( $brief )
+			? WSFM_Eigen_Html::body( $brief )
+			: WSFM_Newsletter_Render::render( $brief );
+
+		return WSFM_Template_Engine::render_string( $brief->subject, $body, $context );
+	}
+
+	/**
+	 * Levert de klant deze nieuwsbrief zelf aan?
+	 *
+	 * @param object $brief Nieuwsbrief.
+	 * @return bool
+	 */
+	public static function is_eigen( $brief ) {
+		return is_object( $brief ) && isset( $brief->soort ) && 'eigen' === $brief->soort;
+	}
+
+	/**
+	 * Staat er nog niets in deze nieuwsbrief?
+	 *
+	 * Apart van verstuur() zodat het na te tellen is zonder database. Het is
+	 * ook precies het stuk dat stil verkeerd stond: op blokken kijken bij een
+	 * aangeleverde mail betekent dat iemand vijftien kilobyte HTML kan plakken,
+	 * hem in het voorbeeld ziet staan, en bij versturen te horen krijgt dat er
+	 * niets in staat.
+	 *
+	 * @param object $brief Nieuwsbrief.
+	 * @return bool
+	 */
+	public static function leeg( $brief ) {
+		if ( self::is_eigen( $brief ) ) {
+			return '' === trim( isset( $brief->eigen_html ) ? (string) $brief->eigen_html : '' );
+		}
+
+		return empty( $brief->blocks );
 	}
 
 	/**

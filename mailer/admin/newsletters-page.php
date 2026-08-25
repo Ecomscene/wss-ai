@@ -50,6 +50,9 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 					<tr>
 						<td>
 							<strong><a href="<?php echo esc_url( $wsfm_link ); ?>"><?php echo esc_html( $wsfm_brief->name ); ?></a></strong>
+							<?php if ( WSFM_Newsletters::is_eigen( $wsfm_brief ) ) : ?>
+								<span class="wsfm-merkje"><?php esc_html_e( 'eigen HTML', 'ws-flow-mailer' ); ?></span>
+							<?php endif; ?>
 						</td>
 						<td><?php echo esc_html( $wsfm_brief->subject ); ?></td>
 						<td>

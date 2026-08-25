@@ -983,3 +983,91 @@
 		height: 640px;
 	}
 }
+
+/* De twee manieren om een nieuwsbrief te maken. Dezelfde kaartvorm als de
+   sjablonen hierboven, want het is dezelfde soort keuze. */
+.wsfm-soorten {
+	display: flex;
+	gap: 14px;
+	flex-wrap: wrap;
+}
+
+.wsfm-soort {
+	flex: 1 1 220px;
+	border: 2px solid #dcdcde;
+	border-radius: 6px;
+	padding: 12px 14px;
+	cursor: pointer;
+	display: block;
+	background: #fff;
+}
+
+.wsfm-soort.is-gekozen,
+.wsfm-soort:has( input:checked ) {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.wsfm-soort-titel {
+	display: inline-block;
+	font-weight: 600;
+	margin-left: 4px;
+}
+
+.wsfm-soort-kort {
+	display: block;
+	color: #666;
+	font-size: 12px;
+	line-height: 1.5;
+	margin-top: 4px;
+}
+
+/* Het aanleveren van eigen HTML. */
+.wsfm-html-kiezen {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* Het echte bestandsveld is in elke browser anders lelijk; het label ernaast
+   is de knop die je ziet. Verbergen met display:none zou hem ook voor een
+   schermlezer weghalen, dus hij staat er wel, alleen niet in beeld. */
+#wsfm-html-bestand {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect( 0 0 0 0 );
+	white-space: nowrap;
+}
+
+#wsfm-html-bestand:focus + .description {
+	outline: 1px dotted #2271b1;
+}
+
+#wsfm-html {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre;
+	overflow-wrap: normal;
+	overflow-x: auto;
+}
+
+.wsfm-html-controle:not( :empty ) {
+	margin-top: 10px;
+}
+
+.wsfm-html-punt {
+	margin: 0 0 6px;
+	padding: 8px 12px;
+	border-left: 4px solid #dba617;
+	background: #fcf9e8;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.wsfm-html-punt.is-fout {
+	border-left-color: #d63638;
+	background: #fcf0f1;
+}

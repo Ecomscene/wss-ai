@@ -32,6 +32,7 @@ class WSFM_Template_Engine {
 			'{unsubscribe_url}' => __( 'Afmeldlink (verplicht in elke template)', 'ws-flow-mailer' ),
 			'{shop_name}'       => __( 'Naam van de webshop', 'ws-flow-mailer' ),
 			'{shop_url}'        => __( 'Link naar de webshop', 'ws-flow-mailer' ),
+			'{sender_info}'     => __( 'Naam en adres van de shop op een regel (afzendergegevens)', 'ws-flow-mailer' ),
 		);
 	}
 
@@ -81,6 +82,14 @@ class WSFM_Template_Engine {
 		$body    = (string) $body;
 		$context = array_merge( self::default_context(), $context );
 
+		/* Tags uit Laposta, Mailchimp of Brevo eerst naar de onze omzetten. Wie
+		   een mail uit zo'n pakket overneemt heeft ze erin staan, en onvertaald
+		   belandt %UNSUBSCRIBELINK% letterlijk in de inbox van zijn klanten. */
+		if ( class_exists( 'WSFM_Eigen_Html' ) ) {
+			$subject = WSFM_Eigen_Html::vertaal_tags( $subject );
+			$body    = WSFM_Eigen_Html::vertaal_tags( $body );
+		}
+
 		$search          = array();
 		$replace         = array();
 		$subject_replace = array();
@@ -109,9 +118,39 @@ class WSFM_Template_Engine {
 	 */
 	public static function default_context() {
 		return array(
-			'shop_name' => get_bloginfo( 'name' ),
-			'shop_url'  => home_url( '/' ),
+			'shop_name'   => get_bloginfo( 'name' ),
+			'shop_url'    => home_url( '/' ),
+			'sender_info' => self::afzenderregel(),
 		);
+	}
+
+	/**
+	 * Naam en adres van de shop op een regel.
+	 *
+	 * Aangeleverde nieuwsbrieven uit andere pakketten hebben hier een tag voor
+	 * staan, omdat een postadres in de voet hoort: het onderscheidt een
+	 * nieuwsbrief van spam en filters kijken ernaar. WooCommerce weet het adres
+	 * al, dus we vragen het de klant niet nog een keer.
+	 *
+	 * @return string
+	 */
+	public static function afzenderregel() {
+		$delen = array( get_bloginfo( 'name' ) );
+
+		if ( function_exists( 'WC' ) && WC() && isset( WC()->countries ) ) {
+			$landen = WC()->countries;
+
+			foreach ( array( 'get_base_address', 'get_base_postcode', 'get_base_city' ) as $vraag ) {
+				if ( method_exists( $landen, $vraag ) ) {
+					$waarde = $landen->$vraag();
+					if ( is_string( $waarde ) && '' !== trim( $waarde ) ) {
+						$delen[] = trim( $waarde );
+					}
+				}
+			}
+		}
+
+		return implode( ', ', array_filter( $delen ) );
 	}
 
 	/**

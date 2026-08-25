@@ -100,11 +100,13 @@ class WSFM_Flow_Admin_UI {
 	public static function mask_email( $e ) { return 'j***@voorbeeld.nl'; }
 }
 class WSFM_Flows { const TRIGGER_TYPES = array(); }
-class WSFM_Newsletters {
-	public static function is_klantgroep( $d ) {
-		return in_array( $d, array( 'klanten_jaar', 'klanten_alle', 'alles' ), true );
-	}
-}
+/* Deze vier zijn niet nagebootst maar echt ingeladen: ze raken de database niet
+   en het gaat hier juist om wat zij opleveren. Een nabootsing die toevallig het
+   goede antwoord geeft controleert alleen zichzelf. */
+require_once dirname( __DIR__ ) . '/mailer/includes/class-eigen-html.php';
+require_once dirname( __DIR__ ) . '/mailer/includes/class-template-engine.php';
+require_once dirname( __DIR__ ) . '/mailer/includes/class-newsletter-render.php';
+require_once dirname( __DIR__ ) . '/mailer/includes/class-newsletters.php';
 class WSFM_Subscribers {
 	public static function naam_van( $r ) {
 		$n = trim( ( isset( $r->first_name ) ? $r->first_name : '' ) . ' ' . ( isset( $r->last_name ) ? $r->last_name : '' ) );
@@ -176,6 +178,23 @@ function moet( $html, $stuk, $waar ) {
 	}
 }
 
+/**
+ * Staat er iets in wat er juist niet in mag?
+ *
+ * @param string $html   De opgebouwde HTML.
+ * @param string $stuk   Wat er niet in mag.
+ * @param string $klacht Voor de foutmelding.
+ * @return void
+ */
+function magniet( $html, $stuk, $klacht ) {
+	global $fouten;
+
+	if ( false !== strpos( $html, $stuk ) ) {
+		printf( "    FOUT %s\n", $klacht );
+		$fouten++;
+	}
+}
+
 echo "de beheerschermen opbouwen";
 
 /* ---- gegevens waar de sjablonen om vragen ---- */
@@ -229,27 +248,44 @@ if ( false !== strpos( $html, 'wsfm_lijst_weg' ) ) {
 	$fouten++;
 }
 
-/* ---- de samensteller, in drie standen ---- */
+/* ---- de samensteller, in vier standen ---- */
 
 $lijsten = array(
 	(object) array( 'id' => 1, 'naam' => 'Nieuwsbrief', 'omschrijving' => '', 'is_hoofdlijst' => 1, 'aantal' => 412 ),
 );
 
-foreach ( array( 'nieuw', 'concept', 'verzonden' ) as $stand ) {
+foreach ( array( 'nieuw', 'concept', 'verzonden', 'eigen' ) as $stand ) {
 	$brief = 'nieuw' === $stand ? null : (object) array(
-		'id'       => 5,
-		'name'     => 'Zomeractie',
-		'subject'  => '20% korting',
-		'status'   => 'verzonden' === $stand ? 'verzonden' : 'concept',
-		'template' => 'warm',
-		'audience' => 'lijst_1',
-		'blocks'   => array( array( 'soort' => 'tekst', 'kop' => 'Hoi', 'tekst' => 'Tekst', 'knop' => '', 'knop_url' => '' ) ),
+		'id'         => 5,
+		'name'       => 'Zomeractie',
+		'subject'    => '20% korting',
+		'status'     => 'verzonden' === $stand ? 'verzonden' : 'concept',
+		'template'   => 'warm',
+		'audience'   => 'lijst_1',
+		'blocks'     => array( array( 'soort' => 'tekst', 'kop' => 'Hoi', 'tekst' => 'Tekst', 'knop' => '', 'knop_url' => '' ) ),
+		'soort'      => 'eigen' === $stand ? 'eigen' : 'blokken',
+		'eigen_html' => '<!DOCTYPE html><html><body><p>Hoi %FIRSTNAME% &amp; "tot ziens"</p></body></html>',
 	);
 	$voortgang = 'verzonden' === $stand ? array( 'verzonden' => 400, 'wacht' => 0, 'mislukt' => 2 ) : null;
 
 	$html = scherm( 'samensteller, ' . $stand, $map . 'newsletter-edit-page.php' );
 	moet( $html, 'wsfm-briefvoorbeeld', 'samensteller' );
 	moet( $html, 'wsfm-klantgroep-let-op', 'samensteller' );
+
+	/* Het tekstvak hoort de aangeleverde HTML ontweken terug te geven. Zou
+	   die er rauw in staan, dan sluit de eerste </p> het tekstvak af en valt
+	   de rest van het scherm uit elkaar. */
+	if ( 'eigen' === $stand ) {
+		/* Niet op een vaste tekst zoeken: tussen het attribuut en checked staat
+		   witruimte uit het sjabloon en uit checked() zelf. */
+		if ( ! preg_match( '/value="eigen"\s+checked/', $html )
+			|| preg_match( '/value="blokken"\s+checked/', $html ) ) {
+			printf( "    FOUT de keuze staat niet op eigen HTML\n" );
+			$fouten++;
+		}
+		moet( $html, '&lt;!DOCTYPE html&gt;', 'samensteller' );
+		magniet( $html, '<p>Hoi %FIRSTNAME%', 'de aangeleverde HTML staat onontweken in het tekstvak' );
+	}
 }
 
 /* ---- de nieuwsbrieflijst ---- */
@@ -295,8 +331,6 @@ $html    = scherm( 'dashboard, niets aangemaakt', $map . 'dashboard-page.php' );
 moet( $html, 'Er zijn nog geen lijsten', 'dashboard' );
 
 /* ---------------- en de mail zelf ---------------- */
-
-require_once $wortel . '/mailer/includes/class-newsletter-render.php';
 
 /**
  * Een nieuwsbrief opbouwen en het productenraster natellen.
@@ -393,8 +427,197 @@ function mailraster( $sjabloon, $kolommen ) {
 	}
 }
 
+/**
+ * Staat er iets in de mail wat erin hoort?
+ *
+ * Apart van moet(): daar is het tweede argument de naam van een scherm, hier
+ * de klacht zelf. Bij een mail zegt "mist &lt;style&gt;" niets, en "de eigen
+ * stijlen zijn weg" alles.
+ *
+ * @param string $html   Opgemaakte mail.
+ * @param string $stuk   Wat erin moet.
+ * @param string $klacht Voor de foutmelding.
+ * @return void
+ */
+function moetmail( $html, $stuk, $klacht ) {
+	global $fouten;
+
+	if ( false === strpos( $html, $stuk ) ) {
+		printf( "    FOUT %s\n", $klacht );
+		$fouten++;
+	}
+}
+
+/**
+ * Een aangeleverde nieuwsbrief natellen.
+ *
+ * Waar het hier om gaat: de mail van de klant hoort er aan de andere kant
+ * precies zo uit te komen als hij erin ging. Alles wat wij ertussen doen is
+ * tags vertalen en rommel weghalen, en beide kunnen stil te veel pakken.
+ *
+ * @return void
+ */
+function maileigen() {
+	global $fouten;
+
+	printf( "\n  nieuwsbrief, eigen HTML\n" );
+
+	$context = array(
+		'first_name'      => 'Jan',
+		'unsubscribe_url' => 'https://voorbeeld.nl/afmelden?t=abc',
+	);
+
+	/* Een mail zoals hij binnenkomt: compleet document, tags uit een ander
+	   pakket, en twee dingen die eruit moeten. De zin met "onbeperkt =" staat
+	   er met opzet in. Het opschonen zoekt naar dingen als onclick="...", en
+	   een woord dat met "on" begint gevolgd door een isgelijkteken ziet er voor
+	   een regel precies zo uit. Wie dat buiten de tags laat lopen haalt hier
+	   stilletjes een halve zin uit de mail van de klant. */
+	$aangeleverd = '<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">'
+		. '<title>Najaarsnieuws</title><style>body{background:#faf8f3}</style></head>'
+		. '<body style="margin:0">'
+		. '<p>Hoi lieve %FIRSTNAME%,</p>'
+		. '<p>Bij ons geldt: onbeperkt = gratis verzenden.</p>'
+		. '<script>alert(1)</script>'
+		. '<a href="https://voorbeeld.nl/shop" onclick="stelen()">Bekijk de collectie</a>'
+		. '<p><a href="%UNSUBSCRIBELINK%">Uitschrijven</a><br>%SENDER-INFO-SINGLELINE%</p>'
+		. '</body></html>';
+
+	$brief = (object) array(
+		'subject'    => 'Hoi %FIRSTNAME%, het najaar is begonnen',
+		'soort'      => 'eigen',
+		'template'   => 'rustig',
+		'blocks'     => array(),
+		'eigen_html' => $aangeleverd,
+	);
+
+	$uit  = WSFM_Newsletters::render( $brief, $context );
+	$html = $uit['html_body'];
+
+	/* Er mag niets vooraf gaan aan het document van de klant. Zou de opbouw van
+	   de samensteller er toch omheen komen, dan staat er een tweede <html> in
+	   en klopt geen enkele stijl meer. */
+	if ( 0 !== strpos( $html, '<!DOCTYPE html>' ) ) {
+		printf( "    FOUT er staat iets vóór het document van de klant\n" );
+		$fouten++;
+	}
+
+	moetmail( $html, '<style>body{background:#faf8f3}</style>', 'de eigen stijlen zijn weg' );
+	moetmail( $html, 'Hoi lieve Jan,', 'de voornaam is niet ingevuld' );
+	moetmail( $html, 'https://voorbeeld.nl/afmelden?t=abc', 'de afmeldlink is niet ingevuld' );
+	moetmail( $html, 'Voorbeeldshop', 'de afzendergegevens zijn niet ingevuld' );
+	moetmail( $html, 'onbeperkt = gratis verzenden', 'er is gewone tekst meegeschoond die op een klik-handler lijkt' );
+
+	magniet( $html, '%FIRSTNAME%', 'de tag %FIRSTNAME% staat er nog letterlijk in' );
+	magniet( $html, '%UNSUBSCRIBELINK%', 'de tag %UNSUBSCRIBELINK% staat er nog letterlijk in' );
+	magniet( $html, '%SENDER', 'de afzendertag staat er nog letterlijk in' );
+	magniet( $html, 'alert(1)', 'het scriptje zit er nog in' );
+	magniet( $html, '<script', 'er staat nog een script-tag in' );
+	magniet( $html, 'onclick', 'de klik-handler zit er nog in' );
+
+	/* Het onderwerp is platte tekst en gaat door dezelfde vertaling heen. */
+	if ( 'Hoi Jan, het najaar is begonnen' !== $uit['subject'] ) {
+		printf( "    FOUT het onderwerp werd \"%s\"\n", $uit['subject'] );
+		$fouten++;
+	}
+
+	/* Hij had zelf een afmeldlink, dus die van ons hoort er niet bij te komen. */
+	magniet( $html, 'Je ontvangt deze mail omdat', 'onze noodvoet is erbij gezet terwijl er al een afmeldlink was' );
+
+	/* ---- en nu dezelfde mail zonder afmeldlink ---- */
+
+	$zonder = (object) array(
+		'subject'    => 'Zonder',
+		'soort'      => 'eigen',
+		'template'   => 'rustig',
+		'blocks'     => array(),
+		'eigen_html' => '<html><body><p>Hoi %FIRSTNAME%</p></body></html>',
+	);
+
+	$kaal = WSFM_Newsletters::render( $zonder, $context );
+	$kaal = $kaal['html_body'];
+
+	moetmail( $kaal, 'Je ontvangt deze mail omdat', 'zonder afmeldlink wordt er geen voet bijgezet, en dan mag die post niet weg' );
+	moetmail( $kaal, 'https://voorbeeld.nl/afmelden?t=abc', 'de voet bevat geen werkende afmeldlink' );
+
+	/* Binnen de body en niet erachter: Outlook zet inhoud na </body> soms
+	   buiten de opmaak van de rest. */
+	if ( strpos( $kaal, 'Je ontvangt deze mail omdat' ) > strrpos( $kaal, '</body>' ) ) {
+		printf( "    FOUT de noodvoet staat achter </body>\n" );
+		$fouten++;
+	}
+
+	/* ---- en wat we de klant vooraf vertellen ---- */
+
+	$soorten = function ( $lijst ) {
+		$uit = array();
+		foreach ( $lijst as $punt ) {
+			$uit[] = $punt['soort'];
+		}
+		return $uit;
+	};
+
+	$schoon = WSFM_Eigen_Html::controle( $aangeleverd );
+	if ( array( 'let-op' ) !== $soorten( $schoon ) ) {
+		printf( "    FOUT een nette mail levert %d waarschuwing(en) op in plaats van alleen die over het script\n", count( $schoon ) );
+		$fouten++;
+	}
+
+	/* Dit is de fout die het vaakst voorkomt: in de browser zag alles er goed
+	   uit, want daar bestaat dat pad wel. */
+	$paden = WSFM_Eigen_Html::controle( '<img src="/wp-content/uploads/foto.jpg"> {unsubscribe_url}' );
+	if ( ! in_array( 'fout', $soorten( $paden ), true ) ) {
+		printf( "    FOUT een afbeelding met een pad in plaats van een adres wordt niet gemeld\n" );
+		$fouten++;
+	}
+
+	/* Een adres met domein hoort juist géén melding te geven, anders leert de
+	   klant de waarschuwingen weg te kijken. */
+	$goed = WSFM_Eigen_Html::controle( '<img src="https://voorbeeld.nl/foto.jpg"> {unsubscribe_url}' );
+	if ( array() !== $goed ) {
+		printf( "    FOUT een mail zonder problemen levert toch %d waarschuwing(en) op\n", count( $goed ) );
+		$fouten++;
+	}
+
+	$groot = WSFM_Eigen_Html::controle( '{unsubscribe_url}' . str_repeat( 'x', 110000 ) );
+	if ( ! in_array( 'fout', $soorten( $groot ), true ) ) {
+		printf( "    FOUT een mail boven de Gmail-grens wordt niet gemeld\n" );
+		$fouten++;
+	}
+
+	/* Of een nieuwsbrief leeg is hangt af van de manier waarop hij gemaakt is.
+	   Op blokken kijken bij een aangeleverde mail betekent dat iemand zijn
+	   ontwerp plakt, het in het voorbeeld ziet staan, en bij versturen te
+	   horen krijgt dat hij eerst een afbeelding moet toevoegen. */
+	$standen = array(
+		array( 'eigen', '<html></html>', array(), false, 'een aangeleverde mail met HTML' ),
+		array( 'eigen', '', array( array( 'soort' => 'tekst' ) ), true, 'een aangeleverde mail zonder HTML' ),
+		array( 'eigen', '   ', array(), true, 'een aangeleverde mail met alleen witruimte' ),
+		array( 'blokken', '', array( array( 'soort' => 'tekst' ) ), false, 'een samengestelde mail met blokken' ),
+		array( 'blokken', '<html></html>', array(), true, 'een samengestelde mail zonder blokken' ),
+	);
+
+	foreach ( $standen as $stand ) {
+		$proef = (object) array(
+			'soort'      => $stand[0],
+			'eigen_html' => $stand[1],
+			'blocks'     => $stand[2],
+		);
+
+		if ( WSFM_Newsletters::leeg( $proef ) !== $stand[3] ) {
+			printf(
+				"    FOUT %s wordt %s genoemd\n",
+				$stand[4],
+				$stand[3] ? 'niet leeg' : 'leeg'
+			);
+			$fouten++;
+		}
+	}
+}
+
 mailraster( 'rustig', 2 );
 mailraster( 'strak', 3 );
+maileigen();
 
 
 printf(

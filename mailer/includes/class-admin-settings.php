@@ -94,6 +94,7 @@ class WSFM_Admin_Settings {
 					'telFout'       => __( 'Het aantal kon niet opgehaald worden.', 'ws-flow-mailer' ),
 					'fout'          => __( 'Er ging iets mis. Probeer het nog eens.', 'ws-flow-mailer' ),
 					'popup'         => __( 'Je browser blokkeerde het voorbeeldvenster. Sta pop-ups toe voor deze pagina.', 'ws-flow-mailer' ),
+					'bestandFout'   => __( 'Dat bestand kon niet gelezen worden. Sla het op als HTML en probeer het nog eens.', 'ws-flow-mailer' ),
 					'kiesBeeld'     => __( 'Kies een afbeelding', 'ws-flow-mailer' ),
 					'gebruikBeeld'  => __( 'Deze gebruiken', 'ws-flow-mailer' ),
 					'wegVragen'     => __( 'Dit blok weghalen?', 'ws-flow-mailer' ),

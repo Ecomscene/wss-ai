@@ -4,11 +4,16 @@
  * WSFM_Flow_Admin_UI::render_newsletters() met: $brief, $sjablonen,
  * $doelgroepen, $voortgang.
  *
- * WAAROM DIT GEEN HTML-VELD IS
- * De flow-templates hebben er wel een, want die worden één keer door ons
- * ingericht. Een nieuwsbrief maakt de winkelier zelf, elke maand opnieuw, en
- * die moet niet kunnen kiezen tussen honderd manieren om iets scheef te zetten.
- * Vandaar drie bloksoorten en verder niets.
+ * TWEE MANIEREN, EN WAAROM
+ * De samensteller kent drie bloksoorten en verder niets. Dat is met opzet: wie
+ * elke maand zelf een nieuwsbrief maakt moet niet kunnen kiezen uit honderd
+ * manieren om iets scheef te zetten.
+ *
+ * Maar er zijn klanten die hun mail al hebben. Ze komen van Laposta of
+ * Mailchimp, of ze hebben een ontwerper. Die dwingen hun bestaande ontwerp na
+ * te bouwen in drie blokken is hen vragen iets slechters te maken dan wat ze
+ * al hadden. Vandaar de tweede stand: eigen HTML, die wij ongemoeid laten. Wat
+ * we daar wel mee doen staat in class-eigen-html.php.
  *
  * @package WS_Flow_Mailer
  */
@@ -20,6 +25,8 @@ $wsfm_verstuurd = $brief && 'concept' !== $brief->status;
 $wsfm_blokken   = $brief ? $brief->blocks : array();
 $wsfm_sjabloon  = $brief ? $brief->template : 'rustig';
 $wsfm_doelgroep = $brief ? $brief->audience : 'klanten_jaar';
+$wsfm_soort     = ( $brief && isset( $brief->soort ) && 'eigen' === $brief->soort ) ? 'eigen' : 'blokken';
+$wsfm_html      = ( $brief && isset( $brief->eigen_html ) ) ? (string) $brief->eigen_html : '';
 $wsfm_terug     = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN );
 
 /**
@@ -227,6 +234,24 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 
 				<div class="postbox">
 					<div class="inside">
+						<p><strong><?php esc_html_e( 'Hoe maak je deze nieuwsbrief?', 'ws-flow-mailer' ); ?></strong></p>
+						<div class="wsfm-soorten">
+							<label class="wsfm-soort">
+								<input type="radio" name="nieuwsbrief_soort" value="blokken" <?php checked( $wsfm_soort, 'blokken' ); ?>>
+								<span class="wsfm-soort-titel"><?php esc_html_e( 'Zelf samenstellen', 'ws-flow-mailer' ); ?></span>
+								<span class="wsfm-soort-kort"><?php esc_html_e( 'Kies een sjabloon en zet er blokken in. Wij maken er een nette mail van.', 'ws-flow-mailer' ); ?></span>
+							</label>
+							<label class="wsfm-soort">
+								<input type="radio" name="nieuwsbrief_soort" value="eigen" <?php checked( $wsfm_soort, 'eigen' ); ?>>
+								<span class="wsfm-soort-titel"><?php esc_html_e( 'Eigen HTML', 'ws-flow-mailer' ); ?></span>
+								<span class="wsfm-soort-kort"><?php esc_html_e( 'Heb je al een ontwerp? Lever het aan als HTML. Wij versturen het precies zo.', 'ws-flow-mailer' ); ?></span>
+							</label>
+						</div>
+					</div>
+				</div>
+
+				<div class="postbox wsfm-alleen-blokken">
+					<div class="inside">
 						<p><strong><?php esc_html_e( 'Hoe moet hij eruitzien?', 'ws-flow-mailer' ); ?></strong></p>
 						<div class="wsfm-sjablonen">
 							<?php foreach ( $sjablonen as $wsfm_key => $wsfm_sj ) : ?>
@@ -250,7 +275,7 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 					</div>
 				</div>
 
-				<div class="postbox">
+				<div class="postbox wsfm-alleen-blokken">
 					<div class="inside">
 						<p><strong><?php esc_html_e( 'De inhoud', 'ws-flow-mailer' ); ?></strong></p>
 						<p class="description">
@@ -267,6 +292,33 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 							<button type="button" class="button wsfm-voeg-toe" data-soort="afbeelding"><?php esc_html_e( '+ Afbeelding', 'ws-flow-mailer' ); ?></button>
 							<button type="button" class="button wsfm-voeg-toe" data-soort="tekst"><?php esc_html_e( '+ Tekst', 'ws-flow-mailer' ); ?></button>
 							<button type="button" class="button wsfm-voeg-toe" data-soort="producten"><?php esc_html_e( '+ Producten', 'ws-flow-mailer' ); ?></button>
+						</p>
+					</div>
+				</div>
+				<div class="postbox wsfm-alleen-eigen">
+					<div class="inside">
+						<p><strong><?php esc_html_e( 'Je eigen HTML', 'ws-flow-mailer' ); ?></strong></p>
+						<p class="description">
+							<?php esc_html_e( 'Plak het hele bestand, van de eerste regel tot de laatste. We versturen het zoals het is en zetten er niets omheen.', 'ws-flow-mailer' ); ?>
+						</p>
+
+						<p class="wsfm-html-kiezen">
+							<label class="button" for="wsfm-html-bestand"><?php esc_html_e( 'Kies een bestand', 'ws-flow-mailer' ); ?></label>
+							<input type="file" id="wsfm-html-bestand" accept=".html,.htm,text/html">
+							<span class="description"><?php esc_html_e( 'of plak je HTML hieronder', 'ws-flow-mailer' ); ?></span>
+						</p>
+
+						<textarea id="wsfm-html" name="nieuwsbrief_html" rows="16" class="large-text code"
+							spellcheck="false" autocomplete="off"
+							placeholder="&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;..."><?php echo esc_textarea( $wsfm_html ); ?></textarea>
+
+						<div id="wsfm-html-controle" class="wsfm-html-controle" aria-live="polite"></div>
+
+						<p class="description">
+							<?php esc_html_e( 'Wat je kunt invullen per ontvanger:', 'ws-flow-mailer' ); ?>
+							<code>{first_name}</code> <code>{unsubscribe_url}</code>
+							<code>{shop_name}</code> <code>{shop_url}</code> <code>{sender_info}</code><br>
+							<?php esc_html_e( 'Kom je van Laposta, Mailchimp of Brevo? Laat hun eigen tags gewoon staan, zoals %FIRSTNAME% en %UNSUBSCRIBELINK%. Die vertalen we voor je.', 'ws-flow-mailer' ); ?>
 						</p>
 					</div>
 				</div>
@@ -287,7 +339,8 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 					</div>
 
 					<div class="wsfm-briefvoorbeeld" data-breed="desktop">
-						<iframe id="wsfm-voorbeeld-frame" title="<?php esc_attr_e( 'Voorbeeld van je nieuwsbrief', 'ws-flow-mailer' ); ?>"></iframe>
+						<?php /* sandbox: een aangeleverde nieuwsbrief is HTML van buiten. Die hoort niet te kunnen draaien alsof het een stuk van wp-admin is. Afbeeldingen en opmaak laden hier gewoon door. */ ?>
+						<iframe id="wsfm-voorbeeld-frame" sandbox="" title="<?php esc_attr_e( 'Voorbeeld van je nieuwsbrief', 'ws-flow-mailer' ); ?>"></iframe>
 					</div>
 
 					<p class="description wsfm-briefvoorbeeld-voet">
