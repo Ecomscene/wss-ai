@@ -39,6 +39,10 @@ class WSFM_Popup {
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 
+		/* Ook als de popup uitstaat: de codes van vroeger liggen al in de
+		   mailboxen van bezoekers en horen te werken. */
+		add_action( 'admin_init', array( __CLASS__, 'repareer_codes' ) );
+
 		if ( ! self::aan() ) {
 			return;
 		}
@@ -492,6 +496,87 @@ class WSFM_Popup {
 		return new WP_REST_Response( array( 'ok' => true, 'code' => $code, 'melding' => '' ) );
 	}
 
+	/** Zoveel codes per keer nakijken. */
+	const REPARATIE_PER_KEER = 30;
+
+	/** Waar we gebleven zijn, of 'klaar'. */
+	const REPARATIE_OPTIE = 'wsfm_coupon_reparatie';
+
+	/**
+	 * De beperking van oude welkomstcodes halen.
+	 *
+	 * WAAROM DIT ER IS
+	 * Tot versie 0.39.0 kreeg elke welkomstcode het e-mailadres van de bezoeker
+	 * als beperking mee. Daardoor werkte hij nergens: op de winkelwagenpagina
+	 * kent WooCommerce nog geen adres, dus die weigert de code met "Voer bij het
+	 * afrekenen een geldig e-mail in". Nieuwe codes krijgen die beperking niet
+	 * meer, maar de codes die al verstuurd zijn liggen in mailboxen en blijven
+	 * anders stuk. Dat zijn precies de bezoekers die net ingeschreven zijn.
+	 *
+	 * WAT HIJ WEL EN NIET AANRAAKT
+	 * Alleen codes die in onze eigen inschrijvingentabel staan, dus die we zelf
+	 * hebben aangemaakt. Alleen het veld met de e-mailbeperking. Nooit iets
+	 * weggooien, nooit een bedrag of een datum aanraken. Een handmatig gemaakte
+	 * coupon van de winkelier blijft er volledig buiten.
+	 *
+	 * In porties, want een shop kan duizenden inschrijvingen hebben en die in
+	 * een keer inladen is hoe je een beheerpagina laat aflopen op een time-out.
+	 * Elke beheerpagina doet er dertig, en daarna is het stil.
+	 *
+	 * @return void
+	 */
+	public static function repareer_codes() {
+		global $wpdb;
+
+		$vanaf = get_option( self::REPARATIE_OPTIE, '0' );
+		if ( 'klaar' === $vanaf ) {
+			return;
+		}
+
+		if ( ! function_exists( 'wc_get_coupon_id_by_code' ) || ! class_exists( 'WC_Coupon' ) ) {
+			return;
+		}
+
+		$tabel = $wpdb->prefix . 'wsfm_subscribers';
+
+		$rijen = $wpdb->get_results( $wpdb->prepare( "SELECT id, coupon_code FROM {$tabel} WHERE id > %d AND coupon_code <> '' ORDER BY id ASC LIMIT %d", (int) $vanaf, self::REPARATIE_PER_KEER ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( ! $rijen ) {
+			update_option( self::REPARATIE_OPTIE, 'klaar', false );
+			return;
+		}
+
+		foreach ( $rijen as $rij ) {
+			$vanaf = (int) $rij->id;
+
+			try {
+				$coupon_id = wc_get_coupon_id_by_code( $rij->coupon_code );
+				if ( ! $coupon_id ) {
+					continue;
+				}
+
+				$coupon = new WC_Coupon( $coupon_id );
+				if ( ! $coupon->get_email_restrictions() ) {
+					continue;
+				}
+
+				$coupon->set_email_restrictions( array() );
+				$coupon->save();
+			} catch ( Exception $e ) {
+				/* Een code die niet meer deugt mag de rest niet ophouden; we
+				   schuiven gewoon door naar de volgende. */
+				continue;
+			}
+		}
+
+		/* Minder dan een volle portie betekent dat we aan het eind zijn. */
+		update_option(
+			self::REPARATIE_OPTIE,
+			count( $rijen ) < self::REPARATIE_PER_KEER ? 'klaar' : (string) $vanaf,
+			false
+		);
+	}
+
 	/**
 	 * De kortingscode voor dit adres.
 	 *
@@ -519,8 +604,19 @@ class WSFM_Popup {
 			$coupon->set_discount_type( 'bedrag' === $i['korting_soort'] ? 'fixed_cart' : 'percent' );
 			$coupon->set_amount( (float) $i['korting_waarde'] );
 			$coupon->set_individual_use( true );
+
+			/* Eén keer te gebruiken, en NIET vastgezet op het e-mailadres.
+			   Dat laatste stond er wel, met de gedachte dat de code dan van
+			   deze bezoeker is. Het gevolg was dat hij nergens werkte: op de
+			   winkelwagenpagina is er nog geen adres bekend, dus WooCommerce
+			   weigert met "Voer bij het afrekenen een geldig e-mail in om
+			   waardeboncode X te gebruiken". Dat is de melding die de bezoeker
+			   krijgt op het moment dat hij zijn welkomstkorting wil gebruiken.
+
+			   De gebruikslimiet doet het werk al: wie de code doorgeeft, geeft
+			   hem weg. Er valt niets te winnen met delen, en de bezoeker loopt
+			   niet vast. */
 			$coupon->set_usage_limit( 1 );
-			$coupon->set_email_restrictions( array( $email ) );
 			$coupon->set_description( sprintf( /* translators: %s: e-mailadres. */ __( 'Inschrijving nieuwsbrief: %s', 'ws-flow-mailer' ), $email ) );
 
 			if ( $i['minimaal'] > 0 ) {
