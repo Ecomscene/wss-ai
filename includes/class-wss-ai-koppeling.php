@@ -46,23 +46,60 @@ class WSS_AI_Koppeling {
 	}
 
 	/**
+	 * Alle onderdelen die een schakelaar hebben.
+	 *
+	 * Eén lijst, zodat een typefout niet stilletjes een onderdeel uitzet. Dat
+	 * risico is er sinds alles opt-in is: module_aan( 'voorraden' ) geeft geen
+	 * foutmelding, hij geeft nee, en dan is voorraadbeheer weg zonder dat er
+	 * iets kapot lijkt. tools/check-modules.php telt na dat elke naam die in de
+	 * code wordt opgevraagd hier ook echt in staat.
+	 */
+	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades' );
+
+	/**
+	 * Onderdelen die UIT staan tot Webshopschool ze aanzet.
+	 *
+	 * WAAROM ZE HIER ALLEMAAL STAAN
+	 * Vroeger stond alles aan tenzij het was uitgezet, en dat was voor een
+	 * webshop ook prima: er gebeurt niets tot iemand op een knop drukt. Maar bij
+	 * het installeren stond dan meteen het hele gereedschap open, inclusief de
+	 * onderdelen die geld kosten en de mailer die uit zichzelf post verstuurt.
+	 * Een nieuwe klant zag een menu vol dingen waar hij niets mee kan.
+	 *
+	 * Nu is het andersom: na een installatie zie je Overzicht en Upgrades, en
+	 * verder niets. Joey zet per shop aan wat die shop heeft. Weten we het niet,
+	 * dan is het antwoord nee, en dat is de veilige kant: kunnen we
+	 * Webshopschool niet bereiken, dan springt er niets aan.
+	 *
+	 * Upgrades staat er met opzet niet in. Dat is de plek waar een klant iets
+	 * kan aanvragen, en juist bij een kale installatie is dat het enige dat hem
+	 * verder helpt. Uitzetten kan wel, want die staat nog op "aan tenzij".
+	 */
+	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken' );
+
+	/**
 	 * Staat dit onderdeel aan voor deze webshop?
 	 *
-	 * Alles staat aan tenzij Webshopschool het heeft uitgezet. Komt er later een
-	 * onderdeel bij, dan is het er dus gewoon, in plaats van overal uit te staan
-	 * tot iemand 97 webshops langs is geweest.
+	 * Twee soorten schakelaars, en het verschil zit in wat er gebeurt als we
+	 * niets weten. Een opt-in onderdeel staat uit tenzij het met zoveel woorden
+	 * aanstaat; de rest staat aan tenzij het is uitgezet.
 	 */
 	public static function module_aan( $naam ) {
-		$uit = get_option( self::OPTIE_UIT, array() );
-		if ( is_array( $uit ) && in_array( $naam, $uit, true ) ) {
-			return false;
+		if ( in_array( $naam, self::OPTIN, true ) ) {
+			$aan = get_option( self::OPTIE_AAN, array() );
+			if ( ! is_array( $aan ) || ! in_array( $naam, $aan, true ) ) {
+				return false;
+			}
+		} else {
+			$uit = get_option( self::OPTIE_UIT, array() );
+			if ( is_array( $uit ) && in_array( $naam, $uit, true ) ) {
+				return false;
+			}
 		}
 
-		/* Teksten en afbeeldingen kosten per keer geld. Die horen alleen te
-		   bestaan bij een beheerklant, en een gewone klant hoort niet eens te
-		   zien dat ze er zijn: geen menu-item, geen knop bij een product, geen
-		   bulkactie. Zolang Webshopschool niets over tegoed heeft gezegd geeft
-		   mag_ai() ja terug en blijft alles zoals het was. Zie
+		/* Teksten en afbeeldingen kosten per keer geld. Aanstaan is dus niet
+		   genoeg; er moet ook tegoed zijn. Zolang Webshopschool niets over
+		   tegoed heeft gezegd geeft mag_ai() ja terug. Zie
 		   class-wss-ai-budget.php. */
 		if ( in_array( $naam, WSS_AI_Budget::BETAALD, true ) && ! WSS_AI_Budget::mag_ai() ) {
 			return false;
@@ -72,18 +109,20 @@ class WSS_AI_Koppeling {
 	}
 
 	/**
-	 * Een module die andersom werkt: uit, tenzij hij met zoveel woorden aanstaat.
+	 * Hetzelfde antwoord als module_aan().
 	 *
-	 * De gewone modules zijn "aan tenzij", want die doen niets tot iemand op een
-	 * knop drukt. Voor iets dat uit zichzelf gegevens verzamelt en post verstuurt
-	 * is dat de verkeerde kant op. Weten we het niet, dan is het antwoord nee.
+	 * Deze naam bestond toen alleen de mailer en AI SEO opt-in waren. Nu is
+	 * bijna alles dat, en het onderscheid zit in de OPTIN-lijst hierboven in
+	 * plaats van in welke methode je toevallig aanroept. Hij blijft staan omdat
+	 * twee methodes die uit elkaar kunnen lopen erger zijn dan één met een oude
+	 * naam: een aanroep van de verkeerde zou een onderdeel openzetten dat uit
+	 * hoort te staan.
 	 *
-	 * Dat betekent ook: kunnen we Webshopschool niet bereiken, dan blijft hij uit
-	 * in plaats van aan te springen. Dat is met opzet de veilige kant.
+	 * @param string $naam Modulenaam.
+	 * @return bool
 	 */
 	public static function module_aan_optin( $naam ) {
-		$aan = get_option( self::OPTIE_AAN, array() );
-		return is_array( $aan ) && in_array( $naam, $aan, true );
+		return self::module_aan( $naam );
 	}
 
 	/**

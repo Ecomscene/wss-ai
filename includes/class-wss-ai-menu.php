@@ -162,15 +162,13 @@ class WSS_AI_Menu {
 	/**
 	 * Staat dit onderdeel aan?
 	 *
-	 * Twee soorten schakelaars, en het verschil zit in wat er gebeurt als we
-	 * niets weten. Een gewoon onderdeel staat aan tenzij Webshopschool het heeft
-	 * uitgezet; een opt-in onderdeel staat uit tenzij het met zoveel woorden
-	 * aanstaat. Zie class-wss-ai-koppeling.php.
+	 * Welke kant een schakelaar op staat is niet meer iets van dit scherm: dat
+	 * bepaalt de OPTIN-lijst in class-wss-ai-koppeling.php. Hier stond eerder
+	 * een keuze tussen twee methodes, en dat is precies de plek waar een menu en
+	 * een pagina uit elkaar kunnen gaan lopen.
 	 */
 	private static function onderdeel_aan( $o ) {
-		return empty( $o['optin'] )
-			? WSS_AI_Koppeling::module_aan( $o['module'] )
-			: WSS_AI_Koppeling::module_aan_optin( $o['module'] );
+		return WSS_AI_Koppeling::module_aan( $o['module'] );
 	}
 
 	/** Alle onderdelen op één plek, zodat de knoppen en de uitleg niet uiteenlopen. */
@@ -195,7 +193,6 @@ class WSS_AI_Menu {
 			array(
 				'slug'   => WSS_AI_Seoplan::SLUG,
 				'module' => 'seoplan',
-				'optin'  => true,
 				'naam'   => __( 'AI SEO', 'wss-ai' ),
 				'kort'   => __( 'Je SEO-traject: wat we deze maanden doen om je beter vindbaar te maken in Google.', 'wss-ai' ),
 				'waar'   => __( 'Hier zie je week voor week wat er af is en wat eraan komt. Je hoeft zelf niets te doen.', 'wss-ai' ),
