@@ -511,6 +511,38 @@ class WSFM_Newsletters {
 			return new WP_Error( 'wsfm_nb_niemand', __( 'Er zijn geen klanten gevonden voor deze doelgroep. Probeer "Alle klanten" of controleer of er bestellingen zijn.', 'ws-flow-mailer' ) );
 		}
 
+		/**
+		 * Mag deze verzending doorgaan?
+		 *
+		 * Standaard ja, en in WS Flow Mailer en in WSS Tools luistert hier
+		 * niemand naar. In de losse betaalde plugin hangt hier het tegoed aan:
+		 * die reserveert de mails bij Webshopschool en geeft een WP_Error terug
+		 * als er te weinig staat.
+		 *
+		 * DE PLEK IS HET HELE PUNT. Hier is het aantal ontvangers bekend en
+		 * staat er nog niets in de wachtrij. Een regel eerder weet je niet
+		 * hoeveel het er zijn; een regel later is de nieuwsbrief al geclaimd en
+		 * blijft hij op 'bezig' staan terwijl er geen enkele mail is verstuurd,
+		 * en dan kan de winkelier hem ook niet opnieuw versturen.
+		 *
+		 * @param bool|WP_Error $mag     Of het mag.
+		 * @param array         $context { soort, aantal, ref }.
+		 */
+		$mag = apply_filters(
+			'wsfm_mag_versturen',
+			true,
+			array(
+				'soort'  => 'nieuwsbrief',
+				'aantal' => count( $ontvangers ),
+				/* Een kenmerk dat bij twee keer klikken hetzelfde blijft, zodat
+				   de tegenpartij kan zien dat hij dit al heeft afgeboekt. */
+				'ref'    => 'nieuwsbrief-' . (int) $id,
+			)
+		);
+		if ( is_wp_error( $mag ) ) {
+			return $mag;
+		}
+
 		$table  = self::table();
 		$geclaimd = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'bezig' WHERE id = %d AND status = 'concept'", (int) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 

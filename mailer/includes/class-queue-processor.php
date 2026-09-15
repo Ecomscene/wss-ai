@@ -6,8 +6,8 @@
  * claimed with a conditional UPDATE to the 'processing' status, so two
  * overlapping runs can never send the same mail twice.
  *
- * Per item: claim → suppression check → stop-condition check → render
- * template → send via configured provider → log. Failures retry up to
+ * Per item: claim -> suppression check -> stop-condition check -> render
+ * template -> send via configured provider -> log. Failures retry up to
  * 3 times with a 15-minute backoff.
  *
  * @package WS_Flow_Mailer
@@ -64,7 +64,7 @@ class WSFM_Queue_Processor {
 
 		$table = WSFM_Queue::table();
 
-		// Claim: only one runner can flip pending → processing.
+		// Claim: only one runner can flip pending to processing.
 		$claimed = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'processing' WHERE id = %d AND status = 'pending'", $queue_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		if ( 1 !== $claimed ) {
 			return 'skipped';
@@ -82,7 +82,7 @@ class WSFM_Queue_Processor {
 			return self::process_newsletter_item( $item );
 		}
 
-		// Flow or step no longer exists, or the flow is paused → stop.
+		// Flow or step no longer exists, or the flow is paused -> stop.
 		$flow = WSFM_Flows::get( $item->flow_id );
 		$step = ( $flow && isset( $flow->steps[ $item->step_index ] ) ) ? $flow->steps[ $item->step_index ] : null;
 
@@ -122,6 +122,38 @@ class WSFM_Queue_Processor {
 			return self::finish( $item, 'stopped' );
 		}
 
+		/**
+		 * 4b. Mag deze mail eruit?
+		 *
+		 * Standaard ja; in WS Flow Mailer en in WSS Tools luistert hier niemand
+		 * naar. In de losse betaalde plugin hangt hier het tegoed aan. Zie de
+		 * uitleg bij hetzelfde filter in class-newsletters.php.
+		 *
+		 * Het kenmerk is het wachtrij-id: dat is uniek en blijft bij een tweede
+		 * poging hetzelfde, dus opnieuw proberen kost niet nog een keer geld.
+		 *
+		 * Mag het niet, dan stopt deze mail; hij blijft NIET in de wachtrij
+		 * hangen tot er weer tegoed is. Dat is met opzet: een herinnering voor
+		 * een winkelwagen van drie dagen geleden die alsnog uitgaat zodra er
+		 * bijgekocht wordt is erger dan een herinnering die niet kwam. De reden
+		 * komt in het log, zodat het terug te vinden is in plaats van stil weg.
+		 *
+		 * @param bool|WP_Error $mag     Of het mag.
+		 * @param array         $context { soort, aantal, ref }.
+		 */
+		$mag = apply_filters(
+			'wsfm_mag_versturen',
+			true,
+			array(
+				'soort'  => 'flow',
+				'aantal' => 1,
+				'ref'    => 'wachtrij-' . (int) $item->id,
+			)
+		);
+		if ( is_wp_error( $mag ) ) {
+			return self::finish( $item, 'stopped', (int) $step['template_id'], $mag->get_error_message() );
+		}
+
 		// 5. Send.
 		$provider = WSFM_Provider_Factory::create();
 		if ( is_wp_error( $provider ) ) {
@@ -146,6 +178,10 @@ class WSFM_Queue_Processor {
 	 * step, no stop condition (there is no order to wait for), no source data
 	 * that can disappear. What stays is the suppression check, because that one
 	 * is never optional.
+	 *
+	 * Er wordt hier bewust NIET nog eens om toestemming gevraagd. Voor een
+	 * nieuwsbrief is er al afgerekend op het moment dat hij in de wachtrij ging,
+	 * voor alle ontvangers tegelijk; hier nog een keer zou dubbel betalen zijn.
 	 *
 	 * The whole letter is rebuilt per recipient. That is more work than caching
 	 * the HTML once, but a product that sold out or a price that changed halfway
