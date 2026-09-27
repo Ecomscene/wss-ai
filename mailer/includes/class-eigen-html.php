@@ -30,6 +30,14 @@
  *    dingen die een verstuurde mail stukmaken en zegt het terwijl je nog kunt
  *    bijsturen.
  *
+ *    Daar hoort ook de opmaak bij. Een bestand dat in een browser klopt, klopt
+ *    in een inbox niet vanzelf: een <style>-blok in de kop wordt door een deel
+ *    van de mailprogramma's weggegooid, en Outlook negeert max-width. Wat er
+ *    dan overblijft van een <img> zonder width-attribuut is zijn eigen
+ *    pixelformaat, en een foto van 1600 breed staat dwars door de mail heen.
+ *    Dat is de klacht "in mijn browser is het goed en in de mail niet", en
+ *    daarom zegt controle() er nu ook iets over.
+ *
  * @package WS_Flow_Mailer
  */
 
@@ -211,6 +219,34 @@ class WSFM_Eigen_Html {
 	}
 
 	/**
+	 * Hoeveel <img>-tags er geen width-attribuut hebben.
+	 *
+	 * WAAROM DIT EEN APARTE FUNCTIE IS
+	 * Niet om het netjes te verdelen, maar omdat het op EEN plek te controleren
+	 * moet zijn. Er wordt geteld op het width-ATTRIBUUT en niet op width in een
+	 * style, en dat is precies het punt: Outlook rendert met de opmaakmotor van
+	 * Word en leest het attribuut, niet de stijl.
+	 *
+	 * @param string $html HTML.
+	 * @return int
+	 */
+	private static function beelden_zonder_breedte( $html ) {
+		if ( ! preg_match_all( '#<img\b[^>]*>#i', (string) $html, $tags ) ) {
+			return 0;
+		}
+
+		$aantal = 0;
+
+		foreach ( $tags[0] as $tag ) {
+			if ( ! preg_match( '#\swidth\s*=#i', $tag ) ) {
+				$aantal++;
+			}
+		}
+
+		return $aantal;
+	}
+
+	/**
 	 * Wat er straks misgaat, terwijl je er nog wat aan kunt doen.
 	 *
 	 * @param string $ruw Aangeleverde HTML, zoals ingetypt.
@@ -246,6 +282,47 @@ class WSFM_Eigen_Html {
 			$uit[] = array(
 				'soort' => 'let-op',
 				'tekst' => __( 'Er staan afbeeldingen op http:// in plaats van https://. Sommige mailprogramma\'s laden die niet.', 'ws-flow-mailer' ),
+			);
+		}
+
+		/* Een foto zonder width-attribuut valt in een inbox terug op zijn eigen
+		   pixelformaat. In een browser gebeurt dat niet, want daar geldt de
+		   max-width uit het <style>-blok nog wel. Dit is dus de klacht "in mijn
+		   browser klopt het en in de mail zijn de foto's veel te groot". */
+		$zonder_breedte = self::beelden_zonder_breedte( $html );
+		if ( $zonder_breedte > 0 ) {
+			$uit[] = array(
+				'soort' => 'fout',
+				'tekst' => sprintf(
+					/* translators: %s: aantal afbeeldingen. */
+					__( 'Er staan %s afbeeldingen zonder width. In een mailprogramma komen die op hun eigen formaat te staan en vallen ze veel te groot uit, ook als het in je browser wel klopt. Zet op elke foto width="600" als gewoon attribuut, en daarnaast style="display:block;width:100%%;max-width:600px;height:auto;border:0;".', 'ws-flow-mailer' ),
+					number_format_i18n( $zonder_breedte )
+				),
+			);
+		}
+
+		/* Opmaak in een <style>-blok. Een browser leest dat altijd; de Gmail-app
+		   gooit het blok weg en Outlook negeert er de helft van, waaronder
+		   max-width. Alles wat de maten bepaalt hoort daarom in een
+		   style-attribuut op de tag zelf te staan. */
+		if ( preg_match( '#<style\b#i', $html ) ) {
+			$uit[] = array(
+				'soort' => 'let-op',
+				'tekst' => __( 'Je opmaak staat (deels) in een <style>-blok. Een deel van de mailprogramma\'s gooit dat weg en Outlook negeert er max-width uit, en dan valt de mail uiteen. Zet de opmaak in een style="..." op de tags zelf.', 'ws-flow-mailer' ),
+			);
+		}
+
+		/* Foto's die in het bestand zelf zitten. In een browser zie je ze
+		   gewoon; Gmail en Outlook laten ze niet zien, en de mail wordt er
+		   megabytes groot van. */
+		if ( preg_match_all( '#\ssrc\s*=\s*["\']data:image/#i', $html, $ingebakken ) ) {
+			$uit[] = array(
+				'soort' => 'fout',
+				'tekst' => sprintf(
+					/* translators: %s: aantal afbeeldingen. */
+					__( 'Er zitten %s afbeeldingen in het bestand zelf verwerkt (data:image). Gmail en Outlook laten die niet zien en de mail wordt er onnodig groot van. Zet de foto\'s in je mediabibliotheek en verwijs ernaar met het volledige https-adres.', 'ws-flow-mailer' ),
+					number_format_i18n( count( $ingebakken[0] ) )
+				),
 			);
 		}
 
