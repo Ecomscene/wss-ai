@@ -8,10 +8,9 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$wsfm_trigger_labels = array(
-	'abandoned_cart'  => __( 'Verlaten winkelwagen', 'ws-flow-mailer' ),
-	'order_completed' => __( 'Order afgerond', 'ws-flow-mailer' ),
-);
+/* Labels bij de flows zelf vandaan, zodat een nieuwe trigger hier ook een
+   leesbare naam heeft in plaats van zijn sleutel. */
+$wsfm_trigger_labels = WSFM_Flows::trigger_labels();
 
 $wsfm_status_labels = array(
 	'sent'       => __( 'Verzonden', 'ws-flow-mailer' ),
@@ -129,7 +128,7 @@ $wsfm_status_labels = array(
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Flow', 'ws-flow-mailer' ); ?></th>
-					<th><?php esc_html_e( 'Trigger', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Begint bij', 'ws-flow-mailer' ); ?></th>
 					<th><?php esc_html_e( 'Status', 'ws-flow-mailer' ); ?></th>
 					<th><?php esc_html_e( 'Verzonden (30d)', 'ws-flow-mailer' ); ?></th>
 					<th><?php esc_html_e( 'Mislukt (30d)', 'ws-flow-mailer' ); ?></th>

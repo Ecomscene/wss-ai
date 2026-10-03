@@ -111,8 +111,7 @@ class WSFM_Queue_Processor {
 		$context = self::build_context( $item, $flow );
 		if ( is_wp_error( $context ) ) {
 			// Source data is gone (order/cart deleted) - permanent stop.
-			WSFM_Queue::log( $item, $step['template_id'], 'failed', '', '', $context->get_error_message() );
-			return self::finish( $item, 'stopped' );
+			return self::finish( $item, 'stopped', (int) $step['template_id'], $context->get_error_message() );
 		}
 
 		// 4. Render template.
@@ -298,7 +297,11 @@ class WSFM_Queue_Processor {
 	private static function build_context( $item, $flow ) {
 		$unsubscribe_url = WSFM_Unsubscribe::url( $item->customer_email );
 
-		if ( 'order_completed' === $flow->trigger_type ) {
+		/* Alle order-triggers (geplaatst, betaald, afgerond) lezen hun gegevens
+		   uit de order. Dit stond eerder als `'order_completed' === ...` en dan
+		   zou een flow op "bestelling betaald" de winkelwagen gaan opzoeken en
+		   een mail over een wagen sturen die allang is afgerekend. */
+		if ( in_array( $flow->trigger_type, WSFM_Flows::ORDER_TRIGGERS, true ) ) {
 			$order = $item->order_id ? wc_get_order( $item->order_id ) : false;
 			if ( ! $order ) {
 				return new WP_Error( 'wsfm_order_gone', sprintf( __( 'Order %d bestaat niet meer.', 'ws-flow-mailer' ), $item->order_id ) );
@@ -309,7 +312,12 @@ class WSFM_Queue_Processor {
 		// Abandoned cart: look up the tracking row (by hash, then e-mail).
 		$tracking = WSFM_Cart_Tracking::get_by_hash_or_email( $item->cart_hash, $item->customer_email );
 		if ( ! $tracking ) {
-			return new WP_Error( 'wsfm_cart_gone', __( 'De winkelwagen-data van dit queue-item is niet meer beschikbaar.', 'ws-flow-mailer' ) );
+			/* Geen rij meer: de klant heeft zijn wagen geleegd of alsnog
+			   afgerekend, en dan ruimt capture_cart de rij op. Dat is dus geen
+			   storing maar het normale einde van een flow, en het hoort niet
+			   als 'mislukt' in het log te staan. Dat deed het wel, en daardoor
+			   stond het scherm vol rode regels bij shops waar alles goed ging. */
+			return new WP_Error( 'wsfm_cart_gone', __( 'Niet verstuurd: deze winkelwagen bestaat niet meer, de klant heeft hem geleegd of alsnog afgerekend.', 'ws-flow-mailer' ) );
 		}
 
 		return WSFM_Template_Engine::build_cart_context( $tracking, $unsubscribe_url );

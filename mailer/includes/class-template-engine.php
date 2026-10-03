@@ -25,7 +25,7 @@ class WSFM_Template_Engine {
 			'{first_name}'      => __( 'Voornaam van de klant', 'ws-flow-mailer' ),
 			'{cart_items}'      => __( 'Winkelwagen-producten als lijst (HTML)', 'ws-flow-mailer' ),
 			'{cart_total}'      => __( 'Winkelwagen-totaal incl. valutasymbool', 'ws-flow-mailer' ),
-			'{cart_url}'        => __( 'Link naar de winkelwagen', 'ws-flow-mailer' ),
+			'{cart_url}'        => __( 'Link naar de winkelwagen. In een verlaten-winkelwagenmail zet die de producten weer voor de klant klaar.', 'ws-flow-mailer' ),
 			'{order_number}'    => __( 'Ordernummer', 'ws-flow-mailer' ),
 			'{order_total}'     => __( 'Ordertotaal incl. valutasymbool', 'ws-flow-mailer' ),
 			'{order_items}'     => __( 'Bestelde producten als lijst (HTML)', 'ws-flow-mailer' ),
@@ -194,7 +194,16 @@ class WSFM_Template_Engine {
 	}
 
 	/**
-	 * Build merge context from a WooCommerce order (for order_completed flows).
+	 * De gewone winkelwagenpagina.
+	 *
+	 * @return string
+	 */
+	private static function winkelwagen_url() {
+		return function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' );
+	}
+
+	/**
+	 * Build merge context from a WooCommerce order (for order flows).
 	 *
 	 * @param WC_Order $order Order object (from wc_get_order, HPOS-safe).
 	 * @param string   $unsubscribe_url Unsubscribe URL for the recipient.
@@ -215,13 +224,19 @@ class WSFM_Template_Engine {
 			'order_number'    => $order->get_order_number(),
 			'order_total'     => self::format_price( (float) $order->get_total() ),
 			'order_items'     => self::items_html( $items ),
-			'cart_url'        => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
+			'cart_url'        => self::winkelwagen_url(),
 			'unsubscribe_url' => $unsubscribe_url,
 		);
 	}
 
 	/**
 	 * Build merge context from a cart-tracking row (for abandoned_cart flows).
+	 *
+	 * {cart_url} is hier GEEN link naar de winkelwagenpagina maar een
+	 * herstellink: die legt de bewaarde producten terug in de wagen van wie
+	 * erop klikt. Een link naar /winkelwagen/ zet de klant namelijk op een lege
+	 * pagina zodra zijn sessie weg is, en dat is bij een mail van een dag oud
+	 * bijna altijd. Zie WSFM_Cart_Recovery.
 	 *
 	 * @param object $tracking Row from wsfm_cart_tracking (cart_contents = JSON).
 	 * @param string $unsubscribe_url Unsubscribe URL for the recipient.
@@ -238,7 +253,7 @@ class WSFM_Template_Engine {
 			'first_name'      => $first_name,
 			'cart_items'      => self::items_html( $items ),
 			'cart_total'      => self::format_price( $total ),
-			'cart_url'        => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
+			'cart_url'        => class_exists( 'WSFM_Cart_Recovery' ) ? WSFM_Cart_Recovery::link( $tracking ) : self::winkelwagen_url(),
 			'unsubscribe_url' => $unsubscribe_url,
 		);
 	}
@@ -261,7 +276,7 @@ class WSFM_Template_Engine {
 			'first_name'      => 'Jan',
 			'cart_items'      => self::items_html( $items ),
 			'cart_total'      => self::format_price( 49.95 ),
-			'cart_url'        => function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' ),
+			'cart_url'        => self::winkelwagen_url(),
 			'order_number'    => '#12345',
 			'order_total'     => self::format_price( 49.95 ),
 			'order_items'     => self::items_html( $items ),

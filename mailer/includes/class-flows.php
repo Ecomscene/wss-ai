@@ -13,8 +13,59 @@ defined( 'ABSPATH' ) || exit;
 
 class WSFM_Flows {
 
-	const TRIGGER_TYPES = array( 'abandoned_cart', 'order_completed' );
-	const STATUSES      = array( 'active', 'paused' );
+	/**
+	 * De momenten waarop een flow kan beginnen.
+	 *
+	 * Drie van de vier gaan over een order, en dat zijn niet dezelfde momenten:
+	 *  - order_placed    de klant heeft net afgerekend, betaald of niet (een
+	 *                    overboeking staat dan nog open). Dit is het moment voor
+	 *                    "bedankt voor je bestelling".
+	 *  - order_paid      het geld is binnen. Dit is het moment voor een mail die
+	 *                    niet mag uitgaan bij een bestelling die nooit betaald
+	 *                    wordt, bijvoorbeeld een cadeautip of een bestelling die
+	 *                    een klant zelf nog moet overmaken.
+	 *  - order_completed de winkelier heeft de order afgerond, dus verzonden.
+	 *                    Dit is het moment voor een reviewverzoek.
+	 *
+	 * Dat ze alle drie bestaan is met opzet: veel shops zetten een order nooit
+	 * op "afgerond", en dan ging onder de oude opzet nooit een enkele ordermail
+	 * de deur uit zonder dat iemand kon zien waarom.
+	 */
+	const TRIGGER_TYPES = array( 'abandoned_cart', 'order_placed', 'order_paid', 'order_completed' );
+
+	/** De triggers die bij een order horen; die bouwen hun context uit de order. */
+	const ORDER_TRIGGERS = array( 'order_placed', 'order_paid', 'order_completed' );
+
+	const STATUSES = array( 'active', 'paused' );
+
+	/**
+	 * Hoe de triggers op het scherm heten.
+	 *
+	 * Eén plek, want dit lijstje stond eerder drie keer in de admin-bestanden en
+	 * liep daardoor uit elkaar: een nieuwe trigger kwam dan wel in de keuzelijst
+	 * maar bleef in het overzicht als `order_paid` staan.
+	 *
+	 * @return array sleutel => label
+	 */
+	public static function trigger_labels() {
+		return array(
+			'abandoned_cart'  => __( 'Verlaten winkelwagen', 'ws-flow-mailer' ),
+			'order_placed'    => __( 'Bestelling geplaatst', 'ws-flow-mailer' ),
+			'order_paid'      => __( 'Bestelling betaald', 'ws-flow-mailer' ),
+			'order_completed' => __( 'Order afgerond (verzonden)', 'ws-flow-mailer' ),
+		);
+	}
+
+	/**
+	 * Het label van één trigger, of de sleutel zelf als we hem niet kennen.
+	 *
+	 * @param string $trigger_type Trigger.
+	 * @return string
+	 */
+	public static function trigger_label( $trigger_type ) {
+		$labels = self::trigger_labels();
+		return isset( $labels[ $trigger_type ] ) ? $labels[ $trigger_type ] : (string) $trigger_type;
+	}
 
 	/**
 	 * Table name.
@@ -159,13 +210,47 @@ class WSFM_Flows {
 		$flow_id = isset( $data['id'] ) ? (int) $data['id'] : 0;
 
 		if ( $flow_id > 0 ) {
+			/* Wordt het trigger-type gewijzigd, dan moeten de items die nog in de
+			   wachtrij staan STOPPEN.
+
+			   WAAROM DIT MOEST
+			   Het bewerkscherm waarschuwde hier al voor ("die items worden
+			   gestopt"), maar er gebeurde niets: de rijen bleven staan met hun
+			   oude bron. Een item van een verlaten winkelwagen dat straks door
+			   een order-flow wordt opgepakt zoekt dan een order die er niet is,
+			   en andersom. In het ergste geval krijgt iemand een mail over een
+			   winkelwagen die hij vier dagen geleden al heeft afgerekend.
+
+			   Alleen bij een ECHTE wijziging, en alleen pending/processing: wat
+			   verstuurd is blijft staan, want dat is geschiedenis. */
+			$oud = $wpdb->get_var( $wpdb->prepare( 'SELECT trigger_type FROM ' . self::table() . ' WHERE id = %d', $flow_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+
 			$wpdb->update( self::table(), $row, array( 'id' => $flow_id ) );
+
+			if ( $oud && $oud !== $trigger_type ) {
+				self::stop_pending( $flow_id );
+			}
+
 			return $flow_id;
 		}
 
 		$row['created_at'] = current_time( 'mysql' );
 		$wpdb->insert( self::table(), $row );
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Alles wat van deze flow nog in de wachtrij staat stopzetten.
+	 *
+	 * @param int $flow_id Flow id.
+	 * @return int Aantal gestopte items.
+	 */
+	public static function stop_pending( $flow_id ) {
+		global $wpdb;
+
+		$queue = $wpdb->prefix . 'wsfm_queue';
+
+		return (int) $wpdb->query( $wpdb->prepare( "UPDATE {$queue} SET status = 'stopped' WHERE flow_id = %d AND status IN ('pending','processing')", $flow_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**
@@ -203,8 +288,7 @@ class WSFM_Flows {
 	public static function delete( $flow_id ) {
 		global $wpdb;
 
-		$queue = $wpdb->prefix . 'wsfm_queue';
-		$wpdb->query( $wpdb->prepare( "UPDATE {$queue} SET status = 'stopped' WHERE flow_id = %d AND status IN ('pending','processing')", $flow_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		self::stop_pending( $flow_id );
 		$wpdb->delete( self::table(), array( 'id' => $flow_id ) );
 	}
 }

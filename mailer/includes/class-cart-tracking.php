@@ -103,11 +103,19 @@ class WSFM_Cart_Tracking {
 		$items = array();
 		foreach ( WC()->cart->get_cart() as $cart_item ) {
 			$product = isset( $cart_item['data'] ) ? $cart_item['data'] : null;
+
+			/* De variatie gaat mee, en dat is niet voor de mail maar voor de
+			   herstellink: zonder variatie-id en zonder de gekozen maat of kleur
+			   kan WSFM_Cart_Recovery een variabel product niet terugleggen, en
+			   dan klikt de klant op "terug naar mijn wagen" en mist hij juist
+			   dat ene product. */
 			$items[] = array(
-				'product_id' => (int) $cart_item['product_id'],
-				'name'       => $product ? $product->get_name() : '',
-				'qty'        => (int) $cart_item['quantity'],
-				'price'      => WSFM_Template_Engine::format_price( (float) $cart_item['line_total'] ),
+				'product_id'   => (int) $cart_item['product_id'],
+				'variation_id' => isset( $cart_item['variation_id'] ) ? (int) $cart_item['variation_id'] : 0,
+				'variation'    => ( isset( $cart_item['variation'] ) && is_array( $cart_item['variation'] ) ) ? $cart_item['variation'] : array(),
+				'name'         => $product ? $product->get_name() : '',
+				'qty'          => (int) $cart_item['quantity'],
+				'price'        => WSFM_Template_Engine::format_price( (float) $cart_item['line_total'] ),
 			);
 		}
 

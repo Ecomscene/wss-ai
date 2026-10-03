@@ -8,10 +8,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$wsfm_trigger_labels = array(
-	'abandoned_cart'  => __( 'Verlaten winkelwagen', 'ws-flow-mailer' ),
-	'order_completed' => __( 'Order afgerond', 'ws-flow-mailer' ),
-);
+/* Eén lijst met labels, bij de flows zelf. Hier stond een eigen kopie, en die
+   liep achter zodra er een trigger bijkwam: dan stond er `order_paid` in de
+   kolom in plaats van een leesbare naam. */
+$wsfm_trigger_labels = WSFM_Flows::trigger_labels();
 ?>
 <div class="wrap wsfm-flows">
 	<h1 class="wp-heading-inline"><?php esc_html_e( 'Flows', 'ws-flow-mailer' ); ?></h1>
@@ -35,7 +35,7 @@ $wsfm_trigger_labels = array(
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Naam', 'ws-flow-mailer' ); ?></th>
-					<th><?php esc_html_e( 'Trigger type', 'ws-flow-mailer' ); ?></th>
+					<th><?php esc_html_e( 'Begint bij', 'ws-flow-mailer' ); ?></th>
 					<th style="width:120px;"><?php esc_html_e( 'Status', 'ws-flow-mailer' ); ?></th>
 					<th style="width:110px;"><?php esc_html_e( 'Stappen', 'ws-flow-mailer' ); ?></th>
 					<th><?php esc_html_e( 'Laatst bewerkt', 'ws-flow-mailer' ); ?></th>

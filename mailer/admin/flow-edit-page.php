@@ -8,8 +8,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$wsfm_is_edit = ( null !== $flow );
-$wsfm_steps   = $wsfm_is_edit ? $flow->steps : array();
+$wsfm_is_edit        = ( null !== $flow );
+$wsfm_steps          = $wsfm_is_edit ? $flow->steps : array();
+$wsfm_trigger_labels = WSFM_Flows::trigger_labels();
+$wsfm_trigger_nu     = $wsfm_is_edit ? $flow->trigger_type : 'abandoned_cart';
 ?>
 <div class="wrap wsfm-flow-edit">
 	<h1><?php echo $wsfm_is_edit ? esc_html__( 'Flow bewerken', 'ws-flow-mailer' ) : esc_html__( 'Nieuwe flow', 'ws-flow-mailer' ); ?></h1>
@@ -38,14 +40,18 @@ $wsfm_steps   = $wsfm_is_edit ? $flow->steps : array();
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wsfm_trigger_type"><?php esc_html_e( 'Trigger type', 'ws-flow-mailer' ); ?></label></th>
+				<th scope="row"><label for="wsfm_trigger_type"><?php esc_html_e( 'Wanneer begint deze flow', 'ws-flow-mailer' ); ?></label></th>
 				<td>
 					<select name="trigger_type" id="wsfm_trigger_type">
-						<option value="abandoned_cart" <?php selected( $wsfm_is_edit ? $flow->trigger_type : 'abandoned_cart', 'abandoned_cart' ); ?>><?php esc_html_e( 'Verlaten winkelwagen', 'ws-flow-mailer' ); ?></option>
-						<option value="order_completed" <?php selected( $wsfm_is_edit ? $flow->trigger_type : '', 'order_completed' ); ?>><?php esc_html_e( 'Order afgerond', 'ws-flow-mailer' ); ?></option>
+						<?php foreach ( $wsfm_trigger_labels as $wsfm_key => $wsfm_label ) : ?>
+							<option value="<?php echo esc_attr( $wsfm_key ); ?>" <?php selected( $wsfm_trigger_nu, $wsfm_key ); ?>><?php echo esc_html( $wsfm_label ); ?></option>
+						<?php endforeach; ?>
 					</select>
+					<p class="description">
+						<?php esc_html_e( 'Bestelling geplaatst is meteen na het afrekenen, ook als er nog niet betaald is. Bestelling betaald is zodra het geld binnen is. Order afgerond is wanneer je de bestelling zelf op afgerond zet, dus meestal bij het verzenden.', 'ws-flow-mailer' ); ?>
+					</p>
 					<p class="description" id="wsfm-trigger-warning" style="display:none;color:#d63638;">
-						<?php echo esc_html( sprintf( __( 'Let op: deze flow heeft %d actieve wachtrij-items. Als je het trigger-type wijzigt, kunnen die items niet meer correct worden verwerkt en worden ze gestopt.', 'ws-flow-mailer' ), (int) $pending_count ) ); ?>
+						<?php echo esc_html( sprintf( __( 'Let op: deze flow heeft %d items in de wachtrij staan. Als je het beginmoment wijzigt, worden die gestopt; ze horen bij het oude moment en zouden anders de verkeerde mail versturen.', 'ws-flow-mailer' ), (int) $pending_count ) ); ?>
 					</p>
 				</td>
 			</tr>

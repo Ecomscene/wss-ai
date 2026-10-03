@@ -2,6 +2,8 @@
 /**
  * Flow engine: WooCommerce triggers + Action Scheduler wiring.
  *
+ * - order_placed flows start when the checkout has created the order
+ * - order_paid flows start when the payment came through
  * - order_completed flows start on woocommerce_order_status_completed
  * - abandoned_cart flows start via the recurring cart check (15 min)
  * - the queue processor runs every 5 minutes
@@ -29,6 +31,26 @@ class WSFM_Flow_Engine {
 		}
 
 		WSFM_Cart_Tracking::init();
+		WSFM_Cart_Recovery::init();
+
+		/* BESTELLING GEPLAATST
+		   Twee haken, want een shop kan twee afrekenpagina's hebben: de oude
+		   (checkout_order_processed) en de nieuwe blokken-checkout van
+		   WooCommerce (store_api_...). Wie alleen de eerste neemt, mist elke
+		   bestelling op een shop met blokken, en dat is niet te zien aan de
+		   flow: die staat op actief en doet niets. */
+		add_action( 'woocommerce_checkout_order_processed', array( __CLASS__, 'on_order_placed' ) );
+		add_action( 'woocommerce_store_api_checkout_order_processed', array( __CLASS__, 'on_order_placed_object' ) );
+
+		/* BESTELLING BETAALD
+		   payment_complete is het echte betaalmoment bij een gateway. De twee
+		   statushaken erbij zijn het vangnet voor een order die zonder gateway
+		   op betaald komt te staan: een overboeking die de winkelier zelf
+		   afvinkt, of een gateway die alleen de status zet. Dubbel vuren kan
+		   dus, en dat is geen probleem: WSFM_Queue::enqueue_flow zet per flow
+		   maar één keer iets in de wachtrij voor dezelfde order. */
+		add_action( 'woocommerce_payment_complete', array( __CLASS__, 'on_order_paid' ) );
+		add_action( 'woocommerce_order_status_processing', array( __CLASS__, 'on_order_paid' ) );
 
 		add_action( 'woocommerce_order_status_completed', array( __CLASS__, 'on_order_completed' ) );
 
@@ -66,12 +88,60 @@ class WSFM_Flow_Engine {
 	}
 
 	/**
+	 * Trigger: de afrekenpagina heeft de order aangemaakt.
+	 *
+	 * @param int $order_id Order id.
+	 */
+	public static function on_order_placed( $order_id ) {
+		self::enqueue_order_flows( $order_id, 'order_placed' );
+	}
+
+	/**
+	 * Hetzelfde, maar dan vanuit de blokken-checkout, die het order-OBJECT
+	 * meegeeft in plaats van het nummer.
+	 *
+	 * @param WC_Order|int $order Order.
+	 */
+	public static function on_order_placed_object( $order ) {
+		$order_id = is_object( $order ) && method_exists( $order, 'get_id' ) ? $order->get_id() : (int) $order;
+		self::enqueue_order_flows( $order_id, 'order_placed' );
+	}
+
+	/**
+	 * Trigger: de betaling is binnen.
+	 *
+	 * @param int $order_id Order id.
+	 */
+	public static function on_order_paid( $order_id ) {
+		self::enqueue_order_flows( $order_id, 'order_paid' );
+	}
+
+	/**
 	 * Trigger: an order reached the "completed" status.
-	 * Enqueue every active order_completed flow for this customer.
 	 *
 	 * @param int $order_id Order id.
 	 */
 	public static function on_order_completed( $order_id ) {
+		self::enqueue_order_flows( $order_id, 'order_completed' );
+	}
+
+	/**
+	 * Zet elke actieve flow van dit soort in de wachtrij voor deze order.
+	 *
+	 * @param int    $order_id     Order id.
+	 * @param string $trigger_type order_placed | order_paid | order_completed.
+	 */
+	private static function enqueue_order_flows( $order_id, $trigger_type ) {
+		$order_id = (int) $order_id;
+		if ( $order_id < 1 || ! function_exists( 'wc_get_order' ) ) {
+			return;
+		}
+
+		$flows = WSFM_Flows::get_active( $trigger_type );
+		if ( empty( $flows ) ) {
+			return; // Niets te doen; geen order inlezen voor niets.
+		}
+
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) {
 			return;
@@ -82,7 +152,7 @@ class WSFM_Flow_Engine {
 			return;
 		}
 
-		foreach ( WSFM_Flows::get_active( 'order_completed' ) as $flow ) {
+		foreach ( $flows as $flow ) {
 			WSFM_Queue::enqueue_flow(
 				$flow,
 				array(
