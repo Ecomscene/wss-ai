@@ -192,20 +192,34 @@ class WSS_AI_Koppeling {
 
 		/* Welke onderdelen Webshopschool voor deze webshop heeft uitgezet. We
 		   verbergen die dan; de echte weigering staat op de server. Zou dat hier
-		   het enige slot zijn, dan was het geen slot maar een gordijn. */
-		$uit = isset( $data['data']['modulesUit'] ) && is_array( $data['data']['modulesUit'] )
-			? array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesUit'] ) ) )
-			: array();
-		update_option( self::OPTIE_UIT, $uit );
+		   het enige slot zijn, dan was het geen slot maar een gordijn.
+		   Ontbreekt het veld HELEMAAL (een onvolledig of oud antwoord), dan laten
+		   we staan wat er stond -- anders zet een halve aanmelding een module die
+		   Joey bewust had uitgezet zomaar weer aan, en dat kost geld. Noemt de
+		   server het veld wel, met een lege lijst erin, dan is dat een echte
+		   keuze ("niets uitgezet") en volgen we die. */
+		$was_uit = get_option( self::OPTIE_UIT, array() );
+		if ( array_key_exists( 'modulesUit', $data['data'] ) && is_array( $data['data']['modulesUit'] ) ) {
+			$uit = array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesUit'] ) ) );
+			update_option( self::OPTIE_UIT, $uit );
+		} else {
+			$uit = is_array( $was_uit ) ? $was_uit : array();
+		}
 
 		/* En de andere kant op: onderdelen die alleen draaien als ze met zoveel
-		   woorden zijn aangezet. Zegt de server er niets over, dan blijft het
-		   lijstje leeg en staat er dus niets aan. Dat is de veilige kant. */
+		   woorden zijn aangezet. Ontbreekt het veld HELEMAAL, dan blijft staan
+		   wat er stond: een incompleet antwoord mag een werkende nieuwsbrief niet
+		   in één keer uitzetten zonder dat iemand dat koos. Zegt de server
+		   expliciet "niets" (het veld is er, met een lege lijst erin), dan is dat
+		   wel een echte keuze en volgen we die -- dat is de veilige kant bij een
+		   nieuwe, nog onbekende webshop. */
 		$was = get_option( self::OPTIE_AAN, array() );
-		$aan = isset( $data['data']['modulesAan'] ) && is_array( $data['data']['modulesAan'] )
-			? array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesAan'] ) ) )
-			: array();
-		update_option( self::OPTIE_AAN, $aan );
+		if ( array_key_exists( 'modulesAan', $data['data'] ) && is_array( $data['data']['modulesAan'] ) ) {
+			$aan = array_values( array_filter( array_map( 'sanitize_key', $data['data']['modulesAan'] ) ) );
+			update_option( self::OPTIE_AAN, $aan );
+		} else {
+			$aan = is_array( $was ) ? $was : array();
+		}
 
 		/* Of dit een beheerklant is en wat er deze maand nog aan tegoed is. Zegt
 		   de server hier niets over, dan blijft staan wat er stond: zie de
