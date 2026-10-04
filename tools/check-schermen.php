@@ -112,10 +112,19 @@ class WSFM_Flow_Admin_UI {
 	const SLUG_POSTLOG   = 'ws-flow-mailer-postlog';
 	public static function mask_email( $e ) { return 'j***@voorbeeld.nl'; }
 }
-class WSFM_Flows { const TRIGGER_TYPES = array(); }
-/* Deze vier zijn niet nagebootst maar echt ingeladen: ze raken de database niet
+/* Deze zijn niet nagebootst maar echt ingeladen: ze raken de database niet
    en het gaat hier juist om wat zij opleveren. Een nabootsing die toevallig het
-   goede antwoord geeft controleert alleen zichzelf. */
+   goede antwoord geeft controleert alleen zichzelf.
+
+   WSFM_Flows hoort in dat rijtje sinds het dashboard de triggerlabels daar
+   opvraagt in plaats van ze zelf te herhalen. Hij stond hier eerder als een
+   nagebootste klasse met alleen TRIGGER_TYPES erin, en toen het dashboard
+   trigger_labels() ging gebruiken viel deze controle met een fatale fout om:
+   een methode die niet bestaat op een klasse die wel bestaat. Dat hield de
+   release van 0.41.0 tegen, en terecht - maar de fout zat hier en niet in de
+   plugin. De echte klasse inladen kan gewoon: er gaat bij het inladen niets
+   naar de database, de queries zitten allemaal in de methodes. */
+require_once dirname( __DIR__ ) . '/mailer/includes/class-flows.php';
 require_once dirname( __DIR__ ) . '/mailer/includes/class-eigen-html.php';
 require_once dirname( __DIR__ ) . '/mailer/includes/class-template-engine.php';
 require_once dirname( __DIR__ ) . '/mailer/includes/class-newsletter-render.php';
@@ -405,6 +414,12 @@ $brieven = array(
 $html = scherm( 'dashboard', $map . 'dashboard-page.php' );
 moet( $html, 'Je lijsten', 'dashboard' );
 moet( $html, 'Laatste nieuwsbrieven', 'dashboard' );
+
+/* De triggerlabels komen uit WSFM_Flows en niet meer uit een lijstje in het
+   sjabloon. Staat er een trigger bij die het dashboard niet kent, dan valt hij
+   terug op zijn sleutel en leest een klant "order_paid" in de keuzelijst. */
+moet( $html, 'Bestelling betaald', 'dashboard' );
+moet( $html, 'Verlaten winkelwagen', 'dashboard' );
 
 $lijsten = array();
 $brieven = array();
