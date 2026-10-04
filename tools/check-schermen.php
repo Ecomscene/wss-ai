@@ -653,9 +653,16 @@ function maileigen() {
 		return $uit;
 	};
 
+	/* $aangeleverd heeft BEWUST een <style>-blok (nodig om hierboven te testen
+	   dat eigen stijlen bewaard blijven) en een <script>-tag. Sinds de
+	   mailproof-waarschuwingen (het <style>-blok wordt net als bij Gmail/Outlook
+	   genegeerd) zijn dat terecht twee waarschuwingen, niet meer een: eerst de
+	   style-blok-waarschuwing, dan de waarschuwing dat het scriptje eruit is
+	   gehaald. Allebei 'let-op', geen 'fout' - dit is nog steeds een mail die
+	   gewoon verstuurd mag worden. */
 	$schoon = WSFM_Eigen_Html::controle( $aangeleverd );
-	if ( array( 'let-op' ) !== $soorten( $schoon ) ) {
-		printf( "    FOUT een nette mail levert %d waarschuwing(en) op in plaats van alleen die over het script\n", count( $schoon ) );
+	if ( array( 'let-op', 'let-op' ) !== $soorten( $schoon ) ) {
+		printf( "    FOUT een mail met een style-blok en een scriptje levert %d waarschuwing(en) op in plaats van 2 (style-blok + script)\n", count( $schoon ) );
 		$fouten++;
 	}
 
@@ -667,9 +674,11 @@ function maileigen() {
 		$fouten++;
 	}
 
-	/* Een adres met domein hoort juist géén melding te geven, anders leert de
-	   klant de waarschuwingen weg te kijken. */
-	$goed = WSFM_Eigen_Html::controle( '<img src="https://voorbeeld.nl/foto.jpg"> {unsubscribe_url}' );
+	/* Een adres met domein EN een width-attribuut hoort geen melding te geven,
+	   anders leert de klant de waarschuwingen weg te kijken. Zonder width zou
+	   de width-check terecht afgaan; dat getest wordt hierboven niet, maar dit
+	   is de "helemaal in orde"-stand. */
+	$goed = WSFM_Eigen_Html::controle( '<img src="https://voorbeeld.nl/foto.jpg" width="600"> {unsubscribe_url}' );
 	if ( array() !== $goed ) {
 		printf( "    FOUT een mail zonder problemen levert toch %d waarschuwing(en) op\n", count( $goed ) );
 		$fouten++;
