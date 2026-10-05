@@ -31,11 +31,51 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 			<p><a href="<?php echo esc_url( $wsfm_nieuw ); ?>" class="button button-primary button-hero"><?php esc_html_e( 'Maak je eerste nieuwsbrief', 'ws-flow-mailer' ); ?></a></p>
 		</div>
 	<?php else : ?>
+		<?php
+		/* Staat er iets klaar dat niet door de winkelier zelf is neergezet, dan
+		   hoort dat boven de lijst te staan en niet alleen als klein merkje in
+		   een rij. Iemand die zijn eigen beheer opent moet in een oogopslag
+		   zien dat er een concept op hem wacht; anders blijft het staan tot de
+		   actie voorbij is. */
+		$wsfm_klaargezet = array();
+		foreach ( $brieven as $wsfm_check ) {
+			$wsfm_wie = isset( $wsfm_check->gemaakt_door ) ? trim( (string) $wsfm_check->gemaakt_door ) : '';
+			if ( '' !== $wsfm_wie && 'concept' === $wsfm_check->status ) {
+				$wsfm_klaargezet[] = $wsfm_check;
+			}
+		}
+		?>
+		<?php if ( ! empty( $wsfm_klaargezet ) ) : ?>
+			<div class="notice notice-info">
+				<p>
+					<strong><?php esc_html_e( 'Er staat een nieuwsbrief voor je klaar.', 'ws-flow-mailer' ); ?></strong>
+					<?php
+					foreach ( $wsfm_klaargezet as $wsfm_kg ) {
+						printf(
+							'<br /><a href="%1$s">%2$s</a> %3$s',
+							esc_url( admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . '&action=edit&nieuwsbrief=' . (int) $wsfm_kg->id ) ),
+							esc_html( $wsfm_kg->name ),
+							esc_html(
+								sprintf(
+									/* translators: %s: naam van degene die de nieuwsbrief klaarzette. */
+									__( 'is klaargezet door %s en nog niet verstuurd.', 'ws-flow-mailer' ),
+									$wsfm_kg->gemaakt_door
+								)
+							)
+						);
+					}
+					?>
+					<br /><?php esc_html_e( 'Lees hem na en verstuur hem zelf als je het ermee eens bent. Wij versturen nooit iets namens jou.', 'ws-flow-mailer' ); ?>
+				</p>
+			</div>
+		<?php endif; ?>
+
 		<table class="wp-list-table widefat fixed striped">
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Naam', 'ws-flow-mailer' ); ?></th>
 					<th><?php esc_html_e( 'Onderwerp', 'ws-flow-mailer' ); ?></th>
+					<th style="width:160px;"><?php esc_html_e( 'Gemaakt door', 'ws-flow-mailer' ); ?></th>
 					<th style="width:200px;"><?php esc_html_e( 'Naar wie', 'ws-flow-mailer' ); ?></th>
 					<th style="width:130px;"><?php esc_html_e( 'Status', 'ws-flow-mailer' ); ?></th>
 					<th style="width:110px;"><?php esc_html_e( 'Ontvangers', 'ws-flow-mailer' ); ?></th>
@@ -46,6 +86,9 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 				<?php
 				foreach ( $brieven as $wsfm_brief ) :
 					$wsfm_link = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . '&action=edit&nieuwsbrief=' . (int) $wsfm_brief->id );
+					/* Kolom kan ontbreken op een shop die de nieuwe tabel nog niet
+					   heeft gekregen; dan is het gewoon de winkelier zelf. */
+					$wsfm_door = isset( $wsfm_brief->gemaakt_door ) ? trim( (string) $wsfm_brief->gemaakt_door ) : '';
 					?>
 					<tr>
 						<td>
@@ -55,6 +98,13 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 							<?php endif; ?>
 						</td>
 						<td><?php echo esc_html( $wsfm_brief->subject ); ?></td>
+						<td>
+							<?php if ( '' !== $wsfm_door ) : ?>
+								<span class="wsfm-merkje"><?php echo esc_html( $wsfm_door ); ?></span>
+							<?php else : ?>
+								<span class="wsfm-mut"><?php esc_html_e( 'jijzelf', 'ws-flow-mailer' ); ?></span>
+							<?php endif; ?>
+						</td>
 						<td>
 							<?php
 							/* De doelgroep zoals hij nu heet. Een lijst kan hernoemd of weggegooid

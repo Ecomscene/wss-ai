@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '7';
+	const DB_VERSION = '8';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -139,7 +139,7 @@ class WSFM_Install {
 			KEY last_activity (last_activity)
 		) $charset_collate;";
 
-		// Identity stitching: visitor cookie → known e-mail address.
+		// Identity stitching: visitor cookie naar bekend e-mailadres.
 		$sql_identity = "CREATE TABLE {$prefix}wsfm_identity_map (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			visitor_id VARCHAR(64) NOT NULL DEFAULT '',
@@ -165,6 +165,13 @@ class WSFM_Install {
 		// Newsletters: one-off broadcasts. `blocks` holds a JSON array of
 		// { soort, ... } blocks; the layout comes from `template`.
 		// Status: concept | bezig | verzonden.
+		//
+		// `gemaakt_door` is wie de brief heeft neergezet. Leeg betekent: de
+		// winkelier zelf, in zijn eigen beheerscherm. Staat er een naam, dan
+		// heeft iemand van ons hem klaargezet op verzoek van de winkelier, en
+		// dan hoort dat in het overzicht te staan. Anders staat er een concept
+		// dat niemand herkent, en een nieuwsbrief die je niet herkent verstuur
+		// je niet.
 		$sql_newsletters = "CREATE TABLE {$prefix}wsfm_newsletters (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			name VARCHAR(190) NOT NULL DEFAULT '',
@@ -175,12 +182,14 @@ class WSFM_Install {
 			soort VARCHAR(20) NOT NULL DEFAULT 'blokken',
 			eigen_html LONGTEXT NULL,
 			status VARCHAR(20) NOT NULL DEFAULT 'concept',
+			gemaakt_door VARCHAR(60) NOT NULL DEFAULT '',
 			recipients INT UNSIGNED NOT NULL DEFAULT 0,
 			sent_at DATETIME NULL DEFAULT NULL,
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			updated_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),
-			KEY status (status)
+			KEY status (status),
+			KEY gemaakt_door (gemaakt_door)
 		) $charset_collate;";
 
 		// Inschrijvingen via de popup. Losse lijst van de klanten, want het is
@@ -240,7 +249,7 @@ class WSFM_Install {
 
 	/**
 	 * Drop columns from the v0.1.0 schema that were renamed in v2
-	 * (current_step → step_index, merge_tags_used removed).
+	 * (current_step naar step_index, merge_tags_used removed).
 	 * dbDelta only adds columns, it never removes them.
 	 */
 	private static function migrate_legacy_columns() {
@@ -274,13 +283,11 @@ class WSFM_Install {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'wsfm_templates';
-		/* Als tekencode geschreven en niet als het teken zelf. Anders staat het
-		   verboden leesteken in het enige bestand dat het weghaalt, en dan blijft
-		   een zoekactie er altijd op afketsen. */
-		/* Als tekencode geschreven en niet als het teken zelf. Anders staat het
-		   verboden leesteken in het enige bestand dat het weghaalt, en struikelt
-		   de controle in de release over zijn eigen oplossing. */
-		$dash  = json_decode( '"\u2014"' );
+		/* Uit losse bytes opgebouwd en niet als het teken zelf. Anders staat het
+		   verboden leesteken in het enige bestand dat het weghaalt, struikelt de
+		   controle in de release over zijn eigen oplossing, en ketst een
+		   zoekactie er altijd op af. Dit zijn de drie UTF-8 bytes van U+2014. */
+		$dash = chr( 0xE2 ) . chr( 0x80 ) . chr( 0x94 );
 
 		foreach ( array( 'name', 'subject', 'html_body' ) as $column ) {
 			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET {$column} = REPLACE({$column}, %s, %s) WHERE {$column} LIKE %s", $dash, '-', '%' . $wpdb->esc_like( $dash ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
