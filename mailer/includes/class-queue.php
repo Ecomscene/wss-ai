@@ -138,6 +138,59 @@ class WSFM_Queue {
 	}
 
 	/**
+	 * Een "weer op voorraad"-bericht in de wachtrij zetten.
+	 *
+	 * Meteen klaarzetten, geen wachttijd: de ontvanger heeft hier zelf om
+	 * gevraagd en bij een product dat net terug is telt elk half uur. De porties
+	 * van de verwerker doen het tempo.
+	 *
+	 * @param object $aanvraag Rij uit wsfm_stock_requests.
+	 * @return int Rijen aangemaakt (0 of 1).
+	 */
+	public static function enqueue_stock_request( $aanvraag ) {
+		global $wpdb;
+
+		if ( ! is_object( $aanvraag ) || empty( $aanvraag->id ) ) {
+			return 0;
+		}
+
+		$email = strtolower( trim( (string) $aanvraag->email ) );
+		if ( ! is_email( $email ) ) {
+			return 0;
+		}
+
+		$table = self::table();
+
+		/* Staat er al iets klaar voor deze aanvraag, dan niet nog een keer. Dat
+		   kan gebeuren als de voorraadtaak twee keer draait voor hetzelfde
+		   product, en twee keer dezelfde mail is erger dan geen mail. */
+		$al = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE stock_request_id = %d AND status IN ('pending','processing') LIMIT 1", (int) $aanvraag->id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $al ) {
+			return 0;
+		}
+
+		$now = current_time( 'mysql' );
+
+		$inserted = $wpdb->insert(
+			$table,
+			array(
+				'flow_id'          => 0,
+				'newsletter_id'    => 0,
+				'stock_request_id' => (int) $aanvraag->id,
+				'step_index'       => 0,
+				'customer_email'   => $email,
+				'customer_name'    => sanitize_text_field( (string) $aanvraag->naam ),
+				'status'           => 'pending',
+				'scheduled_at'     => $now,
+				'attempts'         => 0,
+				'created_at'       => $now,
+			)
+		);
+
+		return $inserted ? 1 : 0;
+	}
+
+	/**
 	 * Whether this flow already has queue rows for this order/customer.
 	 *
 	 * @param int    $flow_id  Flow id.
@@ -264,6 +317,8 @@ class WSFM_Queue {
 		$flows       = $wpdb->prefix . 'wsfm_flows';
 		$templates   = $wpdb->prefix . 'wsfm_templates';
 		$newsletters = $wpdb->prefix . 'wsfm_newsletters';
+		$voorraad    = $wpdb->prefix . 'wsfm_stock_requests';
+		$posts       = $wpdb->posts;
 
 		$where = '';
 		$args  = array();
@@ -274,14 +329,17 @@ class WSFM_Queue {
 		$args[] = $limit;
 
 		// COALESCE so a newsletter row shows its own name in the flow column
-		// instead of an empty cell that reads like a bug.
-		return $wpdb->get_results( $wpdb->prepare( "SELECT l.*, COALESCE(f.name, n.name) AS flow_name,
-				COALESCE(f.trigger_type, IF(n.id IS NULL, NULL, 'nieuwsbrief')) AS trigger_type,
-				COALESCE(t.name, n.name) AS template_name
+		// instead of an empty cell that reads like a bug. Hetzelfde geldt voor
+		// een voorraadbericht: dat toont de naam van het product.
+		return $wpdb->get_results( $wpdb->prepare( "SELECT l.*, COALESCE(f.name, n.name, p.post_title) AS flow_name,
+				COALESCE(f.trigger_type, IF(n.id IS NULL, NULL, 'nieuwsbrief'), IF(v.id IS NULL, NULL, 'voorraad')) AS trigger_type,
+				COALESCE(t.name, n.name, p.post_title) AS template_name
 			FROM {$log} l
 			LEFT JOIN {$queue} q ON q.id = l.queue_id
 			LEFT JOIN {$flows} f ON f.id = q.flow_id
 			LEFT JOIN {$newsletters} n ON n.id = q.newsletter_id
+			LEFT JOIN {$voorraad} v ON v.id = q.stock_request_id
+			LEFT JOIN {$posts} p ON p.ID = v.product_id
 			LEFT JOIN {$templates} t ON t.id = l.template_id
 			{$where}
 			ORDER BY l.id DESC LIMIT %d", $args ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared

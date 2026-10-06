@@ -272,6 +272,13 @@ class WSFM_Newsletter_Render {
 		$s       = self::stijl( isset( $brief->template ) ? $brief->template : 'rustig', $eigen );
 		$blokken = isset( $brief->blocks ) && is_array( $brief->blocks ) ? $brief->blocks : array();
 
+		/* De reden waarom de ontvanger deze mail krijgt. Een nieuwsbrief zet dit
+		   niet en houdt de vaste regel; een "weer op voorraad"-bericht zet hier
+		   zijn eigen reden, want die ontvanger heeft misschien nooit iets
+		   gekocht en heeft om dit ene bericht gevraagd. Een reden die niet waar
+		   is laat een terechte mail als ongevraagde post lezen. */
+		$voet_regel = isset( $brief->voet_regel ) ? (string) $brief->voet_regel : '';
+
 		$binnen = '';
 		foreach ( $blokken as $blok ) {
 			$binnen .= self::blok( $blok, $s );
@@ -293,7 +300,7 @@ class WSFM_Newsletter_Render {
 			. '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background:' . $s['kaart'] . ';border-radius:' . $s['rond'] . ';overflow:hidden;font-family:' . $s['font'] . ';color:' . $s['tekst'] . ';">'
 			. self::kop( $s )
 			. $binnen
-			. self::voet( $s )
+			. self::voet( $s, $voet_regel )
 			. '</table></td></tr></table></body></html>';
 	}
 
@@ -334,13 +341,19 @@ class WSFM_Newsletter_Render {
 	 * Die link is geen nette bijkomstigheid maar wettelijk verplicht, en hij
 	 * staat daarom in de opbouw en niet in een blok dat je kunt weglaten.
 	 *
-	 * @param array $s Stijlwaarden.
+	 * @param array  $s     Stijlwaarden.
+	 * @param string $reden Waarom de ontvanger deze mail krijgt; leeg is de
+	 *                      vaste regel van de nieuwsbrief.
 	 * @return string
 	 */
-	private static function voet( array $s ) {
+	private static function voet( array $s, $reden = '' ) {
+		if ( '' === trim( (string) $reden ) ) {
+			$reden = __( 'Je krijgt deze e-mail omdat je bij ons besteld hebt.', 'ws-flow-mailer' );
+		}
+
 		return '<tr><td style="padding:8px ' . $s['zijmarge'] . 'px 32px ' . $s['zijmarge'] . 'px;">'
 			. '<div style="border-top:1px solid ' . $s['lijn'] . ';padding-top:16px;font-size:12px;line-height:1.6;color:' . $s['zacht'] . ';">'
-			. esc_html__( 'Je krijgt deze e-mail omdat je bij ons besteld hebt.', 'ws-flow-mailer' ) . ' '
+			. esc_html( $reden ) . ' '
 			. '<a href="{unsubscribe_url}" style="color:' . $s['zacht'] . ';">' . esc_html__( 'Afmelden', 'ws-flow-mailer' ) . '</a><br>'
 			. '<a href="{shop_url}" style="color:' . $s['zacht'] . ';">{shop_name}</a>'
 			. '</div></td></tr>';

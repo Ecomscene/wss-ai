@@ -19,7 +19,7 @@ class WSFM_Install {
 	/**
 	 * Bump this when the schema below changes.
 	 */
-	const DB_VERSION = '8';
+	const DB_VERSION = '9';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -72,10 +72,16 @@ class WSFM_Install {
 
 		// Active flow instances: one row per flow step per customer.
 		// Status: pending | processing | sent | stopped | failed.
+		//
+		// `stock_request_id` hoort bij een "weer op voorraad"-bericht. Zo'n mail
+		// gaat door dezelfde wachtrij als de rest: dan krijgt hij de porties, de
+		// afmeldlijst, het opnieuw proberen en het logboek die er al zijn, in
+		// plaats van een tweede verzendweg die apart stuk kan gaan.
 		$sql_queue = "CREATE TABLE {$prefix}wsfm_queue (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			flow_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 			newsletter_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			stock_request_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 			step_index INT UNSIGNED NOT NULL DEFAULT 0,
 			order_id BIGINT UNSIGNED NULL DEFAULT NULL,
 			cart_hash VARCHAR(64) NULL DEFAULT NULL,
@@ -88,6 +94,7 @@ class WSFM_Install {
 			PRIMARY KEY  (id),
 			KEY flow_id (flow_id),
 			KEY newsletter_id (newsletter_id),
+			KEY stock_request_id (stock_request_id),
 			KEY customer_email (customer_email),
 			KEY status_scheduled (status, scheduled_at)
 		) $charset_collate;";
@@ -234,6 +241,36 @@ class WSFM_Install {
 			KEY subscriber_id (subscriber_id)
 			) $charset_collate;";
 
+		/* Wie een bericht wil als een uitverkocht product weer op voorraad is.
+		   Status: wacht | in_wachtrij | verstuurd | gestopt.
+
+		   WAAROM ER EEN SLEUTELKOLOM IN ZIT EN DE UNIEKE INDEX NIET OP HET
+		   E-MAILADRES STAAT
+		   Twee keer op de knop drukken hoort geen twee mails op te leveren, dus
+		   is er een unieke index nodig op product, variatie en adres samen. Dat
+		   drietal is met utf8mb4 ruim 770 bytes, en de oudere InnoDB-rijvorm
+		   staat maximaal 767 bytes per index toe; op zo'n database zou de hele
+		   tabel niet aangemaakt worden. Een md5 van dezelfde drie waarden is 32
+		   tekens, past overal, en dbDelta hoeft er geen indexlengte bij te
+		   onthouden (daar gaat hij elke upgrade opnieuw aan sleutelen). */
+		$sql_stock = "CREATE TABLE {$prefix}wsfm_stock_requests (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			sleutel CHAR(32) NOT NULL DEFAULT '',
+			product_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			variation_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			email VARCHAR(190) NOT NULL DEFAULT '',
+			naam VARCHAR(190) NOT NULL DEFAULT '',
+			status VARCHAR(20) NOT NULL DEFAULT 'wacht',
+			bron VARCHAR(40) NOT NULL DEFAULT 'product',
+			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+			notified_at DATETIME NULL DEFAULT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY sleutel (sleutel),
+			KEY product_status (product_id, status),
+			KEY status (status),
+			KEY email (email)
+		) $charset_collate;";
+
 		dbDelta( $sql_flows );
 		dbDelta( $sql_queue );
 		dbDelta( $sql_log );
@@ -245,6 +282,7 @@ class WSFM_Install {
 		dbDelta( $sql_subscribers );
 		dbDelta( $sql_lijsten );
 		dbDelta( $sql_lijst_leden );
+		dbDelta( $sql_stock );
 	}
 
 	/**

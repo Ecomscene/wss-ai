@@ -87,6 +87,8 @@ class WSFM_Postlog {
 		$flows       = $wpdb->prefix . 'wsfm_flows';
 		$templates   = $wpdb->prefix . 'wsfm_templates';
 		$newsletters = $wpdb->prefix . 'wsfm_newsletters';
+		$voorraad    = $wpdb->prefix . 'wsfm_stock_requests';
+		$posts       = $wpdb->posts;
 
 		$waar = array();
 		$args = array();
@@ -116,14 +118,18 @@ class WSFM_Postlog {
 		$haal[] = ( $pagina - 1 ) * self::PER_PAGINA;
 
 		/* COALESCE zodat een nieuwsbriefregel zijn eigen naam toont in plaats
-		   van een leeg vakje dat op een fout lijkt. */
-		$rijen = $wpdb->get_results( $wpdb->prepare( "SELECT l.*, COALESCE(f.name, n.name) AS bron_naam,
-				COALESCE(f.trigger_type, IF(n.id IS NULL, NULL, 'nieuwsbrief')) AS bron_soort,
-				COALESCE(t.name, n.name) AS sjabloon_naam
+		   van een leeg vakje dat op een fout lijkt. Een voorraadbericht hangt
+		   niet aan een flow of een brief maar aan een product, en toont dus de
+		   naam van dat product. */
+		$rijen = $wpdb->get_results( $wpdb->prepare( "SELECT l.*, COALESCE(f.name, n.name, p.post_title) AS bron_naam,
+				COALESCE(f.trigger_type, IF(n.id IS NULL, NULL, 'nieuwsbrief'), IF(v.id IS NULL, NULL, 'voorraad')) AS bron_soort,
+				COALESCE(t.name, n.name, p.post_title) AS sjabloon_naam
 			FROM {$log} l
 			LEFT JOIN {$queue} q ON q.id = l.queue_id
 			LEFT JOIN {$flows} f ON f.id = q.flow_id
 			LEFT JOIN {$newsletters} n ON n.id = q.newsletter_id
+			LEFT JOIN {$voorraad} v ON v.id = q.stock_request_id
+			LEFT JOIN {$posts} p ON p.ID = v.product_id
 			LEFT JOIN {$templates} t ON t.id = l.template_id
 			{$waar_sql}
 			ORDER BY l.id DESC LIMIT %d OFFSET %d", $haal ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared

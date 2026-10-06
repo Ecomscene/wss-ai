@@ -82,6 +82,12 @@ class WSFM_Queue_Processor {
 			return self::process_newsletter_item( $item );
 		}
 
+		/* En hetzelfde voor een "weer op voorraad"-bericht: dat hangt aan een
+		   product en een wachtlijst, niet aan een flow. */
+		if ( isset( $item->stock_request_id ) && (int) $item->stock_request_id > 0 ) {
+			return self::process_stock_item( $item );
+		}
+
 		// Flow or step no longer exists, or the flow is paused -> stop.
 		$flow = WSFM_Flows::get( $item->flow_id );
 		$step = ( $flow && isset( $flow->steps[ $item->step_index ] ) ) ? $flow->steps[ $item->step_index ] : null;
@@ -219,6 +225,93 @@ class WSFM_Queue_Processor {
 
 		if ( $result->success ) {
 			WSFM_Queue::log( $item, 0, 'sent', $rendered['subject'], $result->message_id );
+			return self::finish( $item, 'sent' );
+		}
+
+		return self::handle_failure( $item, 0, $result->error, $rendered['subject'] );
+	}
+
+	/**
+	 * Eén "weer op voorraad"-bericht.
+	 *
+	 * WAAROM DE VOORRAAD HIER NOG EEN KEER WORDT NAGEKEKEN
+	 * Tussen het klaarzetten en het versturen zit een portie van vijf minuten, en
+	 * bij een product dat net terug is kan dat genoeg zijn: wie het eerst was
+	 * heeft hem al gekocht. Een mail die zegt "hij is er weer" over iets wat
+	 * alweer weg is, is erger dan geen mail, want de ontvanger komt er speciaal
+	 * voor terug. Is hij weg, dan gaat de aanvraag TERUG op wachten en krijgt
+	 * diegene bericht als er echt weer voorraad is.
+	 *
+	 * @param object $item Wachtrij-rij.
+	 * @return string
+	 */
+	private static function process_stock_item( $item ) {
+		$aanvraag = WSFM_Voorraadmail::get( (int) $item->stock_request_id );
+
+		if ( ! $aanvraag ) {
+			return self::finish( $item, 'stopped', 0, __( 'Deze aanmelding voor een voorraadbericht bestaat niet meer.', 'ws-flow-mailer' ) );
+		}
+
+		if ( 'gestopt' === $aanvraag->status ) {
+			return self::finish( $item, 'stopped', 0, __( 'Niet verstuurd: deze bezoeker heeft zich van de wachtlijst gehaald.', 'ws-flow-mailer' ) );
+		}
+
+		if ( WSFM_Suppression::is_suppressed( $item->customer_email ) ) {
+			$reason = WSFM_Suppression::get_reason( $item->customer_email );
+			WSFM_Queue::log( $item, 0, 'failed', '', '', sprintf( __( 'Niet verzonden: adres staat op de suppressielijst (%s).', 'ws-flow-mailer' ), $reason ? $reason : 'onbekend' ) );
+			return self::finish( $item, 'stopped' );
+		}
+
+		$welk   = (int) $aanvraag->variation_id ? (int) $aanvraag->variation_id : (int) $aanvraag->product_id;
+		$object = function_exists( 'wc_get_product' ) ? wc_get_product( $welk ) : null;
+
+		if ( ! $object ) {
+			return self::finish( $item, 'stopped', 0, __( 'Niet verstuurd: dit product bestaat niet meer.', 'ws-flow-mailer' ) );
+		}
+
+		if ( ! $object->is_in_stock() ) {
+			WSFM_Voorraadmail::terug_in_de_wacht( (int) $aanvraag->id );
+			return self::finish( $item, 'stopped', 0, __( 'Niet verstuurd: het product was alweer uitverkocht. Deze bezoeker staat weer op de wachtlijst en krijgt bericht zodra er echt voorraad is.', 'ws-flow-mailer' ) );
+		}
+
+		$voornaam = $item->customer_name ? preg_split( '/\s+/', trim( $item->customer_name ) )[0] : '';
+		$context  = array(
+			'first_name' => $voornaam,
+			/* De afmeldlink van deze mail haalt iemand van de WACHTLIJST en zet
+			   hem niet op de afmeldlijst van alle post. Zie WSFM_Voorraadmail. */
+			'unsubscribe_url' => WSFM_Voorraadmail::stoplink( $aanvraag ),
+		);
+
+		$rendered = WSFM_Voorraadmail::mail_html( $aanvraag, $context );
+		if ( is_wp_error( $rendered ) ) {
+			WSFM_Queue::log( $item, 0, 'failed', '', '', $rendered->get_error_message() );
+			return self::finish( $item, 'stopped' );
+		}
+
+		/** Zelfde filter als bij een flow; zie de uitleg daar. */
+		$mag = apply_filters(
+			'wsfm_mag_versturen',
+			true,
+			array(
+				'soort'  => 'voorraad',
+				'aantal' => 1,
+				'ref'    => 'wachtrij-' . (int) $item->id,
+			)
+		);
+		if ( is_wp_error( $mag ) ) {
+			return self::finish( $item, 'stopped', 0, $mag->get_error_message() );
+		}
+
+		$provider = WSFM_Provider_Factory::create();
+		if ( is_wp_error( $provider ) ) {
+			return self::handle_failure( $item, 0, $provider->get_error_message() );
+		}
+
+		$result = $provider->send( $item->customer_email, $rendered['subject'], $rendered['html_body'], $context );
+
+		if ( $result->success ) {
+			WSFM_Queue::log( $item, 0, 'sent', $rendered['subject'], $result->message_id );
+			WSFM_Voorraadmail::afgehandeld( (int) $aanvraag->id );
 			return self::finish( $item, 'sent' );
 		}
 

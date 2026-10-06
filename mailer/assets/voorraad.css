@@ -1,0 +1,105 @@
+/**
+ * Het "laat het me weten"-vakje op een uitverkocht product.
+ *
+ * WAAROM HIER BIJNA GEEN KLEUR IN STAAT
+ * Dit vakje staat midden in het thema van de klant, direct onder de bestelknop.
+ * Elke kleur die wij hier kiezen is een kleur die bij de ene shop mooi is en bij
+ * de andere vloekt, en de winkelier kan er niets aan doen. Dus: de lettertypes en
+ * de tekstkleur erven van de pagina, de omlijsting is een lichte lijn die overal
+ * werkt, en de knop is neutraal donker.
+ */
+
+.wsfm-voorraad {
+	margin: 20px 0;
+	padding: 16px 18px;
+	border: 1px solid rgba( 0, 0, 0, 0.12 );
+	border-radius: 4px;
+	font-size: 15px;
+	line-height: 1.5;
+}
+
+.wsfm-voorraad[hidden] {
+	display: none;
+}
+
+.wsfm-voorraad-kop {
+	margin: 0 0 4px;
+	font-weight: 600;
+}
+
+.wsfm-voorraad-tekst {
+	margin: 0 0 12px;
+	opacity: 0.85;
+}
+
+.wsfm-voorraad-regel {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.wsfm-voorraad-email {
+	flex: 1 1 200px;
+	min-width: 0;
+	padding: 10px 12px;
+	border: 1px solid rgba( 0, 0, 0, 0.2 );
+	border-radius: 3px;
+	font: inherit;
+	background: #fff;
+	color: #1f1f1f;
+}
+
+/* Neutraal donker, en met opzet GEEN currentColor: dat zou de tekstkleur van de
+   knop zelf pakken en dan staat er wit op wit. Een thema dat zijn eigen
+   knopopmaak op button-elementen zet wint hier gewoon van, want die staat
+   specifieker. */
+.wsfm-voorraad-knop {
+	flex: 0 0 auto;
+	padding: 10px 18px;
+	border: 0;
+	border-radius: 3px;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+	background: #1f1f1f;
+	color: #fff;
+}
+
+.wsfm-voorraad-knop:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.wsfm-voorraad-vinkje {
+	display: block;
+	margin: 10px 0 0;
+	font-size: 14px;
+	line-height: 1.4;
+}
+
+.wsfm-voorraad-vinkje input {
+	margin-right: 6px;
+}
+
+.wsfm-voorraad-melding {
+	margin: 10px 0 0;
+	font-size: 14px;
+}
+
+.wsfm-voorraad-melding:empty {
+	display: none;
+}
+
+.wsfm-voorraad-melding.is-gelukt {
+	font-weight: 600;
+}
+
+.wsfm-voorraad-melding.is-fout {
+	color: #b32d2e;
+}
+
+.wsfm-voorraad-klein {
+	margin: 10px 0 0;
+	font-size: 12px;
+	opacity: 0.7;
+}
