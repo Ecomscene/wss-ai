@@ -5,7 +5,7 @@ defined( 'ABSPATH' ) || exit;
  * Central Stock Overview admin page.
  *
  * Provides a single-page view of all products and variations with inline
- * editing for stock, purchase price, sale price, and supplier.
+ * editing for stock, purchase price, sale price, supplier and delivery time.
  * Supports filtering by supplier, stock status, and product type.
  * Data loaded via AJAX for speed.
  */
@@ -70,10 +70,11 @@ class WCCSM_Admin_Overview {
         );
 
         wp_localize_script( 'wccsm-admin', 'wccsm', [
-            'ajax_url' => admin_url( 'admin-ajax.php' ),
-            'nonce'    => wp_create_nonce( 'wccsm_overview' ),
-            'currency' => get_woocommerce_currency_symbol(),
-            'i18n'     => [
+            'ajax_url'  => admin_url( 'admin-ajax.php' ),
+            'nonce'     => wp_create_nonce( 'wccsm_overview' ),
+            'currency'  => get_woocommerce_currency_symbol(),
+            'levertijd' => self::levertijd_voor_script(),
+            'i18n'      => [
                 'saving'       => __( 'Opslaan...', 'wccsm' ),
                 'saved'        => __( 'Opgeslagen', 'wccsm' ),
                 'error'        => __( 'Fout bij opslaan', 'wccsm' ),
@@ -82,6 +83,41 @@ class WCCSM_Admin_Overview {
                 'confirm_bulk' => __( 'Prijswijziging toepassen op alle variaties?', 'wccsm' ),
             ],
         ] );
+    }
+
+    /**
+     * De levertijdkeuzes zoals het script ze nodig heeft.
+     *
+     * De lijst komt uit WCCSM_Admin_Product::levertijd_choices(), dus de
+     * keuzelijst in deze tabel en die op de productpagina kunnen niet
+     * uiteenlopen. Dat is het hele punt: twee lijsten die onafhankelijk
+     * onderhouden worden gaan verschillen, en dan schrijft het ene scherm een
+     * waarde weg die het andere niet aanbiedt.
+     *
+     * Een lijst met paren in plaats van een object: dan blijft de volgorde
+     * staan zoals hij hier is bedoeld, ook bij waarden die op een getal lijken.
+     *
+     * @return array
+     */
+    public static function levertijd_voor_script(): array {
+        $keuzes = [];
+
+        if ( class_exists( 'WCCSM_Admin_Product' ) ) {
+            foreach ( WCCSM_Admin_Product::levertijd_choices() as $waarde => $label ) {
+                $keuzes[] = [
+                    'waarde' => (string) $waarde,
+                    'label'  => (string) $label,
+                ];
+            }
+        }
+
+        return [
+            'keuzes' => $keuzes,
+            'leeg'   => __( 'Niet ingesteld', 'wccsm' ),
+            /* translators: %s: de levertijd zoals hij op het product staat. */
+            'eigen'  => __( '%s (eigen waarde)', 'wccsm' ),
+            'erfelijk' => __( 'De levertijd staat op het hoofdproduct; kies hem op de bovenste regel.', 'wccsm' ),
+        ];
     }
 
     /**
@@ -427,6 +463,24 @@ class WCCSM_Admin_Overview {
 
         $purchase_price = $product->get_meta( '_wccsm_purchase_price' );
 
+        /* De levertijd komt uit dezelfde meta-key als de keuzelijst op de
+           productpagina (standaard `levertijd`, zonder onderstreepje), dus de
+           waarden die een shop al via ACF of een import heeft staan er gewoon.
+           get_post_meta en niet get_meta(): bij een sleutel zonder
+           onderstreepje is dat de kortste weg en kan een datastore-laag er
+           niets tussen krijgen.
+
+           Bij een variatie terugvallen op het hoofdproduct, net als bij de
+           leverancier en de EAN hierboven. */
+        $levertijd_key = class_exists( 'WCCSM_Admin_Product' )
+            ? WCCSM_Admin_Product::levertijd_meta_key()
+            : 'levertijd';
+
+        $levertijd = (string) get_post_meta( $id, $levertijd_key, true );
+        if ( '' === $levertijd && $parent ) {
+            $levertijd = (string) get_post_meta( $parent->get_id(), $levertijd_key, true );
+        }
+
         $name = $product->get_name();
         if ( 'variation' === $type && $parent ) {
             $attrs = $product->get_attributes();
@@ -472,6 +526,7 @@ class WCCSM_Admin_Overview {
             'manage_stock'    => $product->managing_stock() || $has_components,
             'stock_status'    => $product->get_stock_status(),
             'supplier'        => $supplier ?: '',
+            'levertijd'       => $levertijd,
             'has_components'  => $has_components,
             'computed_stock'  => $computed_stock,
             'components'      => $comp_details,
@@ -560,6 +615,47 @@ class WCCSM_Admin_Overview {
 
             case 'supplier':
                 update_post_meta( $product_id, '_wccsm_supplier', wc_clean( $value ) );
+                break;
+
+            case 'levertijd':
+                /* De levertijd is een eigenschap van het PRODUCT. Op een variatie
+                   staat in de tabel daarom alleen de waarde van het hoofdproduct en
+                   geen keuzelijst; komt er toch een verzoek voor een variatie
+                   binnen, dan wordt het geweigerd in plaats van op de variatie
+                   weggeschreven. Een levertijd per variatie zou een nieuw veld
+                   zijn, en dat is niet gevraagd. */
+                if ( $product->is_type( 'variation' ) ) {
+                    wp_send_json_error( 'Levertijd staat op het hoofdproduct' );
+                }
+
+                $meta_key = class_exists( 'WCCSM_Admin_Product' )
+                    ? WCCSM_Admin_Product::levertijd_meta_key()
+                    : 'levertijd';
+                $keuzes   = class_exists( 'WCCSM_Admin_Product' )
+                    ? WCCSM_Admin_Product::levertijd_choices()
+                    : [];
+
+                $huidig = (string) get_post_meta( $product_id, $meta_key, true );
+                $nieuw  = wc_clean( $value );
+
+                /* Dezelfde controle als op de productpagina: leeg, één van de
+                   keuzes, of precies de waarde die er al stond (de afwijkende
+                   schrijfwijze die de lijst als "eigen waarde" terug aanbiedt).
+                   Al het andere wordt geweigerd in plaats van weggeschreven, zodat
+                   een gesleutelde keuzelijst geen onzin in de meta kan zetten. */
+                if ( '' !== $nieuw && ! isset( $keuzes[ $nieuw ] ) && $nieuw !== $huidig ) {
+                    wp_send_json_error( 'Onbekende levertijd' );
+                }
+
+                if ( $nieuw !== $huidig ) {
+                    update_post_meta( $product_id, $meta_key, $nieuw );
+
+                    /** Zie WCCSM_Admin_Product::save_delivery_time(): alles wat op
+                     * een wijziging meeluistert (zoals een shopfilter) hoort hetzelfde
+                     * gedrag te krijgen, of de wijziging nu van de productpagina of
+                     * van dit overzicht komt. */
+                    do_action( 'wccsm_levertijd_saved', $product_id, $nieuw, $huidig );
+                }
                 break;
 
             default:

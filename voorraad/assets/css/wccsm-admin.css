@@ -73,6 +73,9 @@
 .wccsm-col-sale,
 .wccsm-col-stock    { min-width: 80px; width: 90px; }
 .wccsm-col-components { min-width: 140px; }
+/* Een vaste breedte, zodat de kolom niet gaat schuiven zodra er op één regel
+   "10 - 14 werkdagen" staat en op de volgende "Niet ingesteld". */
+.wccsm-col-levertijd { min-width: 150px; width: 160px; }
 .wccsm-col-actions  { min-width: 80px; width: 90px; }
 
 /* Variation row indent */
@@ -126,6 +129,45 @@
 
 .wccsm-inline-input.wccsm-input-wide {
     max-width: 130px;
+}
+
+/* ---------- Keuzelijst in de tabel (levertijd) ---------- */
+.wccsm-inline-select {
+    width: 100%;
+    max-width: 150px;
+    padding: 2px 4px;
+    border: 1px solid #dcdcde;
+    border-radius: 3px;
+    font-size: 13px;
+    background: #fff;
+    min-height: 28px;
+    line-height: 1.4;
+    transition: border-color 0.15s;
+}
+
+.wccsm-inline-select:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.wccsm-inline-select.wccsm-saved {
+    border-color: #00a32a;
+    background: #f0faf0;
+}
+
+.wccsm-inline-select.wccsm-error {
+    border-color: #d63638;
+    background: #fef0f0;
+}
+
+/* De waarde van het hoofdproduct, op de regel van een variatie. Grijs en
+   cursief, zodat je ziet dat hij hier niet te kiezen is. */
+.wccsm-levertijd-geerfd {
+    color: #8c8f94;
+    font-style: italic;
+    font-weight: 400;
+    cursor: default;
 }
 
 /* Stock field where management is not yet enabled */

@@ -3,7 +3,7 @@
  *
  * Handles the central stock overview page:
  * - AJAX table loading with filters and pagination
- * - Inline field editing (stock, prices, supplier, SKU, GTIN)
+ * - Inline field editing (stock, prices, supplier, SKU, GTIN, delivery time)
  * - Composed product stock display (computed, read-only, component highlighting)
  * - Bulk price update modal (regular, sale, purchase price)
  */
@@ -11,6 +11,12 @@
     'use strict';
 
     if (typeof wccsm === 'undefined') return;
+
+    /* Aantal kolommen in de tabel. Staat hier als één getal omdat de melding
+       "Laden...", "Geen producten gevonden" en de foutregel er allemaal over
+       moeten lopen; drie losse getallen in de code is hoe er na een nieuwe
+       kolom één meldingsregel scheef onder de tabel komt te hangen. */
+    var KOLOMMEN = 11;
 
     var state = {
         page: 1,
@@ -108,6 +114,13 @@
             }
         });
 
+        // Keuzelijst in de tabel: opslaan zodra je kiest, en niet pas bij blur.
+        // Bij een keuzelijst IS kiezen de handeling; wachten tot je ergens anders
+        // klikt voelt alsof het niet is aangekomen.
+        $(document).on('change', '.wccsm-inline-select', function () {
+            saveField($(this));
+        });
+
         // Pagination.
         $(document).on('click', '.wccsm-page-btn', function () {
             state.page = parseInt($(this).data('page'), 10);
@@ -168,6 +181,11 @@
             '&product_type=' + encodeURIComponent(state.product_type));
     }
 
+    /** Een melding die over de hele breedte van de tabel loopt. */
+    function meldingRij(tekst) {
+        return '<tr><td colspan="' + KOLOMMEN + '" class="wccsm-loading">' + escHtml(tekst) + '</td></tr>';
+    }
+
     function loadProducts() {
         // Elke keer dat de lijst opnieuw geladen wordt, zijn de filters de
         // actuele. Dan hoort de exportlink daar ook bij te staan; dit is de enige
@@ -175,7 +193,7 @@
         ververExportLink();
 
         var $body = $('#wccsm-table-body');
-        $body.html('<tr><td colspan="10" class="wccsm-loading">' + wccsm.i18n.loading + '</td></tr>');
+        $body.html(meldingRij(wccsm.i18n.loading));
 
         $.post(wccsm.ajax_url, {
             action: 'wccsm_load_products',
@@ -188,7 +206,7 @@
             per_page: state.per_page
         }, function (response) {
             if (!response.success || !response.data.rows.length) {
-                $body.html('<tr><td colspan="10" class="wccsm-loading">' + wccsm.i18n.no_results + '</td></tr>');
+                $body.html(meldingRij(wccsm.i18n.no_results));
                 $('#wccsm-pagination').html('');
                 return;
             }
@@ -196,7 +214,7 @@
             renderTable(response.data.rows);
             renderPagination(response.data);
         }).fail(function () {
-            $body.html('<tr><td colspan="10" class="wccsm-loading">' + wccsm.i18n.error + '</td></tr>');
+            $body.html(meldingRij(wccsm.i18n.error));
         });
     }
 
@@ -319,6 +337,9 @@
             }
             html += '</td>';
 
+            // Levertijd
+            html += '<td class="wccsm-cell-levertijd">' + levertijdVeld(r) + '</td>';
+
             // Actions
             html += '<td>';
             if (r.is_parent) {
@@ -331,6 +352,62 @@
         }
 
         $('#wccsm-table-body').html(html);
+    }
+
+    /**
+     * De levertijd-cel: een keuzelijst op het product, en op een variatie de
+     * waarde van het hoofdproduct in het grijs.
+     *
+     * De levertijd hoort bij het product, dus hij wordt op de bovenste regel
+     * gekozen. Op elke variatieregel ook een keuzelijst zetten zou suggereren
+     * dat je er per maat een andere levertijd in kunt zetten, en dat kan niet:
+     * dat zou een nieuw veld zijn.
+     *
+     * Staat er een waarde op het product die niet in de lijst voorkomt (een
+     * afwijkende schrijfwijze, iets uit een import), dan komt die er als eigen
+     * optie bij en staat hij gekozen. Zo kan één klik in deze tabel nooit
+     * stilzwijgend een bestaande waarde weggooien.
+     */
+    function levertijdVeld(row) {
+        var teksten = wccsm.levertijd || {};
+        var keuzes = teksten.keuzes || [];
+        var leeg = teksten.leeg || '-';
+        var huidig = row.levertijd || '';
+
+        if (row.is_variation) {
+            return '<span class="wccsm-levertijd-geerfd" title="' + escAttr(teksten.erfelijk || '') + '">'
+                + escHtml(huidig || leeg) + '</span>';
+        }
+
+        var bekend = false;
+        for (var i = 0; i < keuzes.length; i++) {
+            if (keuzes[i].waarde === huidig) {
+                bekend = true;
+                break;
+            }
+        }
+
+        var html = '<select class="wccsm-inline-select"'
+            + ' data-product-id="' + row.id + '"'
+            + ' data-field="levertijd"'
+            + ' data-original="' + escAttr(huidig) + '">';
+
+        html += '<option value=""' + (huidig === '' ? ' selected' : '') + '>' + escHtml(leeg) + '</option>';
+
+        for (var k = 0; k < keuzes.length; k++) {
+            var geselecteerd = (keuzes[k].waarde === huidig) ? ' selected' : '';
+            html += '<option value="' + escAttr(keuzes[k].waarde) + '"' + geselecteerd + '>'
+                + escHtml(keuzes[k].label) + '</option>';
+        }
+
+        if (huidig !== '' && !bekend) {
+            var eigenLabel = (teksten.eigen || '%s').replace('%s', huidig);
+            html += '<option value="' + escAttr(huidig) + '" selected>' + escHtml(eigenLabel) + '</option>';
+        }
+
+        html += '</select>';
+
+        return html;
     }
 
     /**

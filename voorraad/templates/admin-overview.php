@@ -73,11 +73,17 @@ defined( 'ABSPATH' ) || exit;
                     <th class="wccsm-col-sale"><?php esc_html_e( 'Actie', 'wccsm' ); ?></th>
                     <th class="wccsm-col-stock"><?php esc_html_e( 'Voorraad', 'wccsm' ); ?></th>
                     <th class="wccsm-col-components"><?php esc_html_e( 'Componenten', 'wccsm' ); ?></th>
+                    <?php
+                    /* Levertijd staat achter Componenten en vóór Acties: het is een
+                       gegeven van het product, en Acties hoort functioneel het
+                       laatste te staan. */
+                    ?>
+                    <th class="wccsm-col-levertijd"><?php esc_html_e( 'Levertijd', 'wccsm' ); ?></th>
                     <th class="wccsm-col-actions"><?php esc_html_e( 'Acties', 'wccsm' ); ?></th>
                 </tr>
             </thead>
             <tbody id="wccsm-table-body">
-                <tr><td colspan="10" class="wccsm-loading"><?php esc_html_e( 'Laden...', 'wccsm' ); ?></td></tr>
+                <tr><td colspan="11" class="wccsm-loading"><?php esc_html_e( 'Laden...', 'wccsm' ); ?></td></tr>
             </tbody>
         </table>
     </div>
