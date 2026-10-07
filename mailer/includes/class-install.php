@@ -18,8 +18,16 @@ class WSFM_Install {
 
 	/**
 	 * Bump this when the schema below changes.
+	 *
+	 * Ook te gebruiken om de installer opnieuw te laten lopen zonder
+	 * schemawijziging, bijvoorbeeld voor een nieuwe standaardtemplate: alles
+	 * hieronder is gemaakt om twee keer te kunnen draaien zonder iets te
+	 * veranderen dat er al staat.
 	 */
-	const DB_VERSION = '9';
+	const DB_VERSION = '10';
+
+	/** Onthoudt dat de welkomsttemplate één keer is klaargezet. */
+	const OPTIE_WELKOM = 'wsfm_welkomsttemplate';
 
 	/**
 	 * Activation hook: create tables, seed defaults, store versions.
@@ -28,6 +36,7 @@ class WSFM_Install {
 		self::create_tables();
 		self::migrate_legacy_columns();
 		self::seed_default_templates();
+		self::seed_welkomsttemplate();
 		self::seed_hoofdlijst();
 		self::strip_em_dashes();
 		update_option( 'wsfm_db_version', self::DB_VERSION );
@@ -380,6 +389,21 @@ class WSFM_Install {
 	}
 
 	/**
+	 * De opmaak om een standaardtemplate in te zetten.
+	 *
+	 * @return array { open, sluit, voet }
+	 */
+	private static function omhulsel() {
+		return array(
+			'open'  => '<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#333333;line-height:1.6;">',
+			'sluit' => '</div>',
+			'voet'  => '<p style="font-size:12px;color:#888888;margin-top:32px;border-top:1px solid #eeeeee;padding-top:16px;">'
+				. 'Je ontvangt deze e-mail omdat je klant bent bij onze webshop. '
+				. '<a href="{unsubscribe_url}" style="color:#888888;">Afmelden voor deze e-mails</a></p>',
+		);
+	}
+
+	/**
 	 * Seed the three default templates on first install so a new flow has
 	 * a decent starting point. Regular editable rows, not hardcoded PHP.
 	 */
@@ -393,12 +417,10 @@ class WSFM_Install {
 			return;
 		}
 
-		$footer = '<p style="font-size:12px;color:#888888;margin-top:32px;border-top:1px solid #eeeeee;padding-top:16px;">'
-			. 'Je ontvangt deze e-mail omdat je klant bent bij onze webshop. '
-			. '<a href="{unsubscribe_url}" style="color:#888888;">Afmelden voor deze e-mails</a></p>';
-
-		$wrap_open  = '<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#333333;line-height:1.6;">';
-		$wrap_close = '</div>';
+		$omhulsel   = self::omhulsel();
+		$footer     = $omhulsel['voet'];
+		$wrap_open  = $omhulsel['open'];
+		$wrap_close = $omhulsel['sluit'];
 
 		$templates = array(
 			array(
@@ -452,5 +474,70 @@ class WSFM_Install {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Een welkomsttemplate klaarzetten voor de trigger "Nieuwe inschrijving op
+	 * de lijst".
+	 *
+	 * WAAROM DIT APART STAAT EN NIET BIJ DE DRIE HIERBOVEN
+	 * Die drie komen alleen op een LEGE tabel, dus een winkel die de mailer al
+	 * had zou deze nooit zien. En precies daar is hij voor nodig: een shop die
+	 * van een ander mailpakket komt wil de welkomstmail die daar stond hier
+	 * nabouwen, en dan helpt het om een voorbeeld met de juiste tags te hebben
+	 * staan, {coupon_code} inbegrepen.
+	 *
+	 * ER STAAT GEEN NAAM IN DE AANHEF
+	 * Bij een inschrijving via de popup is alleen het e-mailadres gevraagd, dus
+	 * {first_name} is daar bijna altijd leeg. "Hoi ," is erger dan "Welkom!".
+	 * Komen de aanmeldingen bij deze winkel van het afrekenvinkje, dan is de
+	 * naam er wel en kan de winkelier hem er zelf in zetten.
+	 *
+	 * Eén keer, en dan nooit meer: de vlag wordt ook gezet als hij al bestond of
+	 * net is aangemaakt, zodat een winkelier die hem weggooit hem niet de
+	 * volgende update terugkrijgt. Er gaat niets van uit zolang er geen flow
+	 * naar wijst; een template die niemand gebruikt verstuurt geen mail.
+	 *
+	 * @return void
+	 */
+	public static function seed_welkomsttemplate() {
+		global $wpdb;
+
+		if ( get_option( self::OPTIE_WELKOM ) ) {
+			return;
+		}
+
+		$table = $wpdb->prefix . 'wsfm_templates';
+		$naam  = 'Welkom na inschrijving';
+
+		$bestaat = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE name = %s LIMIT 1", $naam ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( ! $bestaat ) {
+			$omhulsel = self::omhulsel();
+			$now      = current_time( 'mysql' );
+
+			$wpdb->insert(
+				$table,
+				array(
+					'name'      => $naam,
+					'subject'   => 'Welkom bij {shop_name}',
+					'html_body' => $omhulsel['open']
+						. '<h2 style="color:#222222;">Welkom!</h2>'
+						. '<p>Leuk dat je erbij bent. Je hoort het als eerste als er iets nieuws is, en we mailen je niet vaker dan nodig.</p>'
+						/* De kortingscode staat in een regel die ook zonder code
+						   leest. Is er geen code, dan blijft {coupon_code} leeg, en
+						   een leeg kader met "jouw code" eronder is slechter dan
+						   een zin die beide kanten dekt. */
+						. '<p>Heb je een kortingscode gekregen, dan is dit hem: <strong>{coupon_code}</strong></p>'
+						. '<p style="margin:28px 0;"><a href="{shop_url}" style="background:#222222;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:4px;display:inline-block;">Bekijk de collectie</a></p>'
+						. '<p>Vragen? Beantwoord gerust deze e-mail.</p>'
+						. $omhulsel['voet'] . $omhulsel['sluit'],
+					'created_at' => $now,
+					'updated_at' => $now,
+				)
+			);
+		}
+
+		update_option( self::OPTIE_WELKOM, '1', false );
 	}
 }

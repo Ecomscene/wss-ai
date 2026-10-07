@@ -223,6 +223,18 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 					<h2 class="hndle"><span><?php esc_html_e( 'De mail met de code', 'ws-flow-mailer' ); ?></span></h2>
 					<div class="inside">
 						<p>
+							<label>
+								<input type="checkbox" name="mail_aan" value="1" <?php checked( ! empty( $i['mail_aan'] ) ); ?>>
+								<strong><?php esc_html_e( 'Deze mail versturen na het inschrijven', 'ws-flow-mailer' ); ?></strong>
+							</label><br>
+							<span class="description">
+								<?php esc_html_e( 'Aan laten staan: hierin staat de kortingscode, en daar schreef iemand zich voor in. Zet hem alleen uit als je de welkomstmail als flow verstuurt, bij Flows met beginmoment "Nieuwe inschrijving op de lijst". Anders krijgt iemand twee mails.', 'ws-flow-mailer' ); ?>
+							</span>
+						</p>
+
+						<hr>
+
+						<p>
 							<label><?php esc_html_e( 'Onderwerp', 'ws-flow-mailer' ); ?><br>
 								<input type="text" class="large-text" name="mail_onderwerp" value="<?php echo esc_attr( $i['mail_onderwerp'] ); ?>"></label>
 						</p>

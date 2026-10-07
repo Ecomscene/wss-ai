@@ -71,13 +71,16 @@ class WSFM_Subscribers {
 		   als je niet weet waar dat vinkje bij stond. */
 		$toestemming = mb_substr( sanitize_text_field( (string) $toestemming ), 0, 255 );
 
+		$bron = sanitize_key( $bron );
+		$naam = sanitize_text_field( $naam );
+
 		$wpdb->insert(
 			self::table(),
 			array(
 				'email'        => $email,
-				'first_name'   => sanitize_text_field( $naam ),
+				'first_name'   => $naam,
 				'last_name'    => sanitize_text_field( $achternaam ),
-				'source'       => sanitize_key( $bron ),
+				'source'       => $bron,
 				'coupon_code'  => sanitize_text_field( $code ),
 				'consent_text' => $toestemming,
 				'consent_at'   => '' === $toestemming ? null : current_time( 'mysql' ),
@@ -89,6 +92,33 @@ class WSFM_Subscribers {
 
 		if ( $lijst && $id ) {
 			WSFM_Lijsten::schrijf_in( $lijst, $id );
+		}
+
+		if ( $id ) {
+			/**
+			 * Er is iemand NIEUW op de lijst gekomen.
+			 *
+			 * Hier hangt de flow-trigger "Nieuwe inschrijving op de lijst" aan.
+			 * Twee dingen zijn met opzet zo:
+			 *
+			 * - Hij vuurt alleen bij een ECHT nieuw adres. Iemand die zich voor de
+			 *   tweede keer aanmeldt of via een tweede weg op een extra lijst komt
+			 *   is geen nieuwe inschrijving, en hoort dus geen tweede welkomstmail
+			 *   te krijgen.
+			 * - Hij vuurt NA het inschrijven op de lijst, zodat wie hieraan hangt
+			 *   het lidmaatschap al kan zien.
+			 *
+			 * De bron gaat mee, want een import is geen aanmelding: wie duizend
+			 * adressen inlaadt moet daar geen duizend welkomstmails van krijgen.
+			 * Dat onderscheid wordt in WSFM_Flow_Engine gemaakt en niet hier.
+			 *
+			 * @param string $email E-mailadres.
+			 * @param string $bron  popup | afrekenen | handmatig | import.
+			 * @param int    $id    Rij-id in wsfm_subscribers.
+			 * @param string $naam  Voornaam, als we die hebben.
+			 * @param string $code  Uitgegeven kortingscode, als er een is.
+			 */
+			do_action( 'wsfm_inschrijving_nieuw', $email, $bron, $id, $naam, (string) $code );
 		}
 
 		return array(

@@ -16,7 +16,7 @@ class WSFM_Flows {
 	/**
 	 * De momenten waarop een flow kan beginnen.
 	 *
-	 * Drie van de vier gaan over een order, en dat zijn niet dezelfde momenten:
+	 * Drie van de zes gaan over een order, en dat zijn niet dezelfde momenten:
 	 *  - order_placed    de klant heeft net afgerekend, betaald of niet (een
 	 *                    overboeking staat dan nog open). Dit is het moment voor
 	 *                    "bedankt voor je bestelling".
@@ -30,11 +30,34 @@ class WSFM_Flows {
 	 * Dat ze alle drie bestaan is met opzet: veel shops zetten een order nooit
 	 * op "afgerond", en dan ging onder de oude opzet nooit een enkele ordermail
 	 * de deur uit zonder dat iemand kon zien waarom.
+	 *
+	 * De laatste twee gaan over een PERSOON en niet over iets dat hij gekocht
+	 * heeft:
+	 *  - subscriber_added  iemand is nieuw op de inschrijvingenlijst gekomen, via
+	 *                      de popup, het vinkje bij het afrekenen of met de hand.
+	 *                      Dit is het moment voor een welkomstmail en voor de
+	 *                      mails die daarna komen.
+	 *  - account_created   iemand heeft een account in de winkel aangemaakt, ook
+	 *                      zonder bestelling.
+	 *
+	 * WAAROM DIE TWEE ERBIJ MOESTEN
+	 * Shops die van een ander mailpakket naar deze tool gaan hebben daar bijna
+	 * altijd een welkomstreeks op "nieuwe inschrijving" staan. Zonder dit moment
+	 * was die reeks hier niet na te bouwen, en dan moest het oude pakket aan
+	 * blijven staan voor die ene mail. Dat is precies hoe je twee mailsystemen
+	 * naast elkaar houdt die elkaars afmeldingen niet kennen.
 	 */
-	const TRIGGER_TYPES = array( 'abandoned_cart', 'order_placed', 'order_paid', 'order_completed' );
+	const TRIGGER_TYPES = array( 'abandoned_cart', 'order_placed', 'order_paid', 'order_completed', 'subscriber_added', 'account_created' );
 
 	/** De triggers die bij een order horen; die bouwen hun context uit de order. */
 	const ORDER_TRIGGERS = array( 'order_placed', 'order_paid', 'order_completed' );
+
+	/**
+	 * De triggers die aan een persoon hangen en niet aan een order of een
+	 * winkelwagen. Ze hebben dus geen bron die kan verdwijnen: de gegevens voor
+	 * de mail komen uit de wachtrij-rij zelf en uit de inschrijving.
+	 */
+	const CONTACT_TRIGGERS = array( 'subscriber_added', 'account_created' );
 
 	const STATUSES = array( 'active', 'paused' );
 
@@ -49,10 +72,12 @@ class WSFM_Flows {
 	 */
 	public static function trigger_labels() {
 		return array(
-			'abandoned_cart'  => __( 'Verlaten winkelwagen', 'ws-flow-mailer' ),
-			'order_placed'    => __( 'Bestelling geplaatst', 'ws-flow-mailer' ),
-			'order_paid'      => __( 'Bestelling betaald', 'ws-flow-mailer' ),
-			'order_completed' => __( 'Order afgerond (verzonden)', 'ws-flow-mailer' ),
+			'abandoned_cart'   => __( 'Verlaten winkelwagen', 'ws-flow-mailer' ),
+			'order_placed'     => __( 'Bestelling geplaatst', 'ws-flow-mailer' ),
+			'order_paid'       => __( 'Bestelling betaald', 'ws-flow-mailer' ),
+			'order_completed'  => __( 'Order afgerond (verzonden)', 'ws-flow-mailer' ),
+			'subscriber_added' => __( 'Nieuwe inschrijving op de lijst', 'ws-flow-mailer' ),
+			'account_created'  => __( 'Nieuw klantaccount', 'ws-flow-mailer' ),
 		);
 	}
 

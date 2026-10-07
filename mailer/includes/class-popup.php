@@ -107,6 +107,11 @@ class WSFM_Popup {
 			'vaste_code'      => '',
 			'code_voorvoegsel' => 'WELKOM',
 
+			/* De welkomstmail staat AAN, want daar zit de kortingscode in en die
+			   is de reden dat iemand zich inschreef. Uitzetten doe je alleen als
+			   je de welkomstmail als flow verstuurt (Flows, beginmoment "Nieuwe
+			   inschrijving op de lijst"); anders krijgt iemand er twee. */
+			'mail_aan'        => 1,
 			'mail_onderwerp'  => __( 'Hier is je kortingscode', 'ws-flow-mailer' ),
 			'mail_kop'        => __( 'Welkom!', 'ws-flow-mailer' ),
 			'mail_tekst'      => __( "Leuk dat je erbij bent. Met de code hieronder krijg je korting op je eerste bestelling.\n\nVeel plezier met kijken!", 'ws-flow-mailer' ),
@@ -211,6 +216,7 @@ class WSFM_Popup {
 				'vaste_code'       => strtoupper( $tekst( 'vaste_code', 40 ) ),
 				'code_voorvoegsel' => strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', $tekst( 'code_voorvoegsel', 12 ) ) ),
 
+				'mail_aan'       => empty( $ruw['mail_aan'] ) ? 0 : 1,
 				'mail_onderwerp' => $tekst( 'mail_onderwerp', 150 ),
 				'mail_kop'       => $tekst( 'mail_kop', 80 ),
 				'mail_tekst'     => isset( $ruw['mail_tekst'] )
@@ -491,7 +497,15 @@ class WSFM_Popup {
 		$toestemming = trim( $i['kop'] . ' - ' . $i['kleine_letters'] );
 
 		WSFM_Subscribers::add( $email, 'popup', $code, '', isset( $i['lijst_id'] ) ? $i['lijst_id'] : 0, $toestemming );
-		self::stuur_welkomstmail( $email, $code, $i );
+
+		/* De welkomstmail hier meteen, buiten de wachtrij om, want de bezoeker
+		   kijkt nu in zijn mail. Staat hij uit, dan doet een flow op "Nieuwe
+		   inschrijving op de lijst" het werk; die is door het inschrijven
+		   hierboven al in de wachtrij gezet. Zonder die keuze zou een winkel met
+		   een welkomstflow twee mails sturen. */
+		if ( ! empty( $i['mail_aan'] ) ) {
+			self::stuur_welkomstmail( $email, $code, $i );
+		}
 
 		return new WP_REST_Response( array( 'ok' => true, 'code' => $code, 'melding' => '' ) );
 	}

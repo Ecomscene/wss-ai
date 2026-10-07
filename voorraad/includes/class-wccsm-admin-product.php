@@ -6,6 +6,7 @@ defined( 'ABSPATH' ) || exit;
  * - Components tab in product data metabox
  * - Supplier field
  * - Purchase price field
+ * - Delivery time field (dropdown)
  * - EAN field
  */
 class WCCSM_Admin_Product {
@@ -18,6 +19,13 @@ class WCCSM_Admin_Product {
         // Save product meta.
         add_action( 'woocommerce_process_product_meta', [ $this, 'save_product_meta' ] );
 
+        // Delivery time is saved late on purpose. A shop can have a second editor
+        // for the same meta key (an ACF side-panel field, an importer) that writes
+        // on save_post priority 10. Writing at 90 means the dropdown wins, while
+        // anything that syncs afterwards (shop filters, bucket values) still sees
+        // the new value.
+        add_action( 'save_post_product', [ $this, 'save_delivery_time' ], 90 );
+
         // Add fields to variations.
         add_action( 'woocommerce_variation_options_pricing', [ $this, 'render_variation_fields' ], 10, 3 );
         add_action( 'woocommerce_product_after_variable_attributes', [ $this, 'render_variation_components' ], 10, 3 );
@@ -28,6 +36,35 @@ class WCCSM_Admin_Product {
 
         // AJAX search for component products.
         add_action( 'wp_ajax_wccsm_search_products', [ $this, 'ajax_search_products' ] );
+    }
+
+    /**
+     * Meta key the delivery time is stored under.
+     *
+     * Default is `levertijd` without a leading underscore, and that is deliberate:
+     * shops that already filled this in through ACF or a product import use that
+     * exact key, so their existing values stay visible in the dropdown instead of
+     * quietly starting over in a new key.
+     */
+    public static function levertijd_meta_key(): string {
+        return (string) apply_filters( 'wccsm_levertijd_meta_key', 'levertijd' );
+    }
+
+    /**
+     * The selectable delivery times, as stored value => label shown in the dropdown.
+     *
+     * Filterable, so a shop with its own ranges can replace the whole list without
+     * touching this file.
+     */
+    public static function levertijd_choices(): array {
+        return (array) apply_filters(
+            'wccsm_levertijd_choices',
+            [
+                '1 - 2 werkdagen'   => __( '1 - 2 werkdagen', 'wccsm' ),
+                '2 - 5 werkdagen'   => __( '2 - 5 werkdagen', 'wccsm' ),
+                '10 - 14 werkdagen' => __( '10 - 14 werkdagen', 'wccsm' ),
+            ]
+        );
     }
 
     /**
@@ -74,6 +111,19 @@ class WCCSM_Admin_Product {
         $components = WCCSM_Components::get_components( $product_id );
         $supplier   = get_post_meta( $product_id, '_wccsm_supplier', true );
         $purchase   = get_post_meta( $product_id, '_wccsm_purchase_price', true );
+        $levertijd  = (string) get_post_meta( $product_id, self::levertijd_meta_key(), true );
+
+        // Build the dropdown. An empty first option keeps "not set" a real choice,
+        // and a value that is already stored but not in the list is added as-is so
+        // saving this tab can never throw away an imported or hand-typed value.
+        $levertijd_options = [ '' => __( '— niet ingesteld —', 'wccsm' ) ] + self::levertijd_choices();
+        if ( '' !== $levertijd && ! isset( $levertijd_options[ $levertijd ] ) ) {
+            $levertijd_options[ $levertijd ] = sprintf(
+                /* translators: %s: the delivery time value as it is stored on the product. */
+                __( '%s (eigen waarde)', 'wccsm' ),
+                $levertijd
+            );
+        }
 
         wp_nonce_field( 'wccsm_save_product', 'wccsm_product_nonce' );
         ?>
@@ -98,6 +148,16 @@ class WCCSM_Admin_Product {
                     'custom_attributes' => [ 'step' => '0.01', 'min' => '0' ],
                     'desc_tip'          => true,
                     'description'       => __( 'Kostprijs / inkoopprijs.', 'wccsm' ),
+                ] );
+
+                woocommerce_wp_select( [
+                    'id'          => 'wccsm_levertijd',
+                    'name'        => 'wccsm_levertijd',
+                    'label'       => __( 'Levertijd', 'wccsm' ),
+                    'value'       => $levertijd,
+                    'options'     => $levertijd_options,
+                    'desc_tip'    => true,
+                    'description' => __( 'De levertijd die bij dit product hoort. Niet ingesteld laten als de shop de levertijd zelf bepaalt, bijvoorbeeld op basis van de voorraad.', 'wccsm' ),
                 ] );
                 ?>
             </div>
@@ -277,6 +337,56 @@ class WCCSM_Admin_Product {
             }
         }
         WCCSM_Components::save_components( $product_id, $components );
+    }
+
+    /**
+     * Save the delivery time dropdown.
+     *
+     * Runs on save_post_product at priority 90 instead of inside
+     * save_product_meta(), so that another editor for the same meta key cannot
+     * overwrite the choice made here.
+     */
+    public function save_delivery_time( int $product_id ): void {
+        if ( ! isset( $_POST['wccsm_levertijd'], $_POST['wccsm_product_nonce'] ) ) {
+            return;
+        }
+        if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['wccsm_product_nonce'] ) ), 'wccsm_save_product' ) ) {
+            return;
+        }
+        if ( wp_is_post_autosave( $product_id ) || wp_is_post_revision( $product_id ) ) {
+            return;
+        }
+        if ( ! current_user_can( 'edit_product', $product_id ) ) {
+            return;
+        }
+
+        $meta_key = self::levertijd_meta_key();
+        $value    = sanitize_text_field( wp_unslash( $_POST['wccsm_levertijd'] ) );
+        $choices  = self::levertijd_choices();
+        $current  = (string) get_post_meta( $product_id, $meta_key, true );
+
+        // Accept an empty value, one of the choices, or the value that was already
+        // stored (an imported or hand-typed one, which the dropdown offers back as
+        // "eigen waarde"). Anything else is ignored rather than written, so a
+        // tampered dropdown cannot put junk in the meta.
+        if ( '' !== $value && ! isset( $choices[ $value ] ) && $value !== $current ) {
+            return;
+        }
+
+        if ( $value === $current ) {
+            return;
+        }
+
+        update_post_meta( $product_id, $meta_key, $value );
+
+        /**
+         * Fires after the delivery time of a product changed through this tab.
+         *
+         * @param int    $product_id The product.
+         * @param string $value      The new delivery time ('' when cleared).
+         * @param string $current    The value it had before.
+         */
+        do_action( 'wccsm_levertijd_saved', $product_id, $value, $current );
     }
 
     /**

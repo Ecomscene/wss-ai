@@ -50,6 +50,12 @@ $wsfm_trigger_nu     = $wsfm_is_edit ? $flow->trigger_type : 'abandoned_cart';
 					<p class="description">
 						<?php esc_html_e( 'Bestelling geplaatst is meteen na het afrekenen, ook als er nog niet betaald is. Bestelling betaald is zodra het geld binnen is. Order afgerond is wanneer je de bestelling zelf op afgerond zet, dus meestal bij het verzenden.', 'ws-flow-mailer' ); ?>
 					</p>
+					<p class="description">
+						<?php esc_html_e( 'Nieuwe inschrijving op de lijst is zodra iemand erbij komt via de popup, het vinkje bij het afrekenen of doordat jij hem zelf toevoegt. Een import zet geen flow in gang: wie een bestand inlaadt, wil niet dat al die mensen een welkomstmail krijgen. Nieuw klantaccount is zodra iemand een account aanmaakt in je winkel, met of zonder bestelling.', 'ws-flow-mailer' ); ?>
+					</p>
+					<p class="description">
+						<?php esc_html_e( 'Let op bij een welkomstmail: de popup stuurt zelf al een mail met de kortingscode. Doe je het liever met een flow, zet die mail dan uit bij Popup, anders krijgt iemand er twee.', 'ws-flow-mailer' ); ?>
+					</p>
 					<p class="description" id="wsfm-trigger-warning" style="display:none;color:#d63638;">
 						<?php echo esc_html( sprintf( __( 'Let op: deze flow heeft %d items in de wachtrij staan. Als je het beginmoment wijzigt, worden die gestopt; ze horen bij het oude moment en zouden anders de verkeerde mail versturen.', 'ws-flow-mailer' ), (int) $pending_count ) ); ?>
 					</p>

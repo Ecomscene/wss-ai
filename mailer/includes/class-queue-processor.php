@@ -402,6 +402,16 @@ class WSFM_Queue_Processor {
 			return WSFM_Template_Engine::build_order_context( $order, $unsubscribe_url );
 		}
 
+		/* Een inschrijving en een nieuw account hangen aan een PERSOON. Er is dus
+		   geen bron die kan verdwijnen en er valt hier niets af te keuren: wie
+		   zich inmiddels heeft afgemeld is al bij de suppressielijst afgevangen,
+		   en wie uit de inschrijvingen is weggehaald hoort zijn welkomstmail nog
+		   te krijgen. Die heeft zich zelf aangemeld; dat hij door de winkelier
+		   uit een lijst is gehaald is geen afmelding. */
+		if ( in_array( $flow->trigger_type, WSFM_Flows::CONTACT_TRIGGERS, true ) ) {
+			return WSFM_Template_Engine::build_contact_context( $item->customer_email, $item->customer_name, $unsubscribe_url );
+		}
+
 		// Abandoned cart: look up the tracking row (by hash, then e-mail).
 		$tracking = WSFM_Cart_Tracking::get_by_hash_or_email( $item->cart_hash, $item->customer_email );
 		if ( ! $tracking ) {

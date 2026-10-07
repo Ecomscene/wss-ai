@@ -4,8 +4,8 @@
  * real data from a context array.
  *
  * Supported tags: {first_name}, {cart_items}, {cart_total}, {cart_url},
- * {order_number}, {order_total}, {order_items}, {unsubscribe_url},
- * {shop_name}, {shop_url}.
+ * {order_number}, {order_total}, {order_items}, {coupon_code},
+ * {unsubscribe_url}, {shop_name}, {shop_url}.
  *
  * @package WS_Flow_Mailer
  */
@@ -29,6 +29,7 @@ class WSFM_Template_Engine {
 			'{order_number}'    => __( 'Ordernummer', 'ws-flow-mailer' ),
 			'{order_total}'     => __( 'Ordertotaal incl. valutasymbool', 'ws-flow-mailer' ),
 			'{order_items}'     => __( 'Bestelde producten als lijst (HTML)', 'ws-flow-mailer' ),
+			'{coupon_code}'     => __( 'De kortingscode van de inschrijving. Alleen gevuld bij een flow op "Nieuwe inschrijving op de lijst", en alleen als de popup een code heeft uitgegeven.', 'ws-flow-mailer' ),
 			'{unsubscribe_url}' => __( 'Afmeldlink (verplicht in elke template)', 'ws-flow-mailer' ),
 			'{shop_name}'       => __( 'Naam van de webshop', 'ws-flow-mailer' ),
 			'{shop_url}'        => __( 'Link naar de webshop', 'ws-flow-mailer' ),
@@ -259,6 +260,48 @@ class WSFM_Template_Engine {
 	}
 
 	/**
+	 * De merge-gegevens voor een flow die aan een PERSOON hangt: een nieuwe
+	 * inschrijving of een nieuw klantaccount.
+	 *
+	 * Er is hier geen order en geen winkelwagen, dus {order_items} en
+	 * {cart_items} blijven leeg; de motor vervangt elke tag die hij kent, dus er
+	 * komt nooit een losse {tag} in de mail terecht.
+	 *
+	 * WAAROM DE INSCHRIJVING ER TOCH BIJ WORDT GEZOCHT
+	 * Voor de kortingscode, en voor de voornaam als die bij het aanmelden niet
+	 * is meegekomen. Bij de popup wordt alleen een e-mailadres gevraagd, dus de
+	 * naam komt daar uit het vinkje bij het afrekenen of van de winkelier zelf.
+	 * Staat er niets, dan blijft {first_name} leeg; dat is beter dan "Hoi
+	 * klant" verzinnen.
+	 *
+	 * @param string $email           E-mailadres van de ontvanger.
+	 * @param string $naam            Naam zoals hij in de wachtrij staat.
+	 * @param string $unsubscribe_url Afmeldlink voor deze ontvanger.
+	 * @return array
+	 */
+	public static function build_contact_context( $email, $naam = '', $unsubscribe_url = '' ) {
+		$first_name = '' !== trim( (string) $naam ) ? preg_split( '/\s+/', trim( (string) $naam ) )[0] : '';
+		$code       = '';
+
+		if ( class_exists( 'WSFM_Subscribers' ) ) {
+			$rij = WSFM_Subscribers::get( $email );
+			if ( $rij ) {
+				$code = (string) $rij->coupon_code;
+				if ( '' === $first_name ) {
+					$first_name = (string) $rij->first_name;
+				}
+			}
+		}
+
+		return array(
+			'first_name'      => $first_name,
+			'coupon_code'     => $code,
+			'cart_url'        => self::winkelwagen_url(),
+			'unsubscribe_url' => $unsubscribe_url,
+		);
+	}
+
+	/**
 	 * Fictional context for previews and test mails.
 	 *
 	 * @return array
@@ -280,6 +323,7 @@ class WSFM_Template_Engine {
 			'order_number'    => '#12345',
 			'order_total'     => self::format_price( 49.95 ),
 			'order_items'     => self::items_html( $items ),
+			'coupon_code'     => 'WELKOM-4KP7HQ',
 			'unsubscribe_url' => home_url( '/?voorbeeld-afmeldlink' ),
 		);
 	}
