@@ -116,7 +116,7 @@ class WCCSM_Admin_Product {
         // Build the dropdown. An empty first option keeps "not set" a real choice,
         // and a value that is already stored but not in the list is added as-is so
         // saving this tab can never throw away an imported or hand-typed value.
-        $levertijd_options = [ '' => __( '— niet ingesteld —', 'wccsm' ) ] + self::levertijd_choices();
+        $levertijd_options = [ '' => __( 'Niet ingesteld', 'wccsm' ) ] + self::levertijd_choices();
         if ( '' !== $levertijd && ! isset( $levertijd_options[ $levertijd ] ) ) {
             $levertijd_options[ $levertijd ] = sprintf(
                 /* translators: %s: the delivery time value as it is stored on the product. */
@@ -157,7 +157,7 @@ class WCCSM_Admin_Product {
                     'value'       => $levertijd,
                     'options'     => $levertijd_options,
                     'desc_tip'    => true,
-                    'description' => __( 'De levertijd die bij dit product hoort. Niet ingesteld laten als de shop de levertijd zelf bepaalt, bijvoorbeeld op basis van de voorraad.', 'wccsm' ),
+                    'description' => __( 'De levertijd die bij dit product hoort. Op "Niet ingesteld" laten staan als de shop de levertijd zelf bepaalt, bijvoorbeeld op basis van de voorraad.', 'wccsm' ),
                 ] );
                 ?>
             </div>
