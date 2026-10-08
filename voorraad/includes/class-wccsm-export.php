@@ -58,6 +58,7 @@ class WCCSM_Export {
 			'product'        => __( 'Product', 'wccsm' ),
 			'variatie'       => __( 'Variatie', 'wccsm' ),
 			'sku'            => __( 'SKU', 'wccsm' ),
+			'leveranciersnr' => __( 'Art.nr. leverancier', 'wccsm' ),
 			'gtin'           => __( 'GTIN / EAN', 'wccsm' ),
 			'leverancier'    => __( 'Leverancier', 'wccsm' ),
 			'inkoopprijs'    => __( 'Inkoopprijs', 'wccsm' ),
@@ -127,6 +128,9 @@ class WCCSM_Export {
 						if ( ! $this->past_bij_voorraad( $variatie, $filters['stock_status'] ) ) {
 							continue;
 						}
+						if ( ! $this->past_bij_leverancier( $variatie, $product, $filters['supplier'] ) ) {
+							continue;
+						}
 						fputcsv( $uit, $this->regel( $variatie, $product ), ';' );
 					}
 
@@ -159,11 +163,17 @@ class WCCSM_Export {
 	private function regel( $product, $ouder = null ): array {
 		$is_variatie = 'variation' === $product->get_type();
 
-		/* Leverancier en GTIN mogen bij een variatie leeg zijn; dan geldt wat er
-		   bij de ouder staat. Dat is ook hoe het overzicht het toont. */
+		/* Leverancier, leveranciersnummer en GTIN mogen bij een variatie leeg
+		   zijn; dan geldt wat er bij de ouder staat. Dat is ook hoe het
+		   overzicht het toont. */
 		$leverancier = $product->get_meta( '_wccsm_supplier' );
 		if ( ! $leverancier && $ouder ) {
 			$leverancier = $ouder->get_meta( '_wccsm_supplier' );
+		}
+
+		$leveranciersnr = $product->get_meta( WCCSM_Admin_Overview::SUPPLIER_SKU_META );
+		if ( ! $leveranciersnr && $ouder ) {
+			$leveranciersnr = $ouder->get_meta( WCCSM_Admin_Overview::SUPPLIER_SKU_META );
 		}
 
 		$gtin = $product->get_global_unique_id();
@@ -197,6 +207,10 @@ class WCCSM_Export {
 			$ouder ? $ouder->get_name() : $product->get_name(),
 			$variatie,
 			$product->get_sku(),
+			/* Net als de EAN als tekst forceren: een bestelnummer als 0045-12 of
+			   8712345000012 is een code en geen getal, en Excel maakt daar anders
+			   een afgeronde of wetenschappelijke notatie van. */
+			'' === (string) $leveranciersnr ? '' : "'" . $leveranciersnr,
 			/* Als tekst forceren: een EAN als 0642023317084 is geen getal maar een
 			   code, en Excel maakt er anders 6,42023E+11 van of gooit de nul aan
 			   het begin weg. */
@@ -253,6 +267,33 @@ class WCCSM_Export {
 		}
 
 		return $aantal > 0;
+	}
+
+	/**
+	 * Past deze variatie bij de gekozen leverancier?
+	 *
+	 * Dezelfde regel als in het overzicht: leeg op de variatie betekent dat de
+	 * leverancier van het hoofdproduct geldt. Zonder deze controle kwamen bij een
+	 * gefilterde export alle maten van een passend product mee, ook die van een
+	 * andere leverancier, en dan staat er in het bestand iets anders dan op het
+	 * scherm.
+	 *
+	 * @param WC_Product      $variatie    De variatie.
+	 * @param WC_Product|null $ouder       Het bovenliggende product.
+	 * @param string          $leverancier Het gekozen filter, of leeg.
+	 * @return bool
+	 */
+	private function past_bij_leverancier( $variatie, $ouder, string $leverancier ): bool {
+		if ( '' === $leverancier ) {
+			return true;
+		}
+
+		$van_variatie = $variatie->get_meta( '_wccsm_supplier' );
+		if ( ! $van_variatie && $ouder ) {
+			$van_variatie = $ouder->get_meta( '_wccsm_supplier' );
+		}
+
+		return $van_variatie === $leverancier;
 	}
 
 	/**

@@ -3,7 +3,8 @@
  *
  * Handles the central stock overview page:
  * - AJAX table loading with filters and pagination
- * - Inline field editing (stock, prices, supplier, SKU, GTIN, delivery time)
+ * - Inline field editing (stock, prices, supplier, supplier article number,
+ *   SKU, GTIN, delivery time)
  * - Composed product stock display (computed, read-only, component highlighting)
  * - Bulk price update modal (regular, sale, purchase price)
  */
@@ -15,8 +16,11 @@
     /* Aantal kolommen in de tabel. Staat hier als één getal omdat de melding
        "Laden...", "Geen producten gevonden" en de foutregel er allemaal over
        moeten lopen; drie losse getallen in de code is hoe er na een nieuwe
-       kolom één meldingsregel scheef onder de tabel komt te hangen. */
-    var KOLOMMEN = 11;
+       kolom één meldingsregel scheef onder de tabel komt te hangen.
+
+       Loopt mee met templates/admin-overview.php: staat daar een kolom bij, dan
+       hoort dit getal mee omhoog. */
+    var KOLOMMEN = 12;
 
     var state = {
         page: 1,
@@ -262,6 +266,11 @@
 
             // SKU
             html += '<td>' + editableField(r, 'sku', r.sku, 'text', 'wccsm-input-wide') + '</td>';
+
+            // Art.nr. leverancier. Op de regel van een variatie staat de waarde
+            // van het hoofdproduct voorgevuld; wie er een eigen nummer per maat
+            // intypt, overschrijft alleen die ene variatie.
+            html += '<td>' + editableField(r, 'supplier_sku', r.supplier_sku, 'text', 'wccsm-input-wide') + '</td>';
 
             // GTIN / EAN
             html += '<td>' + editableField(r, 'gtin', r.gtin, 'text', 'wccsm-input-wide') + '</td>';

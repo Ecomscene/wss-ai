@@ -5,11 +5,14 @@ defined( 'ABSPATH' ) || exit;
  * Central Stock Overview admin page.
  *
  * Provides a single-page view of all products and variations with inline
- * editing for stock, purchase price, sale price, supplier and delivery time.
- * Supports filtering by supplier, stock status, and product type.
- * Data loaded via AJAX for speed.
+ * editing for stock, purchase price, sale price, supplier, supplier article
+ * number and delivery time. Supports filtering by supplier, stock status, and
+ * product type. Data loaded via AJAX for speed.
  */
 class WCCSM_Admin_Overview {
+
+    /** De meta-key van het artikelnummer dat de leverancier zelf gebruikt. */
+    public const SUPPLIER_SKU_META = '_wccsm_supplier_sku';
 
     public function __construct() {
         add_action( 'admin_menu', [ $this, 'add_menu_page' ] );
@@ -176,10 +179,11 @@ class WCCSM_Admin_Overview {
      * je een export krijgt die net iets anders is dan de lijst, en dat merk je
      * pas als iemand op de verkeerde cijfers gaat bestellen.
      *
-     * De voorraadstatus zit hier NIET in: die kan de database niet in één keer
-     * beantwoorden voor variabele producten. Zie filter_op_voorraad().
+     * Hier zitten alleen de dingen in die de database in één keer kan
+     * beantwoorden. De voorraadstatus en de LEVERANCIER niet: zie
+     * filter_op_voorraad() en filter_op_leverancier().
      *
-     * @param array $f search | supplier | product_type.
+     * @param array $f search | product_type.
      * @return array
      */
     public static function bouw_args( array $f ): array {
@@ -199,14 +203,15 @@ class WCCSM_Admin_Overview {
             ? $f['product_type']
             : [ 'simple', 'variable' ];
 
-        if ( ! empty( $f['supplier'] ) ) {
-            $args['meta_query'] = [
-                [
-                    'key'   => '_wccsm_supplier',
-                    'value' => $f['supplier'],
-                ],
-            ];
-        }
+        /* DE LEVERANCIER ZIT HIER BEWUST NIET IN
+           Hij stond hier als meta_query op `_wccsm_supplier`, en dat is een
+           filter op PRODUCT-niveau. De leverancier wordt door deze plugin ook
+           per VARIATIE aangeboden, dus zodra hij daar staat vindt een
+           meta_query het bovenliggende product niet en krijg je een filter dat
+           niets doet. Nu gaat hij door filter_op_leverancier(), die een rij op
+           een variatie terugrekent naar het hoofdproduct. Dezelfde aanpak als
+           bij de voorraadstatus, en met hetzelfde voordeel: totaal, aantal
+           pagina's en de regels op het scherm zeggen daarna hetzelfde. */
 
         return $args;
     }
@@ -219,6 +224,28 @@ class WCCSM_Admin_Overview {
      */
     public static function zoek_ids( array $f ): array {
         $ids = wc_get_products( self::bouw_args( $f ) );
+
+        /* Zoeken op het artikelnummer van de leverancier. De `s` van
+           WooCommerce kijkt naar de titel en de SKU en niet naar onze eigen
+           meta, dus die treffers worden er apart bij gezocht. Daarna wordt de
+           hele verzameling nog één keer opgehaald met dezelfde status- en
+           typefilters, zodat de sortering op naam blijft staan in plaats van
+           dat de aangevulde ids er achteraan komen te hangen. */
+        if ( ! empty( $f['search'] ) ) {
+            $extra = array_diff( self::zoek_op_leveranciersnummer( (string) $f['search'] ), $ids );
+
+            if ( ! empty( $extra ) ) {
+                $args = self::bouw_args( $f );
+                unset( $args['s'] );
+                $args['include'] = array_values( array_unique( array_merge( $ids, $extra ) ) );
+
+                $ids = wc_get_products( $args );
+            }
+        }
+
+        if ( ! empty( $f['supplier'] ) ) {
+            $ids = self::filter_op_leverancier( $ids, (string) $f['supplier'] );
+        }
 
         if ( empty( $f['stock_status'] ) ) {
             return $ids;
@@ -244,51 +271,30 @@ class WCCSM_Admin_Overview {
         $stock_status = sanitize_text_field( $_POST['stock_status'] ?? '' );
         $product_type = sanitize_text_field( $_POST['product_type'] ?? '' );
 
-        $args = self::bouw_args(
+        /**
+         * EERST UITZOEKEN WAT ER PAST, DAN PAS IN PLAKJES SNIJDEN
+         *
+         * Dit liep eerder uit elkaar: een deel van de filters zat in de query
+         * (en telde dus mee voor het totaal en het aantal pagina's) en een deel
+         * werd pas toegepast nadat de pagina al was opgehaald, door regels weg
+         * te gooien. Dan telt het totaal alle producten, rekent de paginabalk
+         * daarop, en blijven er op het scherm een paar over: 1317 producten,
+         * zeven pagina's, zes regels.
+         *
+         * Nu loopt alles via zoek_ids(), dezelfde weg als de export. Daarmee
+         * zeggen het totaal, de pagina's, de regels en het bestand hetzelfde.
+         */
+        $passend = self::zoek_ids(
             [
                 'search'       => $search,
                 'supplier'     => $supplier,
                 'product_type' => $product_type,
+                'stock_status' => $stock_status,
             ]
         );
 
-        $args['limit'] = $per_page;
-        $args['page']  = $page;
-
-        /**
-         * WAAROM DE VOORRAADSTATUS APART GAAT
-         *
-         * De andere filters zitten in de query, dus die tellen mee voor het totaal
-         * en voor het aantal pagina's. De voorraadstatus zat dat niet: die werd pas
-         * toegepast NADAT de pagina was opgehaald, door regels weg te gooien.
-         *
-         * Gevolg: het totaal telde alle producten, de paginabalk rekende daarop, en
-         * op het scherm bleven er een paar over. Met 200 per pagina zag je 1317
-         * producten, zeven pagina's en zes regels. Bij 25 per pagina viel het minder
-         * op, maar het klopte toen net zo min.
-         *
-         * Nu wordt eerst uitgezocht welke producten er passen, en pas daarna in
-         * plakjes gesneden. Dan zeggen het totaal, de pagina's en de regels
-         * hetzelfde.
-         */
-        if ( $stock_status ) {
-            $alles_args          = $args;
-            $alles_args['limit'] = -1;
-            unset( $alles_args['page'] );
-
-            $kandidaten = wc_get_products( $alles_args );
-            $passend    = self::filter_op_voorraad( $kandidaten, $stock_status );
-
-            $total       = count( $passend );
-            $product_ids = array_slice( $passend, ( $page - 1 ) * $per_page, $per_page );
-        } else {
-            $product_ids = wc_get_products( $args );
-
-            $count_args           = $args;
-            $count_args['limit']  = -1;
-            $count_args['return'] = 'ids';
-            $total                = count( wc_get_products( $count_args ) );
-        }
+        $total       = count( $passend );
+        $product_ids = array_slice( $passend, ( $page - 1 ) * $per_page, $per_page );
 
         $rows = [];
 
@@ -301,9 +307,6 @@ class WCCSM_Admin_Overview {
             if ( $product->is_type( 'variable' ) ) {
                 // Add parent row (non-editable stock - stock lives on variations).
                 $parent_row = $this->build_row( $product, true );
-
-                // Stock status filter for variations.
-                $skip_parent = false;
 
                 $variations = $product->get_children();
                 $var_rows   = [];
@@ -347,29 +350,12 @@ class WCCSM_Admin_Overview {
                 }
 
                 // Only include parent + variations if there are matching variations.
-                if ( ! empty( $var_rows ) || ! $supplier && ! $stock_status ) {
+                if ( ! empty( $var_rows ) || ( ! $supplier && ! $stock_status ) ) {
                     $rows[] = $parent_row;
                     $rows   = array_merge( $rows, $var_rows );
                 }
             } else {
                 // Simple product.
-                // Stock status filter.
-                if ( $stock_status ) {
-                    $stock_qty = $product->get_stock_quantity();
-                    if ( 'outofstock' === $stock_status && ( $stock_qty === null || $stock_qty > 0 ) ) {
-                        continue;
-                    }
-                    if ( 'lowstock' === $stock_status ) {
-                        $low = absint( get_option( 'woocommerce_notify_low_stock_amount', 2 ) );
-                        if ( $stock_qty === null || $stock_qty > $low ) {
-                            continue;
-                        }
-                    }
-                    if ( 'instock' === $stock_status && ( $stock_qty === null || $stock_qty <= 0 ) ) {
-                        continue;
-                    }
-                }
-
                 $rows[] = $this->build_row( $product );
             }
         }
@@ -381,6 +367,84 @@ class WCCSM_Admin_Overview {
             'page'       => $page,
             'per_page'   => $per_page,
         ] );
+    }
+
+    /**
+     * Welke van deze producten horen bij deze leverancier?
+     *
+     * De leverancier kan op het product staan EN op een variatie eronder. Een
+     * gewone meta_query op het product mist dat tweede geval, en dan doet het
+     * filter in het scherm niets. Daarom één zoekopdracht die een rij op een
+     * variatie terugrekent naar het hoofdproduct, net als bij de voorraad.
+     *
+     * @param array  $kandidaten  Product-ids in de gewenste volgorde.
+     * @param string $leverancier De gekozen leverancier.
+     * @return array Dezelfde ids, in dezelfde volgorde, alleen de passende.
+     */
+    public static function filter_op_leverancier( array $kandidaten, string $leverancier ): array {
+        global $wpdb;
+
+        if ( empty( $kandidaten ) || '' === $leverancier ) {
+            return $kandidaten;
+        }
+
+        // De ids komen uit wc_get_products en zijn dus al gehele getallen; door
+        // absint() halen is de goedkoopste manier om dat ook zo te houden.
+        $lijst = implode( ',', array_map( 'absint', $kandidaten ) );
+
+        $sql = $wpdb->prepare(
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $lijst is door absint() gehaald.
+            "SELECT DISTINCT CASE WHEN p.post_type = 'product_variation'
+                THEN p.post_parent ELSE p.ID END AS pid
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} m
+                ON m.post_id = p.ID AND m.meta_key = '_wccsm_supplier'
+            WHERE p.post_type IN ( 'product', 'product_variation' )
+                AND m.meta_value = %s
+                AND ( p.ID IN ({$lijst}) OR p.post_parent IN ({$lijst}) )",
+            $leverancier
+        );
+
+        $treffers = array_map( 'absint', (array) $wpdb->get_col( $sql ) );
+
+        // array_intersect houdt de volgorde van de eerste lijst aan, en die staat
+        // al op naam gesorteerd.
+        return array_values( array_intersect( $kandidaten, $treffers ) );
+    }
+
+    /**
+     * Product-ids waarvan het artikelnummer van de leverancier op deze tekst lijkt.
+     *
+     * Een rij op een variatie wordt teruggerekend naar het hoofdproduct, zodat
+     * je het product in de lijst terugvindt door het nummer van één maat in te
+     * typen. Er wordt hier niet op status of type gefilterd; dat doet zoek_ids()
+     * erna met dezelfde argumenten als de rest van de lijst.
+     *
+     * @param string $term Waar op gezocht wordt.
+     * @return array
+     */
+    public static function zoek_op_leveranciersnummer( string $term ): array {
+        global $wpdb;
+
+        $term = trim( $term );
+
+        if ( '' === $term ) {
+            return [];
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT DISTINCT CASE WHEN p.post_type = 'product_variation'
+                THEN p.post_parent ELSE p.ID END AS pid
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} m
+                ON m.post_id = p.ID AND m.meta_key = %s
+            WHERE p.post_type IN ( 'product', 'product_variation' )
+                AND m.meta_value LIKE %s",
+            self::SUPPLIER_SKU_META,
+            '%' . $wpdb->esc_like( $term ) . '%'
+        );
+
+        return array_map( 'absint', (array) $wpdb->get_col( $sql ) );
     }
 
     /**
@@ -455,6 +519,15 @@ class WCCSM_Admin_Overview {
             $supplier = $parent->get_meta( '_wccsm_supplier' );
         }
 
+        /* Het artikelnummer van de leverancier: hetzelfde patroon als de
+           leverancier zelf, dus bij een variatie terugvallen op het
+           hoofdproduct. Veel leveranciers hebben één bestelnummer voor het hele
+           product en niet per maat. */
+        $supplier_sku = $product->get_meta( self::SUPPLIER_SKU_META );
+        if ( ! $supplier_sku && $parent ) {
+            $supplier_sku = $parent->get_meta( self::SUPPLIER_SKU_META );
+        }
+
         // Use WooCommerce native Global Unique ID (GTIN/EAN/UPC/ISBN).
         $gtin = $product->get_global_unique_id();
         if ( ! $gtin && $parent ) {
@@ -518,6 +591,7 @@ class WCCSM_Admin_Overview {
             'is_parent'       => $is_parent,
             'is_variation'    => 'variation' === $type,
             'sku'             => $product->get_sku(),
+            'supplier_sku'    => $supplier_sku ?: '',
             'gtin'            => $gtin ?: '',
             'purchase_price'  => $purchase_price ?: '',
             'regular_price'   => $product->get_regular_price(),
@@ -617,6 +691,13 @@ class WCCSM_Admin_Overview {
                 update_post_meta( $product_id, '_wccsm_supplier', wc_clean( $value ) );
                 break;
 
+            case 'supplier_sku':
+                /* Het nummer waarmee bij de leverancier besteld wordt. Vrije
+                   tekst: er zitten streepjes, punten en letters in, dus alleen
+                   opschonen en niet omvormen. */
+                update_post_meta( $product_id, self::SUPPLIER_SKU_META, wc_clean( $value ) );
+                break;
+
             case 'levertijd':
                 /* De levertijd is een eigenschap van het PRODUCT. Op een variatie
                    staat in de tabel daarom alleen de waarde van het hoofdproduct en
@@ -671,6 +752,12 @@ class WCCSM_Admin_Overview {
 
     /**
      * AJAX: Get distinct supplier values for the filter dropdown.
+     *
+     * Alleen leveranciers die op een gepubliceerd product staan, of op een
+     * variatie daarvan. Dit was een DISTINCT over heel wp_postmeta, dus er
+     * konden namen in de lijst staan die alleen nog op een concept of op iets
+     * in de prullenbak voorkomen. Die kun je dan kiezen en dan vindt het filter
+     * per definitie niets, en dat is niet van een kapot filter te onderscheiden.
      */
     public function ajax_get_suppliers(): void {
         check_ajax_referer( 'wccsm_overview', 'nonce' );
@@ -682,11 +769,17 @@ class WCCSM_Admin_Overview {
         global $wpdb;
 
         $suppliers = $wpdb->get_col(
-            "SELECT DISTINCT meta_value
-             FROM {$wpdb->postmeta}
-             WHERE meta_key = '_wccsm_supplier'
-             AND meta_value != ''
-             ORDER BY meta_value ASC"
+            "SELECT DISTINCT m.meta_value
+             FROM {$wpdb->postmeta} m
+             INNER JOIN {$wpdb->posts} p ON p.ID = m.post_id
+             LEFT JOIN {$wpdb->posts} ouder ON ouder.ID = p.post_parent
+             WHERE m.meta_key = '_wccsm_supplier'
+               AND m.meta_value <> ''
+               AND (
+                    ( p.post_type = 'product' AND p.post_status = 'publish' )
+                 OR ( p.post_type = 'product_variation' AND ouder.post_status = 'publish' )
+               )
+             ORDER BY m.meta_value ASC"
         );
 
         wp_send_json_success( $suppliers );

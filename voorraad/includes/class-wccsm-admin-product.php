@@ -5,6 +5,7 @@ defined( 'ABSPATH' ) || exit;
  * Adds product-level fields:
  * - Components tab in product data metabox
  * - Supplier field
+ * - Supplier article number field (the number you order with)
  * - Purchase price field
  * - Delivery time field (dropdown)
  * - EAN field
@@ -107,11 +108,12 @@ class WCCSM_Admin_Product {
      */
     public function render_product_panel(): void {
         global $post;
-        $product_id = $post->ID;
-        $components = WCCSM_Components::get_components( $product_id );
-        $supplier   = get_post_meta( $product_id, '_wccsm_supplier', true );
-        $purchase   = get_post_meta( $product_id, '_wccsm_purchase_price', true );
-        $levertijd  = (string) get_post_meta( $product_id, self::levertijd_meta_key(), true );
+        $product_id   = $post->ID;
+        $components   = WCCSM_Components::get_components( $product_id );
+        $supplier     = get_post_meta( $product_id, '_wccsm_supplier', true );
+        $supplier_sku = get_post_meta( $product_id, WCCSM_Admin_Overview::SUPPLIER_SKU_META, true );
+        $purchase     = get_post_meta( $product_id, '_wccsm_purchase_price', true );
+        $levertijd    = (string) get_post_meta( $product_id, self::levertijd_meta_key(), true );
 
         // Build the dropdown. An empty first option keeps "not set" a real choice,
         // and a value that is already stored but not in the list is added as-is so
@@ -138,6 +140,17 @@ class WCCSM_Admin_Product {
                     'value'       => $supplier,
                     'desc_tip'    => true,
                     'description' => __( 'De leverancier van dit product.', 'wccsm' ),
+                ] );
+
+                /* Het artikelnummer van de leverancier staat direct onder de
+                   leverancier zelf: die twee hoor je bij elkaar in te vullen, en
+                   samen zijn ze de bestelregel. */
+                woocommerce_wp_text_input( [
+                    'id'          => WCCSM_Admin_Overview::SUPPLIER_SKU_META,
+                    'label'       => __( 'Art.nr. leverancier', 'wccsm' ),
+                    'value'       => $supplier_sku,
+                    'desc_tip'    => true,
+                    'description' => __( 'Het artikelnummer waarmee je dit product bij je leverancier bestelt. Komt mee in het voorraadoverzicht en in de export, en je kunt er in het overzicht op zoeken.', 'wccsm' ),
                 ] );
 
                 woocommerce_wp_text_input( [
@@ -247,12 +260,13 @@ class WCCSM_Admin_Product {
     }
 
     /**
-     * Render variation-level fields (purchase price, EAN, supplier).
+     * Render variation-level fields (purchase price, supplier, supplier article number).
      */
     public function render_variation_fields( int $loop, array $variation_data, \WP_Post $variation ): void {
-        $var_id   = $variation->ID;
-        $purchase = get_post_meta( $var_id, '_wccsm_purchase_price', true );
-        $supplier = get_post_meta( $var_id, '_wccsm_supplier', true );
+        $var_id       = $variation->ID;
+        $purchase     = get_post_meta( $var_id, '_wccsm_purchase_price', true );
+        $supplier     = get_post_meta( $var_id, '_wccsm_supplier', true );
+        $supplier_sku = get_post_meta( $var_id, WCCSM_Admin_Overview::SUPPLIER_SKU_META, true );
         ?>
         <p class="form-row form-row-first">
             <label><?php esc_html_e( 'Inkoopprijs', 'wccsm' ); ?> (<?php echo esc_html( get_woocommerce_currency_symbol() ); ?>)</label>
@@ -265,6 +279,18 @@ class WCCSM_Admin_Product {
             <input type="text"
                    name="wccsm_var_supplier[<?php echo esc_attr( $loop ); ?>]"
                    value="<?php echo esc_attr( $supplier ); ?>" />
+        </p>
+        <?php
+        /* Leeg laten mag: dan geldt het nummer van het hoofdproduct, net als bij
+           de leverancier. Alleen invullen als deze maat echt een eigen
+           bestelnummer heeft. */
+        ?>
+        <p class="form-row form-row-first">
+            <label><?php esc_html_e( 'Art.nr. leverancier', 'wccsm' ); ?></label>
+            <input type="text"
+                   name="wccsm_var_supplier_sku[<?php echo esc_attr( $loop ); ?>]"
+                   value="<?php echo esc_attr( $supplier_sku ); ?>"
+                   placeholder="<?php esc_attr_e( 'Leeg = van het hoofdproduct', 'wccsm' ); ?>" />
         </p>
         <?php
     }
@@ -317,6 +343,15 @@ class WCCSM_Admin_Product {
         // Supplier.
         if ( isset( $_POST['_wccsm_supplier'] ) ) {
             update_post_meta( $product_id, '_wccsm_supplier', sanitize_text_field( $_POST['_wccsm_supplier'] ) );
+        }
+
+        // Supplier article number.
+        if ( isset( $_POST[ WCCSM_Admin_Overview::SUPPLIER_SKU_META ] ) ) {
+            update_post_meta(
+                $product_id,
+                WCCSM_Admin_Overview::SUPPLIER_SKU_META,
+                sanitize_text_field( wp_unslash( $_POST[ WCCSM_Admin_Overview::SUPPLIER_SKU_META ] ) )
+            );
         }
 
         // Purchase price.
@@ -398,6 +433,13 @@ class WCCSM_Admin_Product {
         }
         if ( isset( $_POST['wccsm_var_supplier'][ $loop ] ) ) {
             update_post_meta( $variation_id, '_wccsm_supplier', sanitize_text_field( $_POST['wccsm_var_supplier'][ $loop ] ) );
+        }
+        if ( isset( $_POST['wccsm_var_supplier_sku'][ $loop ] ) ) {
+            update_post_meta(
+                $variation_id,
+                WCCSM_Admin_Overview::SUPPLIER_SKU_META,
+                sanitize_text_field( wp_unslash( $_POST['wccsm_var_supplier_sku'][ $loop ] ) )
+            );
         }
 
         // Save variation-level components.

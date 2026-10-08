@@ -6,7 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
     <!-- Filters Bar -->
     <div class="wccsm-filters">
-        <input type="text" id="wccsm-search" placeholder="<?php esc_attr_e( 'Zoeken op naam of SKU...', 'wccsm' ); ?>" class="wccsm-filter-input" />
+        <input type="text" id="wccsm-search" placeholder="<?php esc_attr_e( 'Zoeken op naam, SKU of art.nr. leverancier...', 'wccsm' ); ?>" class="wccsm-filter-input" />
 
         <select id="wccsm-filter-supplier" class="wccsm-filter-select">
             <option value=""><?php esc_html_e( 'Alle leveranciers', 'wccsm' ); ?></option>
@@ -66,6 +66,12 @@ defined( 'ABSPATH' ) || exit;
                 <tr>
                     <th class="wccsm-col-name"><?php esc_html_e( 'Product', 'wccsm' ); ?></th>
                     <th class="wccsm-col-sku"><?php esc_html_e( 'SKU', 'wccsm' ); ?></th>
+                    <?php
+                    /* Het artikelnummer van de leverancier staat direct achter de
+                       eigen SKU: dat is waar je kijkt als je een bestellijst
+                       maakt, en dan wil je die twee naast elkaar hebben. */
+                    ?>
+                    <th class="wccsm-col-supplier-sku"><?php esc_html_e( 'Art.nr. leverancier', 'wccsm' ); ?></th>
                     <th class="wccsm-col-ean"><?php esc_html_e( 'GTIN / EAN', 'wccsm' ); ?></th>
                     <th class="wccsm-col-supplier"><?php esc_html_e( 'Leverancier', 'wccsm' ); ?></th>
                     <th class="wccsm-col-purchase"><?php esc_html_e( 'Inkoopprijs', 'wccsm' ); ?></th>
@@ -83,7 +89,7 @@ defined( 'ABSPATH' ) || exit;
                 </tr>
             </thead>
             <tbody id="wccsm-table-body">
-                <tr><td colspan="11" class="wccsm-loading"><?php esc_html_e( 'Laden...', 'wccsm' ); ?></td></tr>
+                <tr><td colspan="12" class="wccsm-loading"><?php esc_html_e( 'Laden...', 'wccsm' ); ?></td></tr>
             </tbody>
         </table>
     </div>
