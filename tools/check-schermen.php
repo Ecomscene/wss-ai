@@ -70,6 +70,11 @@ function number_format_i18n( $n, $d = 0 ) { return (string) $n; }
 function date_i18n( $f, $t = null ) { return '22 aug 2026'; }
 function wp_unslash( $v ) { return $v; }
 function sanitize_text_field( $v ) { return $v; }
+/* WSFM_Popup::lettertype_of() (aangeroepen vanuit popup-page.php) gebruikt
+   dit sinds de popup-schermtest (c9517f0); zonder deze mock breekt elke
+   release vanaf hier met "Call to undefined function sanitize_key()". Zelfde
+   implementatie als in tools/check-modules.php. */
+function sanitize_key( $t ) { return strtolower( preg_replace( '/[^a-z0-9_\-]/i', '', (string) $t ) ); }
 function get_option( $n, $d = false ) { return 'beheerder@voorbeeld.nl'; }
 function get_bloginfo( $w = '' ) { return 'Voorbeeldshop'; }
 /* Het catalogusformaat en het middenformaat bestaan: het eerste is wat de mail
