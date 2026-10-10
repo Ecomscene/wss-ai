@@ -141,7 +141,51 @@ function wss_webp_label( $res ) {
 	if ( $res === true )      return 'ok';
 	if ( $res === 'exists' )  return 'bestond al';
 	if ( $res === 'bigger' )  return 'groter dan origineel, overgeslagen';
+	if ( $res === 'shared' )  return 'naam komt dubbel voor, overgeslagen';
 	return 'mislukt';
+}
+
+/* ─── Dubbele namen: foto.jpg én foto.jpeg ─────────────────────────── */
+
+/**
+ * foto.jpg en foto.jpeg in dezelfde map wijzen bij het omzetten bàllebei naar
+ * foto.webp. Dat is één bestand voor twee verschillende afbeeldingen: de
+ * tweede krijgt dan het plaatje van de eerste te zien. WordPress staat die
+ * combinatie toe (de volledige bestandsnaam verschilt immers), dus het komt in
+ * het wild voor bij shops die dezelfde foto als .jpg en als .jpeg aanleveren.
+ *
+ * Zulke bestanden laten we met rust: niet omzetten en niet herschrijven. Het
+ * origineel blijft geserveerd, wat altijd de juiste afbeelding is.
+ */
+function wss_webp_target_is_shared( $file_path ) {
+	static $cache = [];
+
+	$stem = preg_replace( '/\.(jpe?g|png)$/i', '', $file_path );
+	if ( $stem === $file_path ) {
+		return false;
+	}
+	if ( isset( $cache[ $stem ] ) ) {
+		return $cache[ $stem ];
+	}
+
+	$want    = strtolower( basename( $stem ) );
+	$entries = @scandir( dirname( $file_path ) );
+	$n       = 0;
+
+	if ( is_array( $entries ) ) {
+		foreach ( $entries as $entry ) {
+			if ( ! preg_match( '/^(.+)\.(jpe?g|png)$/i', $entry, $m ) ) {
+				continue;
+			}
+			if ( strtolower( $m[1] ) === $want ) {
+				$n++;
+			}
+		}
+	}
+
+	$cache[ $stem ] = ( $n > 1 );
+
+	return $cache[ $stem ];
 }
 
 /* ─── Kern: een bestand omzetten ───────────────────────────────────── */
@@ -154,6 +198,11 @@ function wss_webp_convert_file( $file_path ) {
 	$webp_path = preg_replace( '/\.(jpe?g|png)$/i', '.webp', $file_path );
 	if ( $webp_path === $file_path ) {
 		return false;
+	}
+
+	// Zou dit .webp door twee verschillende originelen gedeeld worden? Dan niet.
+	if ( wss_webp_target_is_shared( $file_path ) ) {
+		return 'shared';
 	}
 
 	if ( file_exists( $webp_path ) && filemtime( $webp_path ) >= filemtime( $file_path ) ) {
@@ -264,7 +313,7 @@ function wss_webp_convert_attachment( $attachment_id ) {
 
 	if ( $res === true || $res === 'exists' ) {
 		$status = 'done';
-	} elseif ( $res === 'bigger' ) {
+	} elseif ( $res === 'bigger' || $res === 'shared' ) {
 		$status = 'skipped';
 	} else {
 		$status = 'failed';
@@ -347,8 +396,13 @@ function wss_webp_rewrite_html( $html ) {
 		return $html;
 	}
 
-	$upload_dir  = wp_get_upload_dir();
-	$upload_url  = $upload_dir['baseurl'];
+	$upload_dir = wp_get_upload_dir();
+
+	// De baseurl komt uit de database en kan nog http:// zijn, terwijl de pagina
+	// https:// rendert. Dan matcht preg_quote( $upload_url ) nergens op en blijft
+	// alles als jpg/png geserveerd. set_url_scheme() trekt hem gelijk met het
+	// schema van het huidige request.
+	$upload_url  = set_url_scheme( $upload_dir['baseurl'] );
 	$upload_path = $upload_dir['basedir'];
 
 	// De negatieve lookahead zorgt dat .jpg/.png alleen op een echte
@@ -365,7 +419,19 @@ function wss_webp_rewrite_html( $html ) {
 		$relative  = str_replace( $upload_url, '', $webp_url );
 		$webp_file = $upload_path . $relative;
 
-		return file_exists( $webp_file ) ? $webp_url : $m[0];
+		if ( ! file_exists( $webp_file ) ) {
+			return $m[0];
+		}
+
+		// Deelt dit .webp zijn naam met een tweede origineel (foto.jpg naast
+		// foto.jpeg)? Dan is niet te zeggen welk van de twee erin zit; het
+		// origineel serveren is dan het enige dat zeker goed is.
+		$orig_file = $upload_path . str_replace( $upload_url, '', $m[0] );
+		if ( wss_webp_target_is_shared( $orig_file ) ) {
+			return $m[0];
+		}
+
+		return $webp_url;
 	}, $html );
 }
 

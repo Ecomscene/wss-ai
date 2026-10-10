@@ -35,6 +35,12 @@ werk dat al gedaan is wordt niet overgedaan.
 - Originelen worden nooit verwijderd; de `.webp` komt ernaast te staan.
 - Een `.webp` die groter uitvalt dan het origineel wordt weggegooid; die
   afbeelding krijgt status `skipped` en blijft als jpg/png geserveerd.
+- Staan `foto.jpg` en `foto.jpeg` in dezelfde map, dan zouden die naar hetzelfde
+  `foto.webp` wijzen en krijgt de tweede het plaatje van de eerste te zien.
+  Zulke bestanden worden niet omgezet en niet herschreven; ze blijven als
+  origineel geserveerd en tellen als `skipped`. WordPress staat die combinatie
+  toe, dus het komt voor bij shops die dezelfde naam in twee formaten
+  aanleveren (gezien bij Outfit-S: 61 bestanden, 3 producten).
 - Serveren gebeurt via een HTML-rewrite, alleen bij browsers die WebP accepteren
   en alleen als het bestand echt bestaat. Geen .htaccess, geen redirect.
 - Nieuwe uploads worden kort na de upload via cron omgezet, niet in het
