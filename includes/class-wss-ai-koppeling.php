@@ -54,7 +54,7 @@ class WSS_AI_Koppeling {
 	 * iets kapot lijkt. tools/check-modules.php telt na dat elke naam die in de
 	 * code wordt opgevraagd hier ook echt in staat.
 	 */
-	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades', 'bol' );
+	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades' );
 
 	/**
 	 * Onderdelen die UIT staan tot Webshopschool ze aanzet.
@@ -74,13 +74,8 @@ class WSS_AI_Koppeling {
 	 * Upgrades staat er met opzet niet in. Dat is de plek waar een klant iets
 	 * kan aanvragen, en juist bij een kale installatie is dat het enige dat hem
 	 * verder helpt. Uitzetten kan wel, want die staat nog op "aan tenzij".
-	 *
-	 * bol staat er wel in, en dat is geen detail: die module zet een vinkje en
-	 * een tweede prijs op élk product. Bij een shop die niets met bol doet is
-	 * dat alleen maar ruis in het productscherm, dus hij blijft uit tot
-	 * Webshopschool hem voor die ene winkel aanzet.
 	 */
-	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'bol' );
+	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken' );
 
 	/**
 	 * Staat dit onderdeel aan voor deze webshop?
