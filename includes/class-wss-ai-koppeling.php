@@ -163,20 +163,31 @@ class WSS_AI_Koppeling {
 	 * vanzelf te merken zonder dat iemand de plugin uit en aan moet zetten.
 	 */
 	public static function meld_aan() {
-		$antwoord = wp_remote_post(
-			self::api() . '/registreer',
-			array(
-				'timeout' => 15,
-				'headers' => array( 'Content-Type' => 'application/json' ),
-				'body'    => wp_json_encode(
-					array(
-						'site'   => home_url(),
-						'naam'   => get_bloginfo( 'name' ),
-						'versie' => WSS_AI_VERSIE,
-					)
-				),
-			)
+		$verzoek = array(
+			'timeout' => 15,
+			'headers' => array( 'Content-Type' => 'application/json' ),
+			'body'    => wp_json_encode(
+				array(
+					'site'   => home_url(),
+					'naam'   => get_bloginfo( 'name' ),
+					'versie' => WSS_AI_VERSIE,
+				)
+			),
 		);
+
+		/* Een verbindingsfout bij de eerste poging is op sommige hosts gewoon
+		   een koude start (DNS of TLS naar ons portaal). Het portaal zelf
+		   antwoordt in ~25 ms en begrenst niets, dus een tweede poging na een
+		   halve seconde lost het op. Anders bleef een nieuwe sync stil mislukken
+		   tot de volgende dagelijkse aanmelding (13-10-2026: speciaalpresentje,
+		   kletskouz en miepdejonge lukten pas bij poging 2 of 3). Een HTTP-
+		   antwoord, ook een foutstatus, is geen verbindingsfout en wordt niet
+		   herhaald. */
+		$antwoord = wp_remote_post( self::api() . '/registreer', $verzoek );
+		if ( is_wp_error( $antwoord ) ) {
+			usleep( 500000 );
+			$antwoord = wp_remote_post( self::api() . '/registreer', $verzoek );
+		}
 
 		if ( is_wp_error( $antwoord ) ) {
 			/* De sleutel die er al staat NIET weggooien. Een storing van een minuut
