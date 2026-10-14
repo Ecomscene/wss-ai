@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WSS WebP Converter
  * Description: Zet bestaande media om naar WebP, serveert WebP op de frontend en converteert nieuwe uploads. Te bedienen via wp-admin en via WP-CLI (wp wss-webp).
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      Ecomscene
  *
  * Herbruikbare versie van Joeys webp-snippet, bedoeld om bij elke klant identiek
@@ -168,6 +168,14 @@ function wss_webp_target_is_shared( $file_path ) {
 		return $cache[ $stem ];
 	}
 
+	// Is foto.webp zelf een echte upload (een eigen WebP-attachment of een
+	// formaat daarvan)? Dan is het een andere afbeelding dan foto.jpg: niet
+	// overschrijven en niet serveren in plaats van het origineel.
+	if ( wss_webp_is_foreign( $stem . '.webp' ) ) {
+		$cache[ $stem ] = true;
+		return true;
+	}
+
 	$want    = strtolower( basename( $stem ) );
 	$entries = @scandir( dirname( $file_path ) );
 	$n       = 0;
@@ -187,6 +195,91 @@ function wss_webp_target_is_shared( $file_path ) {
 
 	return $cache[ $stem ];
 }
+
+/* ─── Bestaande WebP-uploads beschermen ────────────────────────────── */
+
+/**
+ * Shops die al WebP uploaden (bv. na een Shopify-import) hebben soms
+ * foto.webp als losse upload naast foto.jpg van een ander product. Zonder deze
+ * controle zou de converter die echte upload overschrijven en zou de frontend
+ * foto.jpg vervangen door een heel andere afbeelding.
+ *
+ * Geeft een set terug van paden (relatief aan uploads) die bij een
+ * image/webp-attachment horen: het hoofdbestand, original_image en alle formaten.
+ */
+function wss_webp_foreign_files() {
+	static $set = null;
+	if ( $set !== null ) {
+		return $set;
+	}
+
+	$cached = get_transient( 'wss_webp_foreign' );
+	if ( is_array( $cached ) ) {
+		$set = $cached;
+		return $set;
+	}
+
+	global $wpdb;
+	$set = [];
+	$ids = array_map( 'intval', (array) $wpdb->get_col(
+		"SELECT ID FROM {$wpdb->posts}
+		 WHERE post_type = 'attachment' AND post_mime_type = 'image/webp'"
+	) );
+
+	if ( $ids ) {
+		update_meta_cache( 'post', $ids );
+	}
+
+	foreach ( $ids as $id ) {
+		$rel = (string) get_post_meta( $id, '_wp_attached_file', true );
+		if ( $rel === '' ) {
+			continue;
+		}
+		$set[ strtolower( $rel ) ] = 1;
+
+		$dir  = dirname( $rel );
+		$dir  = ( $dir === '.' || $dir === '' ) ? '' : $dir . '/';
+		$meta = wp_get_attachment_metadata( $id );
+
+		if ( ! empty( $meta['original_image'] ) ) {
+			$set[ strtolower( $dir . $meta['original_image'] ) ] = 1;
+		}
+		if ( ! empty( $meta['sizes'] ) && is_array( $meta['sizes'] ) ) {
+			foreach ( $meta['sizes'] as $info ) {
+				if ( ! empty( $info['file'] ) ) {
+					$set[ strtolower( $dir . $info['file'] ) ] = 1;
+				}
+			}
+		}
+	}
+
+	set_transient( 'wss_webp_foreign', $set, DAY_IN_SECONDS );
+
+	return $set;
+}
+
+function wss_webp_is_foreign( $webp_path ) {
+	$base = wp_normalize_path( wp_get_upload_dir()['basedir'] ) . '/';
+	$path = wp_normalize_path( $webp_path );
+	if ( strpos( $path, $base ) !== 0 ) {
+		return false;
+	}
+	$rel = strtolower( substr( $path, strlen( $base ) ) );
+	$set = wss_webp_foreign_files();
+	return isset( $set[ $rel ] );
+}
+
+function wss_webp_flush_foreign( $post_id ) {
+	if ( get_post_mime_type( $post_id ) === 'image/webp' ) {
+		delete_transient( 'wss_webp_foreign' );
+	}
+}
+add_action( 'add_attachment', 'wss_webp_flush_foreign' );
+add_action( 'delete_attachment', 'wss_webp_flush_foreign' );
+add_filter( 'wp_update_attachment_metadata', function ( $data, $post_id ) {
+	wss_webp_flush_foreign( $post_id );
+	return $data;
+}, 10, 2 );
 
 /* ─── Kern: een bestand omzetten ───────────────────────────────────── */
 

@@ -41,6 +41,11 @@ werk dat al gedaan is wordt niet overgedaan.
   origineel geserveerd en tellen als `skipped`. WordPress staat die combinatie
   toe, dus het komt voor bij shops die dezelfde naam in twee formaten
   aanleveren (gezien bij Outfit-S: 61 bestanden, 3 producten).
+- Staat er al een `foto.webp` die zelf een echte upload is (een eigen
+  WebP-attachment of een formaat daarvan) naast `foto.jpg` van een ander
+  product, dan wordt die nooit overschreven en wordt `foto.jpg` niet door die
+  andere afbeelding vervangen; die bestanden tellen als `skipped`. Gezien bij
+  Ashley Design (Shopify-import): 116 bestanden, 28 productfoto's.
 - Serveren gebeurt via een HTML-rewrite, alleen bij browsers die WebP accepteren
   en alleen als het bestand echt bestaat. Geen .htaccess, geen redirect.
 - Nieuwe uploads worden kort na de upload via cron omgezet, niet in het
