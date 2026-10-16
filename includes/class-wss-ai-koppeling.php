@@ -159,7 +159,7 @@ class WSS_AI_Koppeling {
 	 */
 	public static function meld_aan() {
 		$verzoek = array(
-			'timeout' => 15,
+			'timeout' => 6,
 			'headers' => array( 'Content-Type' => 'application/json' ),
 			'body'    => wp_json_encode(
 				array(
@@ -170,26 +170,36 @@ class WSS_AI_Koppeling {
 			),
 		);
 
-		/* Een verbindingsfout bij de eerste poging is op sommige hosts gewoon
-		   een koude start (DNS of TLS naar ons portaal). Het portaal zelf
-		   antwoordt in ~25 ms en begrenst niets, dus een tweede poging na een
-		   halve seconde lost het op. Anders bleef een nieuwe sync stil mislukken
-		   tot de volgende dagelijkse aanmelding (13-10-2026: speciaalpresentje,
-		   kletskouz en miepdejonge lukten pas bij poging 2 of 3). Een HTTP-
-		   antwoord, ook een foutstatus, is geen verbindingsfout en wordt niet
-		   herhaald. */
-		$antwoord = wp_remote_post( self::api() . '/registreer', $verzoek );
-		if ( is_wp_error( $antwoord ) ) {
-			usleep( 500000 );
+		/* Het portaal antwoordt in ~25 ms. Een aanmelding die er langer dan een
+		   paar seconden over doet, komt niet meer: de verbinding hangt dan tot de
+		   time-out. Dat gebeurde op sommige hosts (13-10-2026: speciaalpresentje,
+		   kletskouz, miepdejonge, kleinpietje, uniekestoffen). Een retry van een
+		   halve seconde na een time-out van 15 s hielp niet, want ook de tweede
+		   poging bleef hangen; een verse verbinding lukt meestal wel. Daarom een
+		   korte time-out per poging en tot drie pogingen, in plaats van twee keer
+		   15 s. Een HTTP-antwoord, ook een foutstatus, is geen verbindingsfout en
+		   wordt niet herhaald. Lukt het toch niet, dan plannen we zelf een nieuwe
+		   poging in, zodat een sync niet tot de volgende dag stil blijft. */
+		$antwoord = null;
+		foreach ( array( 6, 6, 10 ) as $poging => $wacht ) {
+			$verzoek['timeout'] = $wacht;
+			if ( $poging > 0 ) {
+				usleep( 500000 * $poging );
+			}
 			$antwoord = wp_remote_post( self::api() . '/registreer', $verzoek );
+			if ( ! is_wp_error( $antwoord ) ) {
+				break;
+			}
 		}
 
 		if ( is_wp_error( $antwoord ) ) {
 			/* De sleutel die er al staat NIET weggooien. Een storing van een minuut
 			   mag geen werkende koppeling wissen. */
 			update_option( self::OPTIE_UITLEG, __( 'We konden Webshopschool even niet bereiken.', 'wss-ai' ) );
+			self::plan_nieuwe_poging();
 			return false;
 		}
+		delete_transient( 'wss_ai_meld_pogingen' );
 
 		$data = json_decode( wp_remote_retrieve_body( $antwoord ), true );
 		if ( ! is_array( $data ) || empty( $data['ok'] ) || empty( $data['data']['token'] ) ) {
@@ -246,6 +256,20 @@ class WSS_AI_Koppeling {
 			WSS_AI_Mailer::stilzetten();
 		}
 		return true;
+	}
+
+	/**
+	 * Na een mislukte aanmelding over vijf minuten nog eens proberen, via
+	 * WP-Cron. Hooguit zes keer achter elkaar, zodat een portaal dat echt plat
+	 * ligt niet eindeloos wordt aangeroepen.
+	 */
+	public static function plan_nieuwe_poging() {
+		$n = (int) get_transient( 'wss_ai_meld_pogingen' );
+		if ( $n >= 6 || wp_next_scheduled( 'wss_ai_meld_aan_opnieuw' ) ) {
+			return;
+		}
+		set_transient( 'wss_ai_meld_pogingen', $n + 1, HOUR_IN_SECONDS );
+		wp_schedule_single_event( time() + 5 * MINUTE_IN_SECONDS, 'wss_ai_meld_aan_opnieuw' );
 	}
 
 	/**
@@ -478,3 +502,5 @@ class WSS_AI_Koppeling {
 		return $o['motoren'];
 	}
 }
+
+add_action( 'wss_ai_meld_aan_opnieuw', array( 'WSS_AI_Koppeling', 'meld_aan' ) );
