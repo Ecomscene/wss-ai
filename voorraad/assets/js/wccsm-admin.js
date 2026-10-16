@@ -7,6 +7,8 @@
  *   SKU, GTIN, delivery time)
  * - Composed product stock display (computed, read-only, component highlighting)
  * - Bulk price update modal (regular, sale, purchase price)
+ * - Row selection (per product / per size, "select all" = visible rows) and a
+ *   bulk bar that works on the selected rows in portions via AJAX
  */
 (function ($) {
     'use strict';
@@ -19,8 +21,8 @@
        kolom één meldingsregel scheef onder de tabel komt te hangen.
 
        Loopt mee met templates/admin-overview.php: staat daar een kolom bij, dan
-       hoort dit getal mee omhoog. */
-    var KOLOMMEN = 12;
+       hoort dit getal mee omhoog. 13 sinds de selectiekolom vooraan. */
+    var KOLOMMEN = 13;
 
     var state = {
         page: 1,
@@ -30,7 +32,8 @@
         product_type: '',
         per_page: 0,
         bulkProductId: 0,
-        debounceTimer: null
+        debounceTimer: null,
+        bulkBusy: false
     };
 
     /* ========================================================================
@@ -41,6 +44,9 @@
         loadSuppliers();
         loadProducts();
         bindEvents();
+        bindSelection();
+        bindBulkBar();
+        updateSelectionUi();
     });
 
     /* ========================================================================
@@ -190,7 +196,11 @@
         return '<tr><td colspan="' + KOLOMMEN + '" class="wccsm-loading">' + escHtml(tekst) + '</td></tr>';
     }
 
-    function loadProducts() {
+    /**
+     * @param {Object} [keep] Map of selected item ids to re-tick after loading
+     *                        (only used after a bulk action; filters/paging clear it).
+     */
+    function loadProducts(keep) {
         // Elke keer dat de lijst opnieuw geladen wordt, zijn de filters de
         // actuele. Dan hoort de exportlink daar ook bij te staan; dit is de enige
         // plek waar dat gegarandeerd is.
@@ -198,6 +208,7 @@
 
         var $body = $('#wccsm-table-body');
         $body.html(meldingRij(wccsm.i18n.loading));
+        updateSelectionUi();
 
         $.post(wccsm.ajax_url, {
             action: 'wccsm_load_products',
@@ -212,13 +223,17 @@
             if (!response.success || !response.data.rows.length) {
                 $body.html(meldingRij(wccsm.i18n.no_results));
                 $('#wccsm-pagination').html('');
+                updateSelectionUi();
                 return;
             }
 
             renderTable(response.data.rows);
             renderPagination(response.data);
+            if (keep) restoreSelection(keep);
+            updateSelectionUi();
         }).fail(function () {
             $body.html(meldingRij(wccsm.i18n.error));
+            updateSelectionUi();
         });
     }
 
@@ -250,7 +265,20 @@
                 }
             }
 
-            html += '<tr class="' + rowClass + '" data-id="' + r.id + '">';
+            html += '<tr class="' + rowClass + '" data-id="' + r.id + '"'
+                + (r.parent_id ? ' data-parent-id="' + r.parent_id + '"' : '') + '>';
+
+            // Selectie: op een hoofdproduct vinkt het vakje alle (zichtbare) maten
+            // eronder aan; op een maat of enkelvoudig product alleen die regel.
+            html += '<td class="wccsm-cell-select">';
+            if (r.is_parent) {
+                html += '<input type="checkbox" class="wccsm-sel-parent" data-sel-parent="' + r.id + '"'
+                    + ' title="Product met alle maten selecteren" />';
+            } else {
+                html += '<input type="checkbox" class="wccsm-sel-item" data-sel-id="' + r.id + '"'
+                    + ' data-sel-parent-id="' + (r.parent_id || 0) + '" />';
+            }
+            html += '</td>';
 
             // Name
             html += '<td class="wccsm-cell-name">';
@@ -529,6 +557,13 @@
        Suppliers Dropdown
        ======================================================================== */
 
+    /**
+     * Vult het leveranciersfilter en de suggestielijst van de bulkbalk.
+     *
+     * Kan opnieuw aangeroepen worden (na een bulk "leverancier zetten" komt er
+     * misschien een naam bij), dus eerst leegmaken en de keuze in het filter
+     * terugzetten.
+     */
     function loadSuppliers() {
         $.post(wccsm.ajax_url, {
             action: 'wccsm_get_suppliers',
@@ -536,11 +571,273 @@
         }, function (response) {
             if (!response.success) return;
             var $select = $('#wccsm-filter-supplier');
+            var current = $select.val();
+            var $list = $('#wccsm-supplier-list');
             var suppliers = response.data;
+
+            $select.find('option:not(:first)').remove();
+            $list.empty();
             for (var i = 0; i < suppliers.length; i++) {
                 $select.append('<option value="' + escAttr(suppliers[i]) + '">' + escHtml(suppliers[i]) + '</option>');
+                $list.append('<option value="' + escAttr(suppliers[i]) + '"></option>');
             }
+            $select.val(current);
         });
+    }
+
+    /* ========================================================================
+       Selection (per product, per size, select all visible)
+       ======================================================================== */
+
+    function bindSelection() {
+        // Alles selecteren = alles wat nu in beeld staat (dus na filter/zoeken).
+        $(document).on('change', '#wccsm-select-all', function () {
+            var on = $(this).is(':checked');
+            $('#wccsm-table-body .wccsm-sel-item, #wccsm-table-body .wccsm-sel-parent').prop('checked', on).prop('indeterminate', false);
+            updateSelectionUi();
+        });
+
+        // Productregel = al zijn (zichtbare) maten.
+        $(document).on('change', '.wccsm-sel-parent', function () {
+            var pid = $(this).data('sel-parent');
+            $('#wccsm-table-body .wccsm-sel-item[data-sel-parent-id="' + pid + '"]').prop('checked', $(this).is(':checked'));
+            $(this).prop('indeterminate', false);
+            updateSelectionUi();
+        });
+
+        $(document).on('change', '.wccsm-sel-item', function () {
+            updateSelectionUi();
+        });
+    }
+
+    /** Re-derive parent/header checkbox state, row highlight and the counter. */
+    function updateSelectionUi() {
+        var $body = $('#wccsm-table-body');
+
+        $body.find('.wccsm-sel-parent').each(function () {
+            var pid = $(this).data('sel-parent');
+            var $kids = $body.find('.wccsm-sel-item[data-sel-parent-id="' + pid + '"]');
+            if (!$kids.length) return; // Parent without visible sizes keeps its own state.
+            var n = $kids.filter(':checked').length;
+            $(this).prop('checked', n === $kids.length).prop('indeterminate', n > 0 && n < $kids.length);
+        });
+
+        $body.find('tr').each(function () {
+            var $cb = $(this).find('.wccsm-sel-item, .wccsm-sel-parent').first();
+            $(this).toggleClass('wccsm-row-selected', $cb.length > 0 && $cb.is(':checked'));
+        });
+
+        var $all = $body.find('.wccsm-sel-item, .wccsm-sel-parent');
+        var checked = $all.filter(':checked').length;
+        $('#wccsm-select-all')
+            .prop('checked', $all.length > 0 && checked === $all.length)
+            .prop('indeterminate', checked > 0 && checked < $all.length);
+
+        var count = selectedItemIds().length;
+        $('#wccsm-bulk-count').text(count + ' geselecteerd');
+        $('#wccsm-bulkbar').toggleClass('is-empty', count === 0);
+        $('#wccsm-bulk-run').prop('disabled', count === 0 || state.bulkBusy);
+    }
+
+    /** IDs of selected simple products and sizes (variations). */
+    function selectedItemIds() {
+        var ids = [];
+        $('#wccsm-table-body .wccsm-sel-item:checked').each(function () {
+            var id = parseInt($(this).data('sel-id'), 10);
+            if (id && ids.indexOf(id) < 0) ids.push(id);
+        });
+        return ids;
+    }
+
+    /** IDs of fully selected variable products. */
+    function selectedParentIds() {
+        var ids = [];
+        $('#wccsm-table-body .wccsm-sel-parent:checked').each(function () {
+            var id = parseInt($(this).data('sel-parent'), 10);
+            if (id && ids.indexOf(id) < 0) ids.push(id);
+        });
+        return ids;
+    }
+
+    function snapshotSelection() {
+        var keep = { items: {}, parents: {} };
+        $.each(selectedItemIds(), function (i, id) { keep.items[id] = true; });
+        $.each(selectedParentIds(), function (i, id) { keep.parents[id] = true; });
+        return keep;
+    }
+
+    function restoreSelection(keep) {
+        $('#wccsm-table-body .wccsm-sel-item').each(function () {
+            if (keep.items[$(this).data('sel-id')]) $(this).prop('checked', true);
+        });
+        $('#wccsm-table-body .wccsm-sel-parent').each(function () {
+            if (keep.parents[$(this).data('sel-parent')]) $(this).prop('checked', true);
+        });
+    }
+
+    /* ========================================================================
+       Bulk bar (works on the selected rows)
+       ======================================================================== */
+
+    function bindBulkBar() {
+        $('#wccsm-bulk-op').on('change', function () {
+            var op = $(this).val();
+            $('.wccsm-bulk-fields').hide();
+            $('.wccsm-bulk-fields[data-op="' + op + '"]').css('display', 'inline-flex');
+            updateBolPriceLabel();
+        });
+        $('#wccsm-bulk-bolmode').on('change', updateBolPriceLabel);
+
+        $('#wccsm-bulk-run').on('click', function () {
+            runBulk();
+        });
+    }
+
+    function updateBolPriceLabel() {
+        var mode = $('#wccsm-bulk-bolmode').val();
+        $('#wccsm-bulk-bolunit').text(mode === 'set_fixed' ? wccsm.currency : '%');
+    }
+
+    /** Collect + validate the parameters of the chosen bulk action. */
+    function bulkRequest() {
+        var op = $('#wccsm-bulk-op').val();
+        var amount;
+        switch (op) {
+            case 'bol_on':
+                return { op: op, params: {}, label: 'Bol AAN zetten', note: 'Artikelen zonder EAN of op de uitsluitlijst worden overgeslagen.' };
+            case 'bol_off':
+                return { op: op, params: {}, label: 'Bol UIT zetten' };
+            case 'bol_price':
+                amount = parseFloat($('#wccsm-bulk-bolamount').val());
+                if (!(amount > 0)) return { error: 'Vul een bedrag of percentage groter dan 0 in.' };
+                var mode = $('#wccsm-bulk-bolmode').val();
+                var desc = mode === 'set_fixed' ? wccsm.currency + ' ' + amount.toFixed(2)
+                    : (mode === 'percent_up' ? amount + '% boven' : amount + '% onder') + ' de normale prijs';
+                return { op: op, params: { mode: mode, amount: amount }, label: 'Bol-prijs zetten op ' + desc };
+            case 'supplier':
+                var v = $.trim($('#wccsm-bulk-supplier').val());
+                if (!v) return { error: 'Vul een leverancier in.' };
+                return { op: op, params: { value: v }, label: 'Leverancier zetten op "' + v + '"' };
+            case 'price':
+                amount = parseFloat($('#wccsm-bulk-priceamount').val());
+                if (!(amount > 0)) return { error: 'Vul een bedrag groter dan 0 in.' };
+                return {
+                    op: op,
+                    params: { target: $('#wccsm-bulk-pricetarget').val(), bulk_action: $('#wccsm-bulk-priceaction').val(), amount: amount },
+                    label: $('#wccsm-bulk-pricetarget option:selected').text() + ': '
+                        + $('#wccsm-bulk-priceaction option:selected').text().toLowerCase() + ' ' + amount
+                };
+        }
+        return { error: 'Kies eerst een bulkactie.' };
+    }
+
+    function runBulk() {
+        if (state.bulkBusy) return;
+
+        var $result = $('#wccsm-bulk-result');
+        var req = bulkRequest();
+        if (req.error) {
+            setResult('is-error', escHtml(req.error));
+            return;
+        }
+
+        var items = selectedItemIds();
+        if (!items.length) {
+            setResult('is-error', 'Er is niets geselecteerd.');
+            return;
+        }
+
+        // De leverancier gaat ook op volledig aangevinkte variabele producten,
+        // zodat het leveranciersfilter (dat naar het hoofdproduct kijkt) ze blijft vinden.
+        var ids = items.slice();
+        var parents = req.op === 'supplier' ? selectedParentIds() : [];
+        $.each(parents, function (i, id) { if (ids.indexOf(id) < 0) ids.push(id); });
+
+        var msg = req.label + ' voor ' + items.length + ' geselecteerde artikel' + (items.length === 1 ? '' : 'en')
+            + (parents.length ? ' (+ ' + parents.length + ' hoofdproduct' + (parents.length === 1 ? '' : 'en') + ')' : '') + '?'
+            + (req.note ? '\n\n' + req.note : '');
+        if (!confirm(msg)) return;
+
+        var chunk = parseInt(wccsm.bulk_chunk, 10) || 25;
+        var portions = [];
+        for (var i = 0; i < ids.length; i += chunk) portions.push(ids.slice(i, i + chunk));
+
+        var total = { done: 0, skipped: [] };
+        var keep = snapshotSelection();
+        var processed = 0;
+
+        state.bulkBusy = true;
+        $('#wccsm-bulk-run, #wccsm-bulk-op').prop('disabled', true);
+        $result.removeClass('is-ok is-warn is-error').text('Bezig… 0 / ' + ids.length);
+
+        function next(n) {
+            if (n >= portions.length) {
+                finish();
+                return;
+            }
+            var data = $.extend({
+                action: 'wccsm_bulk_apply',
+                nonce: wccsm.nonce,
+                op: req.op,
+                ids: portions[n]
+            }, req.params);
+
+            $.post(wccsm.ajax_url, data, function (response) {
+                if (!response || !response.success) {
+                    fail((response && response.data) ? String(response.data) : wccsm.i18n.error);
+                    return;
+                }
+                total.done += response.data.done;
+                total.skipped = total.skipped.concat(response.data.skipped || []);
+                processed += portions[n].length;
+                $result.text('Bezig… ' + processed + ' / ' + ids.length);
+                next(n + 1);
+            }).fail(function () {
+                fail(wccsm.i18n.error);
+            });
+        }
+
+        function fail(error) {
+            done();
+            setResult('is-error', 'Gestopt: ' + escHtml(error) + '. ' + total.done + ' artikelen waren al bijgewerkt.');
+            loadProducts(keep);
+        }
+
+        function finish() {
+            done();
+            var html = '<strong>' + total.done + ' bijgewerkt</strong>';
+            if (total.skipped.length) {
+                html += ', <strong>' + total.skipped.length + ' overgeslagen</strong>:';
+                var groups = {};
+                var order = [];
+                $.each(total.skipped, function (i, s) {
+                    if (!groups[s.reason]) { groups[s.reason] = []; order.push(s.reason); }
+                    groups[s.reason].push(s.name);
+                });
+                html += '<ul>';
+                $.each(order, function (i, reason) {
+                    var names = groups[reason];
+                    html += '<li>' + escHtml(reason) + ': ' + names.length
+                        + ' <small>(' + escHtml(names.slice(0, 8).join(', ')) + (names.length > 8 ? ', …' : '') + ')</small></li>';
+                });
+                html += '</ul>';
+            }
+            setResult(total.skipped.length ? 'is-warn' : 'is-ok', html);
+            if (req.op === 'supplier') loadSuppliers();
+            loadProducts(keep);
+        }
+
+        function done() {
+            state.bulkBusy = false;
+            $('#wccsm-bulk-op').prop('disabled', false);
+            updateSelectionUi();
+        }
+
+        next(0);
+    }
+
+    function setResult(cls, html) {
+        $('#wccsm-bulk-result').removeClass('is-ok is-warn is-error').addClass(cls).html(html);
     }
 
     /* ========================================================================
