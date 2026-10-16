@@ -6,9 +6,8 @@ defined( 'ABSPATH' ) || exit;
  *
  * Provides a single-page view of all products and variations with inline
  * editing for stock, purchase price, sale price, supplier, supplier article
- * number and delivery time. Supports filtering by supplier, stock status,
- * a stock threshold ("voorraad lager dan") and product type. Data loaded via
- * AJAX for speed.
+ * number and delivery time. Supports filtering by supplier, stock status, and
+ * product type. Data loaded via AJAX for speed.
  */
 class WCCSM_Admin_Overview {
 
@@ -173,28 +172,6 @@ class WCCSM_Admin_Overview {
     }
 
     /**
-     * De grens van het filter "voorraad lager dan", als geheel getal.
-     *
-     * Leeg, nul, negatief of onzin betekent: filter staat uit. Casten en niet
-     * absint(), om dezelfde reden als bij per_page(): absint maakt van -10 een
-     * keurige 10, en dan staat er een filter aan dat niemand heeft gekozen.
-     *
-     * Gevraagd door een stoffenwinkel waar een stuk 10 cm is: "lager dan 10"
-     * is daar "minder dan een meter". Daarom een vrij getal en niet de vaste
-     * WooCommerce-drempel die "Lage voorraad" gebruikt.
-     *
-     * @param mixed $waarde Wat de browser meestuurde.
-     * @return int 0 als het filter uit staat.
-     */
-    public static function voorraad_grens( $waarde ): int {
-        if ( ! is_numeric( $waarde ) ) {
-            return 0;
-        }
-
-        return max( 0, (int) $waarde );
-    }
-
-    /**
      * De zoekopdracht die bij deze filters hoort, zonder paginering.
      *
      * Staat apart omdat de export precies dezelfde selectie moet opleveren als
@@ -203,8 +180,8 @@ class WCCSM_Admin_Overview {
      * pas als iemand op de verkeerde cijfers gaat bestellen.
      *
      * Hier zitten alleen de dingen in die de database in één keer kan
-     * beantwoorden. De voorraadstatus, de voorraadgrens en de LEVERANCIER niet:
-     * zie filter_op_voorraad(), filter_onder_grens() en filter_op_leverancier().
+     * beantwoorden. De voorraadstatus en de LEVERANCIER niet: zie
+     * filter_op_voorraad() en filter_op_leverancier().
      *
      * @param array $f search | product_type.
      * @return array
@@ -242,7 +219,7 @@ class WCCSM_Admin_Overview {
     /**
      * Alle product-ids die bij deze filters horen, op naam gesorteerd.
      *
-     * @param array $f search | supplier | product_type | stock_status | stock_below.
+     * @param array $f search | supplier | product_type | stock_status.
      * @return array
      */
     public static function zoek_ids( array $f ): array {
@@ -270,17 +247,11 @@ class WCCSM_Admin_Overview {
             $ids = self::filter_op_leverancier( $ids, (string) $f['supplier'] );
         }
 
-        if ( ! empty( $f['stock_status'] ) ) {
-            $ids = self::filter_op_voorraad( $ids, (string) $f['stock_status'] );
+        if ( empty( $f['stock_status'] ) ) {
+            return $ids;
         }
 
-        $grens = self::voorraad_grens( $f['stock_below'] ?? 0 );
-
-        if ( $grens > 0 ) {
-            $ids = self::filter_onder_grens( $ids, $grens );
-        }
-
-        return $ids;
+        return self::filter_op_voorraad( $ids, (string) $f['stock_status'] );
     }
 
     /**
@@ -299,7 +270,6 @@ class WCCSM_Admin_Overview {
         $supplier = sanitize_text_field( $_POST['supplier'] ?? '' );
         $stock_status = sanitize_text_field( $_POST['stock_status'] ?? '' );
         $product_type = sanitize_text_field( $_POST['product_type'] ?? '' );
-        $stock_below  = self::voorraad_grens( sanitize_text_field( $_POST['stock_below'] ?? '' ) );
 
         /**
          * EERST UITZOEKEN WAT ER PAST, DAN PAS IN PLAKJES SNIJDEN
@@ -320,7 +290,6 @@ class WCCSM_Admin_Overview {
                 'supplier'     => $supplier,
                 'product_type' => $product_type,
                 'stock_status' => $stock_status,
-                'stock_below'  => $stock_below,
             ]
         );
 
@@ -377,22 +346,11 @@ class WCCSM_Admin_Overview {
                         }
                     }
 
-                    /* Voorraad lager dan X: alleen de maten die eronder zitten,
-                       zodat je onder het hoofdproduct ziet WELKE variatie bijbesteld
-                       moet worden. Zonder voorraadbeheer is er geen aantal en valt
-                       de variatie erbuiten, net als bij de statusfilters. */
-                    if ( $stock_below > 0 ) {
-                        $stock_qty = $variation->get_stock_quantity();
-                        if ( null === $stock_qty || $stock_qty >= $stock_below ) {
-                            continue;
-                        }
-                    }
-
                     $var_rows[] = $this->build_row( $variation, false, $product );
                 }
 
                 // Only include parent + variations if there are matching variations.
-                if ( ! empty( $var_rows ) || ( ! $supplier && ! $stock_status && ! $stock_below ) ) {
+                if ( ! empty( $var_rows ) || ( ! $supplier && ! $stock_status ) ) {
                     $rows[] = $parent_row;
                     $rows   = array_merge( $rows, $var_rows );
                 }
@@ -505,6 +463,12 @@ class WCCSM_Admin_Overview {
      * @return array Dezelfde ids, in dezelfde volgorde, alleen de passende.
      */
     public static function filter_op_voorraad( array $kandidaten, string $status ): array {
+        global $wpdb;
+
+        if ( empty( $kandidaten ) ) {
+            return [];
+        }
+
         $laag = absint( get_option( 'woocommerce_notify_low_stock_amount', 2 ) );
 
         if ( 'outofstock' === $status ) {
@@ -513,47 +477,6 @@ class WCCSM_Admin_Overview {
             $voorwaarde = 'aantal <= ' . $laag;
         } else {
             $voorwaarde = 'aantal > 0';
-        }
-
-        return self::filter_op_aantal( $kandidaten, $voorwaarde );
-    }
-
-    /**
-     * Welke van deze producten hebben een voorraad LAGER DAN deze grens?
-     *
-     * Strikt lager: "lager dan 10" is 9 en minder, 0 telt mee. Bij een variabel
-     * product telt het mee zodra één variatie eronder zit, net als bij de
-     * voorraadstatus. Werkt samen met alle andere filters, want zoek_ids() past
-     * ze na elkaar toe op dezelfde lijst.
-     *
-     * @param array $kandidaten Product-ids in de gewenste volgorde.
-     * @param int   $grens      Alles onder dit aantal past.
-     * @return array Dezelfde ids, in dezelfde volgorde, alleen de passende.
-     */
-    public static function filter_onder_grens( array $kandidaten, int $grens ): array {
-        if ( $grens <= 0 ) {
-            return $kandidaten;
-        }
-
-        return self::filter_op_aantal( $kandidaten, 'aantal < ' . absint( $grens ) );
-    }
-
-    /**
-     * De gedeelde zoekopdracht achter de voorraadfilters.
-     *
-     * Eén query die een voorraad op een variatie terugrekent naar het
-     * hoofdproduct. De voorwaarde komt alleen van de twee functies hierboven en
-     * bevat dan uitsluitend door absint() gehaalde getallen.
-     *
-     * @param array  $kandidaten Product-ids in de gewenste volgorde.
-     * @param string $voorwaarde Bijvoorbeeld 'aantal < 10'.
-     * @return array
-     */
-    private static function filter_op_aantal( array $kandidaten, string $voorwaarde ): array {
-        global $wpdb;
-
-        if ( empty( $kandidaten ) ) {
-            return [];
         }
 
         // De ids komen uit wc_get_products en zijn dus al gehele getallen; door

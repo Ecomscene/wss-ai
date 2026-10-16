@@ -27,12 +27,10 @@
         search: '',
         supplier: '',
         stock_status: '',
-        stock_below: '',
         product_type: '',
         per_page: 0,
         bulkProductId: 0,
-        debounceTimer: null,
-        belowTimer: null
+        debounceTimer: null
     };
 
     /* ========================================================================
@@ -49,18 +47,6 @@
        Event Binding
        ======================================================================== */
 
-    /**
-     * De grens van "voorraad lager dan" uit het vakje lezen.
-     *
-     * Leeg, nul of onzin is: filter uit. Dan sturen we een lege waarde mee en
-     * niet 0, zodat de exportlink en het verzoek er hetzelfde uitzien als
-     * zonder filter.
-     */
-    function leesGrens() {
-        var grens = parseInt($('#wccsm-filter-below').val(), 10);
-        return (grens && grens > 0) ? String(grens) : '';
-    }
-
     function bindEvents() {
         // Search with debounce.
         $('#wccsm-search').on('input', function () {
@@ -70,32 +56,6 @@
                 state.page = 1;
                 loadProducts();
             }, 400);
-        });
-
-        // Voorraad lager dan: tijdens het typen even wachten, net als bij het
-        // zoekveld, zodat "10" niet eerst een lijst voor "1" ophaalt. Alleen
-        // opnieuw laden als de grens echt anders is geworden.
-        $('#wccsm-filter-below').on('input change', function () {
-            clearTimeout(state.belowTimer);
-            state.belowTimer = setTimeout(function () {
-                var grens = leesGrens();
-                if (grens === state.stock_below) {
-                    return;
-                }
-                state.stock_below = grens;
-                state.page = 1;
-                loadProducts();
-            }, 500);
-        });
-
-        $('#wccsm-filter-below').on('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                clearTimeout(state.belowTimer);
-                state.stock_below = leesGrens();
-                state.page = 1;
-                loadProducts();
-            }
         });
 
         // Aantal per pagina. Terug naar bladzijde 1: wie van 25 naar 500 gaat en
@@ -222,7 +182,6 @@
             '&search=' + encodeURIComponent(state.search) +
             '&supplier=' + encodeURIComponent(state.supplier) +
             '&stock_status=' + encodeURIComponent(state.stock_status) +
-            '&stock_below=' + encodeURIComponent(state.stock_below) +
             '&product_type=' + encodeURIComponent(state.product_type));
     }
 
@@ -247,7 +206,6 @@
             search: state.search,
             supplier: state.supplier,
             stock_status: state.stock_status,
-            stock_below: state.stock_below,
             product_type: state.product_type,
             per_page: state.per_page
         }, function (response) {

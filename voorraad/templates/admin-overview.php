@@ -19,18 +19,6 @@ defined( 'ABSPATH' ) || exit;
             <option value="instock"><?php esc_html_e( 'Op voorraad', 'wccsm' ); ?></option>
         </select>
 
-        <?php
-        /* Voorraad lager dan een zelfgekozen getal. "Lage voorraad" hierboven
-           gebruikt de vaste WooCommerce-drempel; dit is voor wie zelf wil zeggen
-           waar de grens ligt, bijvoorbeeld een stoffenwinkel waar 10 stuks een
-           meter is. Leeg betekent: filter uit. */
-        ?>
-        <label class="wccsm-per-page-vak" title="<?php esc_attr_e( 'Alleen producten met een voorraad lager dan dit aantal. Bij variabele producten verschijnen de variaties die eronder zitten. Leeg laten voor alles.', 'wccsm' ); ?>">
-            <span><?php esc_html_e( 'Voorraad lager dan', 'wccsm' ); ?></span>
-            <input type="number" id="wccsm-filter-below" class="wccsm-filter-input wccsm-per-page"
-                min="1" step="1" value="" placeholder="<?php esc_attr_e( 'bijv. 10', 'wccsm' ); ?>" />
-        </label>
-
         <select id="wccsm-filter-type" class="wccsm-filter-select">
             <option value=""><?php esc_html_e( 'Alle typen', 'wccsm' ); ?></option>
             <option value="simple"><?php esc_html_e( 'Eenvoudig', 'wccsm' ); ?></option>
