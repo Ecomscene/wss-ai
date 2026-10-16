@@ -86,6 +86,7 @@ class WCCSM_Export {
 			'supplier'     => sanitize_text_field( wp_unslash( $_GET['supplier'] ?? '' ) ),
 			'product_type' => sanitize_text_field( wp_unslash( $_GET['product_type'] ?? '' ) ),
 			'stock_status' => sanitize_text_field( wp_unslash( $_GET['stock_status'] ?? '' ) ),
+			'stock_below'  => WCCSM_Admin_Overview::voorraad_grens( sanitize_text_field( wp_unslash( $_GET['stock_below'] ?? '' ) ) ),
 		];
 
 		$ids = WCCSM_Admin_Overview::zoek_ids( $filters );
@@ -126,6 +127,9 @@ class WCCSM_Export {
 							continue;
 						}
 						if ( ! $this->past_bij_voorraad( $variatie, $filters['stock_status'] ) ) {
+							continue;
+						}
+						if ( ! $this->past_onder_grens( $variatie, $filters['stock_below'] ) ) {
 							continue;
 						}
 						if ( ! $this->past_bij_leverancier( $variatie, $product, $filters['supplier'] ) ) {
@@ -270,6 +274,26 @@ class WCCSM_Export {
 	}
 
 	/**
+	 * Zit deze variatie onder de gekozen voorraadgrens?
+	 *
+	 * Dezelfde regel als in het overzicht: strikt lager dan de grens, en zonder
+	 * voorraadbeheer telt hij niet mee.
+	 *
+	 * @param WC_Product $variatie De variatie.
+	 * @param int        $grens    De grens, of 0 als het filter uit staat.
+	 * @return bool
+	 */
+	private function past_onder_grens( $variatie, int $grens ): bool {
+		if ( $grens <= 0 ) {
+			return true;
+		}
+
+		$aantal = $variatie->get_stock_quantity();
+
+		return null !== $aantal && $aantal < $grens;
+	}
+
+	/**
 	 * Past deze variatie bij de gekozen leverancier?
 	 *
 	 * Dezelfde regel als in het overzicht: leeg op de variatie betekent dat de
@@ -310,6 +334,9 @@ class WCCSM_Export {
 		}
 		if ( $filters['stock_status'] ) {
 			$delen[] = sanitize_title( $filters['stock_status'] );
+		}
+		if ( ! empty( $filters['stock_below'] ) ) {
+			$delen[] = 'lager-dan-' . absint( $filters['stock_below'] );
 		}
 		if ( $filters['product_type'] ) {
 			$delen[] = sanitize_title( $filters['product_type'] );
