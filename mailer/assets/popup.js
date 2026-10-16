@@ -189,11 +189,21 @@
 					vraag.hidden = true;
 					gelukt.hidden = false;
 
+					/* Geen code (popup zonder korting, of al eens afgemeld): dan ook
+					   geen leeg codekader op het scherm. */
 					if ( res.data.code ) {
 						codevak.textContent = res.data.code;
-					} else if ( res.data.melding ) {
+						codevak.style.display = '';
+					} else {
 						codevak.textContent = '';
-						gelukt.querySelector( 'p' ).textContent = res.data.melding;
+						codevak.style.display = 'none';
+
+						if ( res.data.melding ) {
+							var regel = gelukt.querySelector( 'p:not(.wsfm-popup-code)' );
+							if ( regel ) {
+								regel.textContent = res.data.melding;
+							}
+						}
 					}
 				} )
 				.catch( function () {

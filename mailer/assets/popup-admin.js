@@ -121,6 +121,27 @@
 		$vak.attr( 'data-breed', $( this ).data( 'breed' ) );
 	} );
 
+	/* ---------------- met of zonder korting ---------------- */
+
+	function zonderKorting() {
+		return 'geen' === $( 'select[name="korting_soort"]' ).val();
+	}
+
+	/**
+	 * Zonder korting hebben bedrag, geldigheid en code geen betekenis. Ze
+	 * blijven wel in het formulier staan (verborgen), zodat wie later weer
+	 * korting aanzet zijn oude instellingen terugvindt.
+	 */
+	function kortingVelden() {
+		var geen = zonderKorting();
+		$( '.wsfm-alleen-korting' ).toggle( ! geen );
+		$( '.wsfm-alleen-geen' ).toggle( geen );
+		$laag.find( '.wsfm-popup-code' ).css( 'display', geen ? 'none' : '' );
+	}
+
+	$( 'select[name="korting_soort"]' ).on( 'change', kortingVelden );
+	kortingVelden();
+
 	/* ---------------- het bedankscherm bekijken ---------------- */
 
 	$( '#wsfm-toon-gelukt' ).on( 'click', function () {
@@ -137,7 +158,10 @@
 
 		$gelukt.find( 'h2' ).text( $( 'input[name="gelukt_kop"]' ).val() || '' );
 		$gelukt.find( 'p' ).not( '.wsfm-popup-code' ).text( $( 'input[name="gelukt_tekst"]' ).val() || '' );
-		$gelukt.find( '.wsfm-popup-code' ).text( ( $( 'input[name="code_voorvoegsel"]' ).val() || 'WELKOM' ) + '-4KP7HQ' );
+		$gelukt
+			.find( '.wsfm-popup-code' )
+			.text( zonderKorting() ? '' : ( $( 'input[name="code_voorvoegsel"]' ).val() || 'WELKOM' ) + '-4KP7HQ' )
+			.css( 'display', zonderKorting() ? 'none' : '' );
 
 		$vraag.prop( 'hidden', true );
 		$gelukt.prop( 'hidden', false );
@@ -165,6 +189,9 @@
 	 * bezoekers iets wat de code niet doet. Dat merk je pas als er iemand boos
 	 * mailt, en dan staat het al een maand zo.
 	 *
+	 * Bij "geen korting" is het dezelfde fout andersom: de standaardteksten
+	 * beloven korting en een code, en die komen er dan niet.
+	 *
 	 * Alleen waarschuwen, niet tegenhouden: "10% korting op alles boven de 50"
 	 * is een prima kop waar geen enkel getal in hoeft te kloppen.
 	 */
@@ -173,6 +200,36 @@
 		var kop = $( 'input[name="kop"]' ).val() || '';
 		var soort = $( 'select[name="korting_soort"]' ).val();
 		var waarde = parseFloat( $( 'input[name="korting_waarde"]' ).val() || '0' );
+
+		if ( 'geen' === soort ) {
+			var velden = [
+				[ 'input[name="kop"]', T.veldKop || 'de kop' ],
+				[ 'input[name="tekst"]', T.veldTekst || 'de tekst eronder' ],
+				[ 'input[name="gelukt_tekst"]', T.veldGelukt || 'de tekst na het inschrijven' ],
+				[ 'input[name="mail_onderwerp"]', T.veldOnderwerp || 'het onderwerp van de mail' ],
+				[ 'textarea[name="mail_tekst"]', T.veldMail || 'de tekst van de mail' ],
+			];
+			var belooft = [];
+
+			velden.forEach( function ( veld ) {
+				if ( /korting|code|%/i.test( $( veld[ 0 ] ).val() || '' ) ) {
+					belooft.push( veld[ 1 ] );
+				}
+			} );
+
+			if ( ! belooft.length ) {
+				$waarschuwing.hide();
+				return;
+			}
+
+			$waarschuwing
+				.text(
+					( T.belofteGeen || 'Je hebt Geen korting gekozen, maar in %s staat nog iets over korting of een code.' )
+						.replace( '%s', belooft.join( ', ' ) )
+				)
+				.show();
+			return;
+		}
 
 		if ( 'percent' !== soort || ! waarde ) {
 			$waarschuwing.hide();
@@ -200,10 +257,9 @@
 			.show();
 	}
 
-	$( 'input[name="kop"], select[name="korting_soort"], input[name="korting_waarde"]' ).on(
-		'input change',
-		controleerBelofte
-	);
+	$(
+		'input[name="kop"], input[name="tekst"], input[name="gelukt_tekst"], input[name="mail_onderwerp"], textarea[name="mail_tekst"], select[name="korting_soort"], input[name="korting_waarde"]'
+	).on( 'input change', controleerBelofte );
 	controleerBelofte();
 
 	/* ---------------- de mail bekijken en proberen ---------------- */

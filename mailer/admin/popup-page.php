@@ -32,7 +32,7 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 	<?php endif; ?>
 
 	<p class="wsfm-popup-uitleg">
-		<?php esc_html_e( 'Bezoekers laten hun e-mailadres achter en krijgen meteen een kortingscode op het scherm, plus dezelfde code per mail. Ze komen daarna op je lijst te staan, zodat je ze een nieuwsbrief kunt sturen.', 'ws-flow-mailer' ); ?>
+		<?php esc_html_e( 'Bezoekers laten hun e-mailadres achter en krijgen meteen een kortingscode op het scherm, plus dezelfde code per mail. Ze komen daarna op je lijst te staan, zodat je ze een nieuwsbrief kunt sturen. Korting geven hoeft niet: kies bij De korting voor Geen korting, dan is het alleen een inschrijving.', 'ws-flow-mailer' ); ?>
 	</p>
 
 	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="wsfm-popup-form">
@@ -181,46 +181,53 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 					<div class="inside">
 						<p class="wsfm-tweeling">
 							<label><?php esc_html_e( 'Soort korting', 'ws-flow-mailer' ); ?><br>
-								<select name="korting_soort">
+								<select name="korting_soort" id="wsfm-korting-soort">
 									<option value="percent" <?php selected( $i['korting_soort'], 'percent' ); ?>><?php esc_html_e( 'Percentage', 'ws-flow-mailer' ); ?></option>
 									<option value="bedrag" <?php selected( $i['korting_soort'], 'bedrag' ); ?>><?php esc_html_e( 'Vast bedrag', 'ws-flow-mailer' ); ?></option>
+									<option value="geen" <?php selected( $i['korting_soort'], 'geen' ); ?>><?php esc_html_e( 'Geen korting', 'ws-flow-mailer' ); ?></option>
 								</select></label>
-							<label><?php esc_html_e( 'Hoeveel?', 'ws-flow-mailer' ); ?><br>
+							<label class="wsfm-alleen-korting"><?php esc_html_e( 'Hoeveel?', 'ws-flow-mailer' ); ?><br>
 								<input type="number" name="korting_waarde" min="1" step="0.01" value="<?php echo esc_attr( $i['korting_waarde'] ); ?>"></label>
 						</p>
+						<p class="description wsfm-alleen-geen">
+							<?php esc_html_e( 'Bezoekers schrijven zich alleen in. Er wordt geen kortingscode gemaakt, er staat geen code op het bedankscherm en de welkomstmail heeft geen codekader. Pas de kop, de tekst na het inschrijven en de mail dan wel aan, zodat er nergens nog korting beloofd wordt.', 'ws-flow-mailer' ); ?>
+						</p>
 						<p class="notice notice-warning" id="wsfm-belofte" style="display:none;padding:8px 12px;margin:0 0 12px;"></p>
-						<p class="wsfm-tweeling">
-							<label><?php esc_html_e( 'Minimaal bestelbedrag', 'ws-flow-mailer' ); ?><br>
-								<input type="number" name="minimaal" min="0" step="0.01" value="<?php echo esc_attr( $i['minimaal'] ); ?>"></label>
-							<label><?php esc_html_e( 'Hoeveel dagen geldig?', 'ws-flow-mailer' ); ?><br>
-								<input type="number" name="geldig_dagen" min="0" max="3650" value="<?php echo esc_attr( (int) $i['geldig_dagen'] ); ?>"></label>
-						</p>
-						<p class="description"><?php esc_html_e( 'Nul dagen betekent: blijft altijd geldig.', 'ws-flow-mailer' ); ?></p>
 
-						<hr>
+						<div class="wsfm-alleen-korting">
+							<p class="wsfm-tweeling">
+								<label><?php esc_html_e( 'Minimaal bestelbedrag', 'ws-flow-mailer' ); ?><br>
+									<input type="number" name="minimaal" min="0" step="0.01" value="<?php echo esc_attr( $i['minimaal'] ); ?>"></label>
+								<label><?php esc_html_e( 'Hoeveel dagen geldig?', 'ws-flow-mailer' ); ?><br>
+									<input type="number" name="geldig_dagen" min="0" max="3650" value="<?php echo esc_attr( (int) $i['geldig_dagen'] ); ?>"></label>
+							</p>
+							<p class="description"><?php esc_html_e( 'Nul dagen betekent: blijft altijd geldig.', 'ws-flow-mailer' ); ?></p>
 
-						<p>
-							<label>
-								<input type="checkbox" name="unieke_code" value="1" id="wsfm-uniek" <?php checked( ! empty( $i['unieke_code'] ) ); ?>>
-								<strong><?php esc_html_e( 'Iedereen krijgt zijn eigen code', 'ws-flow-mailer' ); ?></strong>
-							</label><br>
-							<span class="description">
-								<?php esc_html_e( 'Aanbevolen. De code werkt één keer en alleen op het adres waarmee is ingeschreven. Zet je dit uit, dan krijgt iedereen dezelfde code; die staat binnen een paar weken op een kortingssite en dan geef je korting weg aan iedereen.', 'ws-flow-mailer' ); ?>
-							</span>
-						</p>
-						<p class="wsfm-tweeling">
-							<label class="wsfm-alleen-uniek"><?php esc_html_e( 'Begin van de code', 'ws-flow-mailer' ); ?><br>
-								<input type="text" name="code_voorvoegsel" maxlength="12" value="<?php echo esc_attr( $i['code_voorvoegsel'] ); ?>">
-								<span class="description"><?php esc_html_e( 'Bijvoorbeeld WELKOM-4KP7HQ', 'ws-flow-mailer' ); ?></span></label>
-							<label class="wsfm-alleen-vast"><?php esc_html_e( 'De vaste code', 'ws-flow-mailer' ); ?><br>
-								<input type="text" name="vaste_code" maxlength="40" value="<?php echo esc_attr( $i['vaste_code'] ); ?>">
-								<span class="description"><?php esc_html_e( 'Deze coupon moet je zelf in WooCommerce aanmaken.', 'ws-flow-mailer' ); ?></span></label>
-						</p>
+							<hr>
+
+							<p>
+								<label>
+									<input type="checkbox" name="unieke_code" value="1" id="wsfm-uniek" <?php checked( ! empty( $i['unieke_code'] ) ); ?>>
+									<strong><?php esc_html_e( 'Iedereen krijgt zijn eigen code', 'ws-flow-mailer' ); ?></strong>
+								</label><br>
+								<span class="description">
+									<?php esc_html_e( 'Aanbevolen. De code werkt één keer en alleen op het adres waarmee is ingeschreven. Zet je dit uit, dan krijgt iedereen dezelfde code; die staat binnen een paar weken op een kortingssite en dan geef je korting weg aan iedereen.', 'ws-flow-mailer' ); ?>
+								</span>
+							</p>
+							<p class="wsfm-tweeling">
+								<label class="wsfm-alleen-uniek"><?php esc_html_e( 'Begin van de code', 'ws-flow-mailer' ); ?><br>
+									<input type="text" name="code_voorvoegsel" maxlength="12" value="<?php echo esc_attr( $i['code_voorvoegsel'] ); ?>">
+									<span class="description"><?php esc_html_e( 'Bijvoorbeeld WELKOM-4KP7HQ', 'ws-flow-mailer' ); ?></span></label>
+								<label class="wsfm-alleen-vast"><?php esc_html_e( 'De vaste code', 'ws-flow-mailer' ); ?><br>
+									<input type="text" name="vaste_code" maxlength="40" value="<?php echo esc_attr( $i['vaste_code'] ); ?>">
+									<span class="description"><?php esc_html_e( 'Deze coupon moet je zelf in WooCommerce aanmaken.', 'ws-flow-mailer' ); ?></span></label>
+							</p>
+						</div>
 					</div>
 				</div>
 
 				<div class="postbox">
-					<h2 class="hndle"><span><?php esc_html_e( 'De mail met de code', 'ws-flow-mailer' ); ?></span></h2>
+					<h2 class="hndle"><span><?php esc_html_e( 'De welkomstmail', 'ws-flow-mailer' ); ?></span></h2>
 					<div class="inside">
 						<p>
 							<label>
@@ -245,7 +252,7 @@ $wsfm_beeld = $i['afbeelding'] ? wp_get_attachment_image_url( (int) $i['afbeeldi
 						<p>
 							<label><?php esc_html_e( 'Tekst', 'ws-flow-mailer' ); ?><br>
 								<textarea class="large-text" rows="5" name="mail_tekst"><?php echo esc_textarea( $i['mail_tekst'] ); ?></textarea></label><br>
-							<span class="description"><?php esc_html_e( 'De kortingscode zetten we er zelf onder, in een kader. Die hoef je hier niet te noemen.', 'ws-flow-mailer' ); ?></span>
+							<span class="description wsfm-alleen-korting"><?php esc_html_e( 'De kortingscode zetten we er zelf onder, in een kader. Die hoef je hier niet te noemen.', 'ws-flow-mailer' ); ?></span>
 						</p>
 						<p>
 							<label><?php esc_html_e( 'Vormgeving', 'ws-flow-mailer' ); ?><br>

@@ -15,6 +15,12 @@
  * liever met één vaste code doet kan dat instellen; het staat er dan bij wat dat
  * betekent.
  *
+ * ZONDER KORTING
+ * Niet elke winkel wil korting geven voor een inschrijving. Met de soort
+ * "geen" wordt er geen coupon gemaakt, komt er geen code op het scherm en
+ * staat er geen codekader in de welkomstmail. De popup is dan gewoon een
+ * inschrijfformulier voor de nieuwsbrief.
+ *
  * WAT DE POPUP NIET DOET
  * Hij verschijnt niet op de winkelwagen en de afrekenpagina. Iemand die zijn
  * gegevens aan het invullen is, moet je niet onderbreken met een formulier: dat
@@ -32,6 +38,9 @@ class WSFM_Popup {
 
 	/** Hoe lang de browser onthoudt dat hij hem al gezien heeft. */
 	const KOEKJE = 'wsfm_popup_gezien';
+
+	/** De soorten korting die je kunt kiezen. */
+	const KORTING_SOORTEN = array( 'percent', 'bedrag', 'geen' );
 
 	/**
 	 * Aanhaken. Alleen als de popup aanstaat wordt er iets op de winkel gezet.
@@ -98,7 +107,8 @@ class WSFM_Popup {
 
 			/* De korting. Percentage is wat we in de praktijk altijd doen, maar
 			   een vast bedrag moet kunnen: bij dure producten is tien procent
-			   soms meer weggeven dan de bedoeling is. */
+			   soms meer weggeven dan de bedoeling is. En "geen" voor een winkel
+			   die alleen inschrijvingen wil, zonder iets weg te geven. */
 			'korting_soort'   => 'percent',
 			'korting_waarde'  => 10,
 			'minimaal'        => 0,
@@ -150,6 +160,16 @@ class WSFM_Popup {
 	}
 
 	/**
+	 * Geeft deze popup korting, of is het alleen een inschrijving?
+	 *
+	 * @param array $i Instellingen.
+	 * @return bool
+	 */
+	public static function met_korting( array $i ) {
+		return ! isset( $i['korting_soort'] ) || 'geen' !== $i['korting_soort'];
+	}
+
+	/**
 	 * Opslaan vanuit het beheerformulier.
 	 *
 	 * @param array $ruw $_POST.
@@ -176,7 +196,15 @@ class WSFM_Popup {
 			return max( $min, min( $max, (float) $ruw[ $sleutel ] ) );
 		};
 
-		$soort = isset( $ruw['korting_soort'] ) && 'bedrag' === $ruw['korting_soort'] ? 'bedrag' : 'percent';
+		$soort = isset( $ruw['korting_soort'] ) && in_array( $ruw['korting_soort'], self::KORTING_SOORTEN, true )
+			? $ruw['korting_soort']
+			: 'percent';
+
+		/* Bij "geen korting" blijft het oude bedrag gewoon bewaard. Wie later
+		   weer korting aanzet, hoeft het dan niet opnieuw te bedenken. */
+		$waarde = 'geen' === $soort
+			? $oud['korting_waarde']
+			: $getal( 'korting_waarde', 1, 'percent' === $soort ? 90 : 10000 );
 
 		$sjablonen = WSFM_Newsletter_Render::templates();
 		$sjabloon  = isset( $ruw['mail_sjabloon'] ) ? sanitize_key( $ruw['mail_sjabloon'] ) : '';
@@ -209,7 +237,7 @@ class WSFM_Popup {
 				'niet_bij_afrekenen' => empty( $ruw['niet_bij_afrekenen'] ) ? 0 : 1,
 
 				'korting_soort'    => $soort,
-				'korting_waarde'   => $getal( 'korting_waarde', 1, 'percent' === $soort ? 90 : 10000 ),
+				'korting_waarde'   => $waarde,
 				'minimaal'         => $getal( 'minimaal', 0, 100000 ),
 				'geldig_dagen'     => (int) $getal( 'geldig_dagen', 0, 3650 ),
 				'unieke_code'      => empty( $ruw['unieke_code'] ) ? 0 : 1,
@@ -407,11 +435,11 @@ class WSFM_Popup {
 
 			/* Het bedankscherm staat er al in en wordt alleen zichtbaar gemaakt.
 			   Zo hoeft er na het versturen niets opgebouwd te worden en kan de
-			   code direct in beeld. */
+			   code direct in beeld. Zonder korting blijft het codevak verborgen. */
 			. '<div class="wsfm-popup-gelukt" hidden>'
 			. '<h2>' . esc_html( $i['gelukt_kop'] ) . '</h2>'
 			. ( '' === trim( (string) $i['gelukt_tekst'] ) ? '' : '<p>' . esc_html( $i['gelukt_tekst'] ) . '</p>' )
-			. '<p class="wsfm-popup-code"></p>'
+			. '<p class="wsfm-popup-code"' . ( self::met_korting( $i ) ? '' : ' style="display:none"' ) . '></p>'
 			. '</div>'
 			. '</div>';
 
@@ -479,12 +507,17 @@ class WSFM_Popup {
 
 		if ( $bestaand ) {
 			/* Al ingeschreven: dezelfde code terug, geen tweede. Wel vriendelijk
-			   blijven, want de bezoeker doet niets fout. */
+			   blijven, want de bezoeker doet niets fout. Zonder korting (of
+			   zonder code van vroeger) geen "dit is je code" zonder code erbij. */
+			$oude_code = self::met_korting( $i ) ? (string) $bestaand->coupon_code : '';
+
 			return new WP_REST_Response(
 				array(
 					'ok'      => true,
-					'code'    => (string) $bestaand->coupon_code,
-					'melding' => __( 'Je was al ingeschreven. Dit is je code.', 'ws-flow-mailer' ),
+					'code'    => $oude_code,
+					'melding' => '' === $oude_code
+						? __( 'Je was al ingeschreven.', 'ws-flow-mailer' )
+						: __( 'Je was al ingeschreven. Dit is je code.', 'ws-flow-mailer' ),
 				)
 			);
 		}
@@ -596,9 +629,16 @@ class WSFM_Popup {
 	 *
 	 * @param string $email E-mailadres.
 	 * @param array  $i     Instellingen.
-	 * @return string Lege tekst als er geen coupon gemaakt kon worden.
+	 * @return string Lege tekst als er geen coupon gemaakt kon worden, of als
+	 *                de popup zonder korting staat.
 	 */
 	private static function code_voor( $email, array $i ) {
+		/* Zonder korting ook geen coupon, ook geen vaste code. Er mag niets in
+		   WooCommerce aangemaakt worden dat niemand heeft gevraagd. */
+		if ( ! self::met_korting( $i ) ) {
+			return '';
+		}
+
 		if ( empty( $i['unieke_code'] ) ) {
 			return (string) $i['vaste_code'];
 		}
@@ -729,7 +769,9 @@ class WSFM_Popup {
 			),
 		);
 
-		if ( '' !== (string) $code ) {
+		/* Zonder korting geen codekader, ook niet in het voorbeeld: daar komt
+		   altijd een verzonnen code binnen. */
+		if ( self::met_korting( $i ) && '' !== (string) $code ) {
 			$blokken[] = array(
 				'soort' => 'code',
 				'code'  => $code,
@@ -767,9 +809,13 @@ class WSFM_Popup {
 	 * De korting in gewone taal, voor onder de code in de mail.
 	 *
 	 * @param array $i Instellingen.
-	 * @return string
+	 * @return string Leeg als de popup geen korting geeft.
 	 */
 	public static function korting_omschrijving( array $i ) {
+		if ( ! self::met_korting( $i ) ) {
+			return '';
+		}
+
 		$waarde = 'percent' === $i['korting_soort']
 			? rtrim( rtrim( number_format_i18n( (float) $i['korting_waarde'], 2 ), '0' ), ',' ) . '%'
 			: WSFM_Template_Engine::format_price( (float) $i['korting_waarde'] );
