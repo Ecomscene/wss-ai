@@ -14,9 +14,6 @@ class WCCSM_Admin_Overview {
     /** De meta-key van het artikelnummer dat de leverancier zelf gebruikt. */
     public const SUPPLIER_SKU_META = '_wccsm_supplier_sku';
 
-    /** Max items handled per bulk request; the JS sends portions of this size. */
-    public const BULK_CHUNK = 25;
-
     public function __construct() {
         add_action( 'admin_menu', [ $this, 'add_menu_page' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
@@ -25,7 +22,6 @@ class WCCSM_Admin_Overview {
         add_action( 'wp_ajax_wccsm_load_products', [ $this, 'ajax_load_products' ] );
         add_action( 'wp_ajax_wccsm_update_field', [ $this, 'ajax_update_field' ] );
         add_action( 'wp_ajax_wccsm_get_suppliers', [ $this, 'ajax_get_suppliers' ] );
-        add_action( 'wp_ajax_wccsm_bulk_apply', [ $this, 'ajax_bulk_apply' ] );
     }
 
     /**
@@ -77,13 +73,11 @@ class WCCSM_Admin_Overview {
         );
 
         wp_localize_script( 'wccsm-admin', 'wccsm', [
-            'ajax_url'   => admin_url( 'admin-ajax.php' ),
-            'nonce'      => wp_create_nonce( 'wccsm_overview' ),
-            'currency'   => get_woocommerce_currency_symbol(),
-            'levertijd'  => self::levertijd_voor_script(),
-            'bulk_chunk' => self::BULK_CHUNK,
-            'bol'        => self::bol_beschikbaar(),
-            'i18n'       => [
+            'ajax_url'  => admin_url( 'admin-ajax.php' ),
+            'nonce'     => wp_create_nonce( 'wccsm_overview' ),
+            'currency'  => get_woocommerce_currency_symbol(),
+            'levertijd' => self::levertijd_voor_script(),
+            'i18n'      => [
                 'saving'       => __( 'Opslaan...', 'wccsm' ),
                 'saved'        => __( 'Opgeslagen', 'wccsm' ),
                 'error'        => __( 'Fout bij opslaan', 'wccsm' ),
@@ -92,22 +86,6 @@ class WCCSM_Admin_Overview {
                 'confirm_bulk' => __( 'Prijswijziging toepassen op alle variaties?', 'wccsm' ),
             ],
         ] );
-    }
-
-    /**
-     * Draait er een bol-koppeling op deze site?
-     *
-     * De bulkbalk kan bol aan/uit en een bol-prijs zetten, maar dat heeft alleen
-     * zin als er iets is dat die velden leest. Nu is dat de site-eigen plugin
-     * kk-bol-koppeling (Kiddykado), herkenbaar aan KK_Bol_Guard. Zonder koppeling
-     * blijven de bol-acties uit de balk en weigert de server ze ook, zodat er op
-     * een shop zonder bol geen losse meta ontstaat waar niemand naar kijkt.
-     *
-     * Komt er later een algemene bol-koppeling, dan meldt die zich via het
-     * filter wccsm_bol_beschikbaar.
-     */
-    public static function bol_beschikbaar(): bool {
-        return (bool) apply_filters( 'wccsm_bol_beschikbaar', class_exists( 'KK_Bol_Guard' ) );
     }
 
     /**
@@ -805,285 +783,5 @@ class WCCSM_Admin_Overview {
         );
 
         wp_send_json_success( $suppliers );
-    }
-
-    /* ======================================================================
-       Bulkbalk (aangevinkte regels)
-
-       Overgenomen van de bulkbalk die op Kiddykado in wccsm 2.1.2 is gebouwd
-       (13-10-2026). Eén verschil: de bol-acties draaien alleen als
-       bol_beschikbaar() waar is.
-       ====================================================================== */
-
-    /**
-     * AJAX: apply one bulk operation to one portion of the selected items.
-     *
-     * POST: op (bol_on|bol_off|bol_price|supplier|price), ids[] and the
-     * op-specific parameters. Items are simple products and variations;
-     * variable parents are only accepted for "supplier" (so the supplier
-     * filter, which queries the parent, keeps finding the product).
-     *
-     * Returns { done: int, skipped: [ { id, name, reason } ] } so the JS can
-     * total the portions up and report what was skipped and why.
-     */
-    public function ajax_bulk_apply(): void {
-        check_ajax_referer( 'wccsm_overview', 'nonce' );
-
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
-        }
-
-        $op  = sanitize_key( wp_unslash( $_POST['op'] ?? '' ) );
-        $ids = array_map( 'absint', (array) wp_unslash( $_POST['ids'] ?? [] ) );
-        $ids = array_slice( array_values( array_unique( array_filter( $ids ) ) ), 0, self::BULK_CHUNK );
-
-        if ( ! in_array( $op, [ 'bol_on', 'bol_off', 'bol_price', 'supplier', 'price' ], true ) ) {
-            wp_send_json_error( 'Onbekende bulkactie.' );
-        }
-        if ( 0 === strpos( $op, 'bol_' ) && ! self::bol_beschikbaar() ) {
-            wp_send_json_error( 'Er draait geen bol-koppeling op deze site.' );
-        }
-        if ( empty( $ids ) ) {
-            wp_send_json_error( 'Geen artikelen geselecteerd.' );
-        }
-
-        $params = $this->bulk_params( $op );
-        if ( is_string( $params ) ) {
-            wp_send_json_error( $params );
-        }
-
-        $done    = 0;
-        $skipped = [];
-
-        foreach ( $ids as $id ) {
-            $product = wc_get_product( $id );
-            if ( ! $product ) {
-                $skipped[] = [ 'id' => $id, 'name' => '#' . $id, 'reason' => 'Product niet gevonden' ];
-                continue;
-            }
-
-            $result = $this->bulk_apply_one( $product, $op, $params );
-            if ( true === $result ) {
-                $done++;
-            } else {
-                $skipped[] = [
-                    'id'     => $id,
-                    'name'   => wp_strip_all_tags( $product->get_name() ),
-                    'reason' => (string) $result,
-                ];
-            }
-        }
-
-        wp_send_json_success( [
-            'done'    => $done,
-            'skipped' => $skipped,
-        ] );
-    }
-
-    /**
-     * Validate the op-specific parameters once per request.
-     *
-     * @return array|string Params, or an error message.
-     */
-    private function bulk_params( string $op ) {
-        $amount = (float) wc_format_decimal( wc_clean( wp_unslash( $_POST['amount'] ?? '' ) ) );
-
-        switch ( $op ) {
-            case 'bol_price':
-                $mode = sanitize_key( wp_unslash( $_POST['mode'] ?? '' ) );
-                if ( ! in_array( $mode, [ 'set_fixed', 'percent_up', 'percent_down' ], true ) ) {
-                    return 'Ongeldige keuze voor de bol-prijs.';
-                }
-                if ( $amount <= 0 ) {
-                    return 'Vul een bedrag of percentage groter dan 0 in.';
-                }
-                if ( 'percent_down' === $mode && $amount >= 100 ) {
-                    return 'Een korting moet kleiner zijn dan 100%.';
-                }
-                return [ 'mode' => $mode, 'amount' => $amount ];
-
-            case 'supplier':
-                $value = wc_clean( wp_unslash( $_POST['value'] ?? '' ) );
-                if ( '' === $value ) {
-                    return 'Vul een leverancier in.';
-                }
-                return [ 'value' => $value ];
-
-            case 'price':
-                $target = sanitize_key( wp_unslash( $_POST['target'] ?? '' ) );
-                $action = sanitize_key( wp_unslash( $_POST['bulk_action'] ?? '' ) );
-                if ( ! in_array( $target, [ 'regular_price', 'sale_price', 'purchase_price' ], true ) ) {
-                    return 'Ongeldig prijsveld.';
-                }
-                if ( ! in_array( $action, [ 'percent_increase', 'percent_decrease', 'fixed_increase', 'fixed_decrease', 'set_fixed' ], true ) ) {
-                    return 'Ongeldige prijsactie.';
-                }
-                if ( $amount <= 0 ) {
-                    return 'Vul een bedrag groter dan 0 in.';
-                }
-                return [ 'target' => $target, 'action' => $action, 'amount' => $amount ];
-        }
-
-        return [];
-    }
-
-    /**
-     * Apply one bulk operation to one product/variation.
-     *
-     * @return true|string True when applied, otherwise the reason it was skipped.
-     */
-    private function bulk_apply_one( \WC_Product $product, string $op, array $params ) {
-        $id      = $product->get_id();
-        $is_item = $product->is_type( [ 'simple', 'variation' ] );
-
-        if ( 'supplier' === $op ) {
-            if ( ! $is_item && ! $product->is_type( 'variable' ) ) {
-                return 'Producttype niet ondersteund';
-            }
-            update_post_meta( $id, '_wccsm_supplier', $params['value'] );
-            return true;
-        }
-
-        if ( ! $is_item ) {
-            return 'Alleen enkelvoudige producten en maten';
-        }
-
-        switch ( $op ) {
-            case 'bol_on':
-                return $this->bulk_bol_set( $product, true );
-
-            case 'bol_off':
-                return $this->bulk_bol_set( $product, false );
-
-            case 'bol_price':
-                if ( 'set_fixed' === $params['mode'] ) {
-                    $new = $params['amount'];
-                } else {
-                    $base = (float) $product->get_regular_price();
-                    if ( $base <= 0 ) {
-                        return 'Geen normale prijs';
-                    }
-                    $factor = 'percent_up' === $params['mode'] ? 1 + $params['amount'] / 100 : 1 - $params['amount'] / 100;
-                    $new    = $base * $factor;
-                }
-                $new = round( $new, 2 );
-                if ( $new <= 0 ) {
-                    return 'Bol-prijs zou 0 of lager worden';
-                }
-                update_post_meta( $id, '_wss_bol_prijs', wc_format_decimal( $new, 2 ) );
-                return true;
-
-            case 'price':
-                return $this->bulk_price( $product, $params['target'], $params['action'], $params['amount'] );
-        }
-
-        return 'Onbekende bulkactie';
-    }
-
-    /**
-     * Bol on/off with exactly the per-row rules. When kk-bol-koppeling is
-     * active its set_active() is used (exclusion list + parent/variation
-     * model); on top of that "on" requires the item's own EAN.
-     *
-     * @return true|string
-     */
-    private function bulk_bol_set( \WC_Product $product, bool $on ) {
-        $id = $product->get_id();
-
-        if ( $on ) {
-            if ( class_exists( 'KK_Bol_Rules' ) && '' !== KK_Bol_Rules::exclusion_reason( $id ) ) {
-                return 'Staat op de uitsluitlijst';
-            }
-            $ean = method_exists( $product, 'get_global_unique_id' )
-                ? (string) $product->get_global_unique_id()
-                : (string) get_post_meta( $id, '_global_unique_id', true );
-            if ( '' === trim( $ean ) ) {
-                return 'Geen EAN';
-            }
-        }
-
-        if ( class_exists( 'KK_Bol_Guard' ) ) {
-            $r = KK_Bol_Guard::set_active( $id, $on );
-            return ! empty( $r['ok'] ) ? true : wp_strip_all_tags( (string) $r['message'] );
-        }
-
-        update_post_meta( $id, '_wss_bol_actief', $on ? 'yes' : 'no' );
-        return true;
-    }
-
-    /**
-     * Regular / sale / purchase price change, same maths as the per-product
-     * Bulk Prijs modal, but never writes an empty or zero price.
-     *
-     * @return true|string
-     */
-    private function bulk_price( \WC_Product $product, string $target, string $action, float $amount ) {
-        $labels = [
-            'regular_price'  => 'normale prijs',
-            'sale_price'     => 'actieprijs',
-            'purchase_price' => 'inkoopprijs',
-        ];
-
-        if ( 'purchase_price' === $target ) {
-            $raw = (string) $product->get_meta( '_wccsm_purchase_price' );
-        } elseif ( 'sale_price' === $target ) {
-            $raw = (string) $product->get_sale_price();
-        } else {
-            $raw = (string) $product->get_regular_price();
-        }
-
-        if ( 'set_fixed' !== $action && ( '' === $raw || (float) $raw <= 0 ) ) {
-            return 'Geen huidige ' . $labels[ $target ];
-        }
-
-        $new = $this->bulk_calc( (float) $raw, $action, $amount );
-        if ( $new <= 0 ) {
-            return ucfirst( $labels[ $target ] ) . ' zou 0 worden';
-        }
-
-        if ( 'sale_price' === $target ) {
-            $regular = (float) $product->get_regular_price();
-            if ( $regular > 0 && $new >= $regular ) {
-                return 'Actieprijs zou gelijk aan of hoger dan de normale prijs worden';
-            }
-        }
-        if ( 'regular_price' === $target ) {
-            $sale = (string) $product->get_sale_price();
-            if ( '' !== $sale && (float) $sale >= $new ) {
-                return 'Normale prijs zou gelijk aan of lager dan de actieprijs worden';
-            }
-        }
-
-        $value = wc_format_decimal( $new, 2 );
-        if ( 'purchase_price' === $target ) {
-            update_post_meta( $product->get_id(), '_wccsm_purchase_price', $value );
-        } elseif ( 'sale_price' === $target ) {
-            $product->set_sale_price( $value );
-            $product->save();
-        } else {
-            $product->set_regular_price( $value );
-            $product->save();
-        }
-
-        return true;
-    }
-
-    /**
-     * Same calculation as WCCSM_Bulk::calculate_price().
-     */
-    private function bulk_calc( float $current, string $action, float $amount ): float {
-        switch ( $action ) {
-            case 'percent_increase':
-                return round( $current * ( 1 + $amount / 100 ), 2 );
-            case 'percent_decrease':
-                return max( 0, round( $current * ( 1 - $amount / 100 ), 2 ) );
-            case 'fixed_increase':
-                return round( $current + $amount, 2 );
-            case 'fixed_decrease':
-                return max( 0, round( $current - $amount, 2 ) );
-            case 'set_fixed':
-                return max( 0, round( $amount, 2 ) );
-        }
-        return $current;
     }
 }

@@ -59,72 +59,11 @@ defined( 'ABSPATH' ) || exit;
         </a>
     </div>
 
-    <?php
-    /* De bulkbalk werkt op de regels die hieronder zijn aangevinkt. De
-       bol-acties staan er alleen als er een bol-koppeling op de site draait
-       (zie WCCSM_Admin_Overview::bol_beschikbaar()): op een shop zonder bol
-       zouden ze een veld vullen waar niemand naar kijkt. */
-    $wccsm_bol = WCCSM_Admin_Overview::bol_beschikbaar();
-    ?>
-    <!-- Bulk bar: works on the selected rows -->
-    <div class="wccsm-bulkbar is-empty" id="wccsm-bulkbar">
-        <span class="wccsm-bulk-count" id="wccsm-bulk-count"><?php esc_html_e( '0 geselecteerd', 'wccsm' ); ?></span>
-
-        <select id="wccsm-bulk-op">
-            <option value=""><?php esc_html_e( 'Bulkactie kiezen', 'wccsm' ); ?></option>
-            <?php if ( $wccsm_bol ) : ?>
-                <option value="bol_on"><?php esc_html_e( 'Bol aan', 'wccsm' ); ?></option>
-                <option value="bol_off"><?php esc_html_e( 'Bol uit', 'wccsm' ); ?></option>
-                <option value="bol_price"><?php esc_html_e( 'Bol-prijs zetten', 'wccsm' ); ?></option>
-            <?php endif; ?>
-            <option value="supplier"><?php esc_html_e( 'Leverancier zetten', 'wccsm' ); ?></option>
-            <option value="price"><?php esc_html_e( 'Prijs wijzigen (normaal / actie / inkoop)', 'wccsm' ); ?></option>
-        </select>
-
-        <?php if ( $wccsm_bol ) : ?>
-            <span class="wccsm-bulk-fields" data-op="bol_price" style="display:none;">
-                <select id="wccsm-bulk-bolmode">
-                    <option value="set_fixed"><?php esc_html_e( 'Vast bedrag', 'wccsm' ); ?></option>
-                    <option value="percent_up"><?php esc_html_e( '% boven normale prijs', 'wccsm' ); ?></option>
-                    <option value="percent_down"><?php esc_html_e( '% onder normale prijs', 'wccsm' ); ?></option>
-                </select>
-                <input type="number" id="wccsm-bulk-bolamount" step="0.01" min="0" />
-                <span id="wccsm-bulk-bolunit"><?php echo esc_html( get_woocommerce_currency_symbol() ); ?></span>
-            </span>
-        <?php endif; ?>
-
-        <span class="wccsm-bulk-fields" data-op="supplier" style="display:none;">
-            <input type="text" id="wccsm-bulk-supplier" list="wccsm-supplier-list" placeholder="<?php esc_attr_e( 'Leverancier', 'wccsm' ); ?>" />
-            <datalist id="wccsm-supplier-list"></datalist>
-        </span>
-
-        <span class="wccsm-bulk-fields" data-op="price" style="display:none;">
-            <select id="wccsm-bulk-pricetarget">
-                <option value="regular_price"><?php esc_html_e( 'Normale prijs', 'wccsm' ); ?></option>
-                <option value="sale_price"><?php esc_html_e( 'Actieprijs', 'wccsm' ); ?></option>
-                <option value="purchase_price"><?php esc_html_e( 'Inkoopprijs', 'wccsm' ); ?></option>
-            </select>
-            <select id="wccsm-bulk-priceaction">
-                <option value="percent_increase"><?php esc_html_e( 'Verhogen met %', 'wccsm' ); ?></option>
-                <option value="percent_decrease"><?php esc_html_e( 'Verlagen met %', 'wccsm' ); ?></option>
-                <option value="fixed_increase"><?php esc_html_e( 'Verhogen met vast bedrag', 'wccsm' ); ?></option>
-                <option value="fixed_decrease"><?php esc_html_e( 'Verlagen met vast bedrag', 'wccsm' ); ?></option>
-                <option value="set_fixed"><?php esc_html_e( 'Vaste prijs instellen', 'wccsm' ); ?></option>
-            </select>
-            <input type="number" id="wccsm-bulk-priceamount" step="0.01" min="0" />
-        </span>
-
-        <button type="button" class="button button-primary" id="wccsm-bulk-run" disabled><?php esc_html_e( 'Toepassen op selectie', 'wccsm' ); ?></button>
-
-        <div class="wccsm-bulk-result" id="wccsm-bulk-result" aria-live="polite"></div>
-    </div>
-
     <!-- Table -->
     <div class="wccsm-table-wrap">
         <table class="wccsm-table widefat striped">
             <thead>
                 <tr>
-                    <th class="wccsm-col-select"><input type="checkbox" id="wccsm-select-all" title="<?php esc_attr_e( 'Alles selecteren (wat nu zichtbaar is)', 'wccsm' ); ?>" /></th>
                     <th class="wccsm-col-name"><?php esc_html_e( 'Product', 'wccsm' ); ?></th>
                     <th class="wccsm-col-sku"><?php esc_html_e( 'SKU', 'wccsm' ); ?></th>
                     <?php
@@ -150,7 +89,7 @@ defined( 'ABSPATH' ) || exit;
                 </tr>
             </thead>
             <tbody id="wccsm-table-body">
-                <tr><td colspan="13" class="wccsm-loading"><?php esc_html_e( 'Laden...', 'wccsm' ); ?></td></tr>
+                <tr><td colspan="12" class="wccsm-loading"><?php esc_html_e( 'Laden...', 'wccsm' ); ?></td></tr>
             </tbody>
         </table>
     </div>
