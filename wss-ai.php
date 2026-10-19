@@ -49,6 +49,7 @@ require_once WSS_AI_MAP . 'includes/class-wss-ai-upgrades.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-verzoek.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-voorraad.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-mailer.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-postcode.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-menu.php';
 
 /**
@@ -368,6 +369,7 @@ WSS_AI_Upgrades::init();
 WSS_AI_Verzoek::init();
 WSS_AI_Voorraad::init();
 WSS_AI_Mailer::init();
+WSS_AI_Postcode::init();
 WSS_AI_Menu::init();
 
 /* Het voorraadbeheer raakt geen orders aan, maar WooCommerce waarschuwt de klant

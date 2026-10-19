@@ -54,7 +54,7 @@ class WSS_AI_Koppeling {
 	 * iets kapot lijkt. tools/check-modules.php telt na dat elke naam die in de
 	 * code wordt opgevraagd hier ook echt in staat.
 	 */
-	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades' );
+	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades', 'postcode' );
 
 	/**
 	 * Onderdelen die UIT staan tot Webshopschool ze aanzet.
@@ -74,8 +74,13 @@ class WSS_AI_Koppeling {
 	 * Upgrades staat er met opzet niet in. Dat is de plek waar een klant iets
 	 * kan aanvragen, en juist bij een kale installatie is dat het enige dat hem
 	 * verder helpt. Uitzetten kan wel, want die staat nog op "aan tenzij".
+	 *
+	 * Postcode (Auto-adres) staat er wel in: die raakt de afrekenpagina, en dat
+	 * zet je aan bij een shop waar je het met de ondernemer over hebt gehad.
+	 * Ook als hij aanstaat doet hij niets tot de winkel hem op zijn eigen
+	 * pagina inschakelt.
 	 */
-	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken' );
+	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'postcode' );
 
 	/**
 	 * Staat dit onderdeel aan voor deze webshop?
