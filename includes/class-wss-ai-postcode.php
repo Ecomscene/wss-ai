@@ -24,9 +24,12 @@
  * bestaat niet". Bij een storing houdt een rem de aanvragen een kwartier tegen,
  * zodat elke bezoeker niet vier seconden op een time-out zit te wachten.
  *
- * Alleen de klassieke afrekenpagina (shortcode, Elementor-widget). De
- * blokken-checkout van WooCommerce kent deze filters niet; daar gebeurt dan
- * niets, en de beheerpagina zegt dat erbij.
+ * TWEE AFREKENPAGINA'S
+ * De klassieke (shortcode, Elementor-widget) loopt via woocommerce_checkout_fields.
+ * De blokken-checkout leest die filter niet; daar registreren we de twee velden
+ * met woocommerce_register_additional_checkout_field en voegen we het adres
+ * samen via de Store API. Ontdekt bij Bolletoet op 19-10-2026: de velden stonden
+ * in de klassieke lijst maar kwamen nooit op het scherm.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -40,6 +43,10 @@ class WSS_AI_Postcode {
 	const OPTIE_FOUT = 'wss_ai_postcode_fout';
 	const REM        = 'wss_ai_postcode_rem';
 	const API        = 'https://postcode.tech/api/v1/postcode/full';
+
+	/** De id's van de velden in de blokken-checkout. */
+	const BLOK_NR   = 'wss-ai/huisnummer';
+	const BLOK_TOEV = 'wss-ai/toevoeging';
 
 	/** Postcode.tech kent alleen Nederlandse adressen. */
 	const LANDEN = array( 'NL' );
@@ -67,6 +74,11 @@ class WSS_AI_Postcode {
 		add_action( 'woocommerce_after_checkout_validation', array( __CLASS__, 'controleer' ), 20, 2 );
 		add_action( 'woocommerce_checkout_create_order', array( __CLASS__, 'order_meta' ), 20, 2 );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'script' ), 20 );
+
+		/* De blokken-checkout. */
+		add_action( 'woocommerce_init', array( __CLASS__, 'blok_velden' ) );
+		add_action( 'woocommerce_store_api_checkout_update_order_from_request', array( __CLASS__, 'blok_samenvoegen' ), 20, 2 );
+		add_action( 'woocommerce_blocks_validate_location_address_fields', array( __CLASS__, 'blok_controleer' ), 20, 3 );
 	}
 
 	/* ---------------- de schakelaars ---------------- */
@@ -323,6 +335,125 @@ class WSS_AI_Postcode {
 		}
 	}
 
+	/* ---------------- de blokken-checkout ---------------- */
+
+	/**
+	 * Huisnummer en toevoeging als extra adresvelden in de blokken-checkout.
+	 *
+	 * Niet verplicht, om dezelfde reden als hierboven: een Belgische klant heeft
+	 * geen los huisnummer nodig. 'index' zet ze tussen postcode (42) en straat
+	 * (48); een WooCommerce die dat niet kent zet ze onder het adres.
+	 */
+	public static function blok_velden() {
+		if ( ! function_exists( 'woocommerce_register_additional_checkout_field' ) || ! self::actief() ) {
+			return;
+		}
+		try {
+			woocommerce_register_additional_checkout_field(
+				array(
+					'id'            => self::BLOK_NR,
+					'label'         => __( 'Huisnummer', 'wss-ai' ),
+					'optionalLabel' => __( 'Huisnummer', 'wss-ai' ),
+					'location'      => 'address',
+					'type'          => 'text',
+					'required'      => false,
+					'index'         => 44,
+					'attributes'    => array(
+						'autocomplete' => 'off',
+						'maxLength'    => 6,
+					),
+				)
+			);
+			woocommerce_register_additional_checkout_field(
+				array(
+					'id'            => self::BLOK_TOEV,
+					'label'         => __( 'Toevoeging', 'wss-ai' ),
+					'optionalLabel' => __( 'Toevoeging (optioneel)', 'wss-ai' ),
+					'location'      => 'address',
+					'type'          => 'text',
+					'required'      => false,
+					'index'         => 46,
+					'attributes'    => array(
+						'autocomplete' => 'off',
+						'maxLength'    => 10,
+					),
+				)
+			);
+		} catch ( \Throwable $e ) {
+			/* Een veld dat niet wil registreren mag de winkel niet raken. */
+			return;
+		}
+	}
+
+	/**
+	 * Bij het afrekenen via de blokken: straat + huisnummer + toevoeging terug in
+	 * adresregel 1, en het nummer los in de order. Zelfde uitkomst als bij de
+	 * klassieke afrekenpagina, zodat de verzendkoppeling niets merkt.
+	 */
+	public static function blok_samenvoegen( $order, $request ) {
+		if ( ! self::actief() || ! is_object( $order ) || ! is_object( $request ) ) {
+			return;
+		}
+		try {
+			foreach ( array( 'billing', 'shipping' ) as $t ) {
+				$adres = $request->get_param( $t . '_address' );
+				if ( ! is_array( $adres ) ) {
+					continue;
+				}
+				$land = isset( $adres['country'] ) ? strtoupper( (string) $adres['country'] ) : '';
+				if ( ! in_array( $land, self::LANDEN, true ) ) {
+					continue;
+				}
+				$nr   = isset( $adres[ self::BLOK_NR ] ) ? trim( (string) $adres[ self::BLOK_NR ] ) : '';
+				$toev = isset( $adres[ self::BLOK_TOEV ] ) ? trim( (string) $adres[ self::BLOK_TOEV ] ) : '';
+				if ( '' === $nr ) {
+					continue;
+				}
+				$lees   = 'get_' . $t . '_address_1';
+				$schrijf = 'set_' . $t . '_address_1';
+				$straat = trim( (string) $order->$lees() );
+				if ( '' === $straat ) {
+					continue;
+				}
+				$straat = self::zonder_nummer( $straat, $nr, $toev );
+				$order->$schrijf( $straat . ' ' . self::nummer_tekst( $nr, $toev ) );
+				$order->update_meta_data( '_' . $t . '_house_number', sanitize_text_field( $nr ) );
+				$order->update_meta_data( '_' . $t . '_house_number_suffix', sanitize_text_field( $toev ) );
+			}
+		} catch ( \Throwable $e ) {
+			/* Liever een adres zoals de klant het typte dan een afgebroken bestelling. */
+			return;
+		}
+	}
+
+	/**
+	 * Een Nederlands adres zonder huisnummer gaat niet door, ook in de blokken.
+	 *
+	 * Alleen als ons veld echt in het formulier zat, en niet als de straat al op
+	 * een nummer eindigt: wie "Dorpsstraat 12" in de straat typte heeft zijn
+	 * huisnummer niet vergeten.
+	 */
+	public static function blok_controleer( $fouten, $velden, $groep ) {
+		if ( ! self::actief() || ! is_object( $fouten ) || ! is_array( $velden ) ) {
+			return;
+		}
+		if ( ! array_key_exists( self::BLOK_NR, $velden ) || ! isset( $velden['country'] ) ) {
+			return;
+		}
+		if ( ! in_array( strtoupper( (string) $velden['country'] ), self::LANDEN, true ) ) {
+			return;
+		}
+		$straat = isset( $velden['address_1'] ) ? trim( (string) $velden['address_1'] ) : '';
+		if ( '' === $straat || preg_match( '/\d+\s*\S{0,6}$/u', $straat ) ) {
+			return;
+		}
+		if ( '' === trim( (string) $velden[ self::BLOK_NR ] ) ) {
+			$naam = 'shipping' === $groep ? __( 'verzendadres', 'wss-ai' ) : __( 'factuuradres', 'wss-ai' );
+			/* translators: %s is factuuradres of verzendadres. */
+			$fouten->add( 'wss_ai_huisnummer', sprintf( __( 'Vul het huisnummer van je %s in.', 'wss-ai' ), $naam ) );
+		}
+	}
+
 	/* ---------------- het opzoeken ---------------- */
 
 	public static function script() {
@@ -333,8 +464,14 @@ class WSS_AI_Postcode {
 			'ajax'     => admin_url( 'admin-ajax.php' ),
 			'zoekt'    => self::zoekt_op() ? 1 : 0,
 			'landen'   => self::LANDEN,
+			'nr'       => self::BLOK_NR,
 			'onbekend' => __( 'We vinden dit adres niet. Vul straat en plaats zelf in.', 'wss-ai' ),
 		);
+
+		if ( self::blokken_checkout() ) {
+			self::script_blokken( $params );
+			return;
+		}
 
 		$js = '(function($){'
 			. 'var p=window.wssPostcode||{};if(!$){return;}'
@@ -375,6 +512,51 @@ class WSS_AI_Postcode {
 		wp_enqueue_script( 'wss-ai-postcode' );
 		wp_add_inline_script( 'wss-ai-postcode', 'window.wssPostcode=' . wp_json_encode( $params ) . ';', 'before' );
 		wp_add_inline_script( 'wss-ai-postcode', $js );
+	}
+
+	/**
+	 * Het opzoeken in de blokken-checkout.
+	 *
+	 * Daar zijn de velden React en heeft een $(...).val() geen effect: de waarde
+	 * staat in de winkelwagen-store (wc/store/cart). We kijken mee met die store
+	 * en zetten straat en plaats er weer in met setBillingAddress /
+	 * setShippingAddress; het formulier volgt dan vanzelf. Elke fout wordt
+	 * ingeslikt, zodat de klant altijd zelf verder kan typen.
+	 */
+	private static function script_blokken( $params ) {
+		$js = <<<'JS'
+(function(){
+var p=window.wssPostcode||{};var d=window.wp&&window.wp.data;
+if(!d||!p.zoekt){return;}
+var S="wc/store/cart",NR=p.nr||"wss-ai/huisnummer",vorig={},laatste={},timers={};
+function adres(t){try{var c=d.select(S).getCustomerData()||{};return (t==="billing"?c.billingAddress:c.shippingAddress)||{};}catch(e){return {};}}
+function zet(t,o){try{var a=d.dispatch(S);if(t==="billing"){a.setBillingAddress(o);}else{a.setShippingAddress(o);}}catch(e){}}
+function zoek(t){
+var a=adres(t);var land=String(a.country||"").toUpperCase();
+if((p.landen||[]).indexOf(land)<0){return;}
+var pc=String(a.postcode||"").replace(/\s+/g,"").toUpperCase();
+var m=String(a[NR]||"").match(/^\s*(\d{1,5})/);var nr=m?m[1]:"";
+if(!/^[1-9][0-9]{3}[A-Z]{2}$/.test(pc)||!nr){return;}
+var sl=pc+"|"+nr;if(laatste[t]===sl){return;}laatste[t]=sl;
+var body=new URLSearchParams();body.append("action","wss_ai_postcode");body.append("postcode",pc);body.append("nummer",nr);
+fetch(p.ajax,{method:"POST",credentials:"same-origin",body:body})
+.then(function(r){return r.json();})
+.then(function(j){if(laatste[t]!==sl){return;}
+if(j&&j.success&&j.data&&j.data.straat){var o={address_1:j.data.straat};if(j.data.plaats){o.city=j.data.plaats;}zet(t,o);}})
+.catch(function(){laatste[t]="";});
+}
+d.subscribe(function(){["billing","shipping"].forEach(function(t){
+var a=adres(t);var k=[a.country,a.postcode,a[NR]].join("|");
+if(vorig[t]===k){return;}vorig[t]=k;
+clearTimeout(timers[t]);timers[t]=setTimeout(function(){zoek(t);},450);
+});});
+})();
+JS;
+
+		wp_register_script( 'wss-ai-postcode-blok', '', array( 'wp-data' ), WSS_AI_VERSIE, true );
+		wp_enqueue_script( 'wss-ai-postcode-blok' );
+		wp_add_inline_script( 'wss-ai-postcode-blok', 'window.wssPostcode=' . wp_json_encode( $params ) . ';', 'before' );
+		wp_add_inline_script( 'wss-ai-postcode-blok', $js );
 	}
 
 	/**
@@ -574,8 +756,8 @@ class WSS_AI_Postcode {
 				<?php esc_html_e( 'Op de afrekenpagina vult een klant met een Nederlands adres zijn postcode en huisnummer in. Straat en plaats worden dan vanzelf ingevuld. Het huisnummer heeft een eigen veld, zodat niemand het meer vergeet. In de bestelling staat het adres daarna gewoon als één regel, zoals altijd, dus je verzendkoppeling merkt geen verschil.', 'wss-ai' ); ?>
 			</p>
 
-			<?php if ( self::blokken_checkout() ) : ?>
-				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Je afrekenpagina gebruikt de blokken-checkout van WooCommerce. Auto-adres werkt alleen op de klassieke afrekenpagina; op deze pagina verandert er niets.', 'wss-ai' ); ?></p></div>
+			<?php if ( self::blokken_checkout() && ! function_exists( 'woocommerce_register_additional_checkout_field' ) ) : ?>
+				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Je afrekenpagina gebruikt de blokken-checkout, maar deze WooCommerce-versie kent nog geen extra adresvelden. Werk WooCommerce bij; tot die tijd verandert er op de afrekenpagina niets.', 'wss-ai' ); ?></p></div>
 			<?php endif; ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
