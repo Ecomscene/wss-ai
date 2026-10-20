@@ -22,6 +22,24 @@ class WSFM_Queue_Processor {
 	const RETRY_MINUTES = 15;
 
 	/**
+	 * Hoe lang een ronde mag doorgaan met versturen, in seconden.
+	 *
+	 * WAAROM EEN TIJD EN GEEN VAST AANTAL
+	 * Vroeger ging er per ronde vast 50 mails uit, en een ronde was er om de
+	 * vijf minuten. Dat is 600 per uur: een nieuwsbrief naar 4000 adressen deed
+	 * er bijna zeven uur over (Dartshop Hoek: 1500 adressen, een paar uur). Nu
+	 * gaat een ronde door zolang er werk is en de tijd niet op is. 20 seconden
+	 * blijft ruim onder de 30 seconden die PHP bij veel hosts maximaal geeft.
+	 */
+	const TIME_BUDGET = 20;
+
+	/** Bovengrens per ronde, als vangnet bij een heel snelle verzending. */
+	const MAX_PER_RUN = 400;
+
+	/** Extra ronde, direct achter een volle ronde aan. */
+	const HOOK_EXTRA = 'wsfm_process_queue_extra';
+
+	/**
 	 * Recurring Action Scheduler callback.
 	 */
 	public static function process() {
@@ -29,14 +47,70 @@ class WSFM_Queue_Processor {
 
 		self::recover_stale_items();
 
-		$table = WSFM_Queue::table();
-		$now   = current_time( 'mysql' );
+		$table  = WSFM_Queue::table();
+		$start  = microtime( true );
+		$gedaan = 0;
 
-		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$table} WHERE status = 'pending' AND scheduled_at <= %s ORDER BY scheduled_at ASC LIMIT %d", $now, self::BATCH_SIZE ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		while ( $gedaan < self::MAX_PER_RUN && ( microtime( true ) - $start ) < self::TIME_BUDGET ) {
+			$now = current_time( 'mysql' );
+			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$table} WHERE status = 'pending' AND scheduled_at <= %s ORDER BY scheduled_at ASC LIMIT %d", $now, self::BATCH_SIZE ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-		foreach ( $ids as $id ) {
-			self::process_item( (int) $id );
+			if ( empty( $ids ) ) {
+				return;
+			}
+
+			foreach ( $ids as $id ) {
+				self::process_item( (int) $id );
+				$gedaan++;
+
+				if ( $gedaan >= self::MAX_PER_RUN || ( microtime( true ) - $start ) >= self::TIME_BUDGET ) {
+					break;
+				}
+			}
 		}
+
+		/* De tijd is op en er staat nog werk klaar: meteen een extra ronde
+		   inplannen in plaats van vijf minuten te wachten. Maximaal een extra
+		   ronde tegelijk in de rij, zodat ze zich niet opstapelen. */
+		self::plan_extra_ronde();
+	}
+
+	/**
+	 * Een losse ronde direct achter de vorige, als er nog post klaarstaat.
+	 *
+	 * Er wordt alleen gekeken of er al een WACHTENDE extra ronde staat, niet
+	 * naar een die nu draait: deze functie wordt juist vanuit die draaiende
+	 * ronde aangeroepen, en as_has_scheduled_action telt die mee. Dan zou de
+	 * keten na een keer stoppen en val je terug op het ritme van vijf minuten.
+	 */
+	private static function plan_extra_ronde() {
+		global $wpdb;
+
+		if ( ! function_exists( 'as_enqueue_async_action' ) || ! function_exists( 'as_get_scheduled_actions' ) ) {
+			return;
+		}
+
+		$table = WSFM_Queue::table();
+		$nog   = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = 'pending' AND scheduled_at <= %s", current_time( 'mysql' ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( $nog < 1 ) {
+			return;
+		}
+
+		$groep    = class_exists( 'WSFM_Flow_Engine' ) ? WSFM_Flow_Engine::AS_GROUP : 'wsfm';
+		$wachtend = as_get_scheduled_actions(
+			array(
+				'hook'     => self::HOOK_EXTRA,
+				'group'    => $groep,
+				'status'   => 'pending',
+				'per_page' => 1,
+			),
+			'ids'
+		);
+		if ( ! empty( $wachtend ) ) {
+			return;
+		}
+
+		as_enqueue_async_action( self::HOOK_EXTRA, array(), $groep );
 	}
 
 	/**

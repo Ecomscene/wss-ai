@@ -8,7 +8,8 @@
  * - abandoned_cart flows start via the recurring cart check (15 min)
  * - subscriber_added flows start zodra iemand nieuw op de lijst komt
  * - account_created flows start zodra er een klantaccount wordt aangemaakt
- * - the queue processor runs every 5 minutes
+ * - the queue processor runs every 5 minutes, plus een extra ronde direct
+ *   achter een volle ronde aan zolang er nog post klaarstaat
  *
  * All recurring work runs through Action Scheduler (ships with
  * WooCommerce), never wp_cron directly.
@@ -81,6 +82,8 @@ class WSFM_Flow_Engine {
 		add_action( 'woocommerce_created_customer', array( __CLASS__, 'on_customer_created' ), 20 );
 
 		add_action( self::HOOK_PROCESS_QUEUE, array( 'WSFM_Queue_Processor', 'process' ) );
+		/* De extra ronde doet precies hetzelfde werk; zie WSFM_Queue_Processor. */
+		add_action( WSFM_Queue_Processor::HOOK_EXTRA, array( 'WSFM_Queue_Processor', 'process' ) );
 		add_action( self::HOOK_CHECK_ABANDONED, array( __CLASS__, 'check_abandoned_carts' ) );
 
 		add_action( 'init', array( __CLASS__, 'schedule_recurring_actions' ) );
@@ -109,6 +112,7 @@ class WSFM_Flow_Engine {
 	public static function unschedule_recurring_actions() {
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {
 			as_unschedule_all_actions( self::HOOK_PROCESS_QUEUE, array(), self::AS_GROUP );
+			as_unschedule_all_actions( WSFM_Queue_Processor::HOOK_EXTRA, array(), self::AS_GROUP );
 			as_unschedule_all_actions( self::HOOK_CHECK_ABANDONED, array(), self::AS_GROUP );
 		}
 	}
