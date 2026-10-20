@@ -36,8 +36,59 @@ class WSFM_Queue_Processor {
 	/** Bovengrens per ronde, als vangnet bij een heel snelle verzending. */
 	const MAX_PER_RUN = 400;
 
+	/**
+	 * Bovengrens per klokuur, over alle rondes samen.
+	 *
+	 * WAAROM EEN UURGRENS
+	 * Zonder grens kan een shop met een snelle host in een paar minuten
+	 * duizenden mails afvuren. Dat geeft pieken in klachten en bounces bij
+	 * Amazon SES op een afzender die soms pas net is goedgekeurd, en een
+	 * flinke belasting op gedeelde hosting. 2000 per uur maakt een brief naar
+	 * 4000 adressen in zo'n twee uur af (Joey, 20-10-2026: vroeger 600 per uur,
+	 * bijna zeven uur), zonder dat het een spuit wordt.
+	 *
+	 * Te overschrijven met het filter wsfm_max_per_uur.
+	 */
+	const MAX_PER_HOUR = 2000;
+
 	/** Extra ronde, direct achter een volle ronde aan. */
 	const HOOK_EXTRA = 'wsfm_process_queue_extra';
+
+	/**
+	 * De grens per uur, na het filter.
+	 *
+	 * @return int
+	 */
+	private static function max_per_uur() {
+		return max( 1, (int) apply_filters( 'wsfm_max_per_uur', self::MAX_PER_HOUR ) );
+	}
+
+	/** Sleutel van de teller voor het huidige klokuur (UTC). */
+	private static function uur_sleutel() {
+		return 'wsfm_uurteller_' . gmdate( 'YmdH' );
+	}
+
+	/**
+	 * Hoeveel er dit klokuur al verwerkt is.
+	 *
+	 * @return int
+	 */
+	private static function deze_uur_gedaan() {
+		return (int) get_transient( self::uur_sleutel() );
+	}
+
+	/**
+	 * Teller voor dit klokuur ophogen.
+	 *
+	 * @param int $aantal Hoeveel erbij.
+	 */
+	private static function uur_tellen( $aantal ) {
+		if ( $aantal < 1 ) {
+			return;
+		}
+		$sleutel = self::uur_sleutel();
+		set_transient( $sleutel, (int) get_transient( $sleutel ) + (int) $aantal, 2 * HOUR_IN_SECONDS );
+	}
 
 	/**
 	 * Recurring Action Scheduler callback.
@@ -51,11 +102,21 @@ class WSFM_Queue_Processor {
 		$start  = microtime( true );
 		$gedaan = 0;
 
-		while ( $gedaan < self::MAX_PER_RUN && ( microtime( true ) - $start ) < self::TIME_BUDGET ) {
+		/* Wat er dit uur nog mag. Is het uur vol, dan doet deze ronde niets en
+		   plant hij ook geen extra ronde: de gewone ronde van vijf minuten pakt
+		   het vanzelf weer op zodra het volgende uur begint. */
+		$ruimte = self::max_per_uur() - self::deze_uur_gedaan();
+		if ( $ruimte < 1 ) {
+			return;
+		}
+		$plafond = min( self::MAX_PER_RUN, $ruimte );
+
+		while ( $gedaan < $plafond && ( microtime( true ) - $start ) < self::TIME_BUDGET ) {
 			$now = current_time( 'mysql' );
 			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$table} WHERE status = 'pending' AND scheduled_at <= %s ORDER BY scheduled_at ASC LIMIT %d", $now, self::BATCH_SIZE ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 			if ( empty( $ids ) ) {
+				self::uur_tellen( $gedaan );
 				return;
 			}
 
@@ -63,10 +124,17 @@ class WSFM_Queue_Processor {
 				self::process_item( (int) $id );
 				$gedaan++;
 
-				if ( $gedaan >= self::MAX_PER_RUN || ( microtime( true ) - $start ) >= self::TIME_BUDGET ) {
+				if ( $gedaan >= $plafond || ( microtime( true ) - $start ) >= self::TIME_BUDGET ) {
 					break;
 				}
 			}
+		}
+
+		self::uur_tellen( $gedaan );
+
+		/* Uur vol: geen extra ronde, wachten op het volgende uur. */
+		if ( self::deze_uur_gedaan() >= self::max_per_uur() ) {
+			return;
 		}
 
 		/* De tijd is op en er staat nog werk klaar: meteen een extra ronde
