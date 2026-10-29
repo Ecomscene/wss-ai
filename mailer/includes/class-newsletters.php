@@ -15,6 +15,18 @@
  * sturen zolang er een afmeldlink in staat, voor willekeurige bezoekers niet.
  * Adressen die alleen in de winkelwagen-tracking staan zijn dus geen ontvangers.
  *
+ * MAATWERK PER WINKEL
+ * Drie filters laten een losse snippet eigen doelgroepen toevoegen zonder dat
+ * de plugin zelf aangepast hoeft te worden (eerste gebruik: Loop&Label, die
+ * particulier en wholesale apart wil mailen):
+ * - wsfm_newsletter_doelgroepen ( $doelgroepen )             extra keuzes
+ * - wsfm_newsletter_ontvangers  ( $ontvangers, $doelgroep )   wie erin zit
+ * - wsfm_newsletter_is_klantgroep ( $is, $doelgroep )          waarschuwing
+ * Een eigen doelgroep begint LEEG: de snippet stelt hem zelf samen, bijvoorbeeld
+ * uit ontvangers_ruw( 'klanten_alle' ). Staat de snippet uit, dan levert de
+ * groep niemand op en weigert verstuur(), in plaats van stil terug te vallen op
+ * een grotere groep.
+ *
  * @package WS_Flow_Mailer
  */
 
@@ -27,6 +39,9 @@ class WSFM_Newsletters {
 
 	/** Hoeveel ontvangers we hoogstens in één keer in de wachtrij zetten. */
 	const MAX_ONTVANGERS = 20000;
+
+	/** De doelgroepen die de plugin zelf kent (naast lijst_<id>). */
+	const VASTE_DOELGROEPEN = array( 'inschrijvingen', 'klanten_jaar', 'klanten_alle', 'alles' );
 
 	/**
 	 * Tabelnaam.
@@ -76,7 +91,18 @@ class WSFM_Newsletters {
 		$uit['klanten_alle'] = __( 'Alle klanten die ooit besteld hebben', 'ws-flow-mailer' );
 		$uit['alles']        = __( 'Klanten en aanmeldingen samen', 'ws-flow-mailer' );
 
-		return $uit;
+		/**
+		 * Extra doelgroepen van een winkel zelf (snippet).
+		 *
+		 * Omdat save() hiermee controleert, blijft een toegevoegde keuze bij
+		 * het opslaan gewoon staan. Sleutels gaan door sanitize_key(), dus
+		 * alleen kleine letters, cijfers, - en _.
+		 *
+		 * @param array $uit key => label
+		 */
+		$gefilterd = apply_filters( 'wsfm_newsletter_doelgroepen', $uit );
+
+		return is_array( $gefilterd ) ? $gefilterd : $uit;
 	}
 
 	/**
@@ -91,7 +117,15 @@ class WSFM_Newsletters {
 	 * @return bool
 	 */
 	public static function is_klantgroep( $doelgroep ) {
-		return in_array( $doelgroep, array( 'klanten_jaar', 'klanten_alle', 'alles' ), true );
+		$is = in_array( $doelgroep, array( 'klanten_jaar', 'klanten_alle', 'alles' ), true );
+
+		/**
+		 * Zodat een eigen klantgroep (snippet) dezelfde waarschuwing krijgt.
+		 *
+		 * @param bool   $is        Klantgroep of niet.
+		 * @param string $doelgroep Doelgroepsleutel.
+		 */
+		return (bool) apply_filters( 'wsfm_newsletter_is_klantgroep', $is, $doelgroep );
 	}
 
 	/**
@@ -347,14 +381,57 @@ class WSFM_Newsletters {
 	/**
 	 * De ontvangers voor een doelgroep: adres plus voornaam, ontdubbeld.
 	 *
-	 * Adressen op de suppressielijst vallen hier al af, en niet pas bij het
-	 * versturen. Anders belooft het scherm "gaat naar 412 klanten" terwijl er
-	 * 380 vertrekken, en dan klopt het getal dat iemand op knopdruk ziet niet.
+	 * Het getal in het scherm en de echte verzending lopen allebei hierlangs,
+	 * dus wat een snippet via het filter verandert klopt op beide plekken.
 	 *
 	 * @param string $doelgroep Doelgroepsleutel.
 	 * @return array e-mail => voornaam
 	 */
 	public static function ontvangers( $doelgroep ) {
+		$doelgroep = (string) $doelgroep;
+		$eigen     = 0 !== strpos( $doelgroep, 'lijst_' ) && ! in_array( $doelgroep, self::VASTE_DOELGROEPEN, true );
+
+		/* Een eigen doelgroep begint leeg. Zonder snippet die hem vult gaat er
+		   dus niemand iets heen, en dat is de bedoeling: stil terugvallen op
+		   "alle klanten van het afgelopen jaar" zou de verkeerde mensen mailen. */
+		$uit = $eigen ? array() : self::ontvangers_ruw( $doelgroep );
+
+		/**
+		 * Ontvangers aanpassen, of voor een eigen doelgroep samenstellen.
+		 *
+		 * @param array  $uit       e-mail => voornaam, suppressielijst al verwerkt.
+		 *                          Leeg bij een eigen doelgroep.
+		 * @param string $doelgroep Doelgroepsleutel.
+		 */
+		$gefilterd = apply_filters( 'wsfm_newsletter_ontvangers', $uit, $doelgroep );
+		if ( ! is_array( $gefilterd ) ) {
+			return $uit;
+		}
+
+		/* Een filter mag nooit iemand van de suppressielijst terugzetten. */
+		foreach ( array_keys( $gefilterd ) as $email ) {
+			if ( ! is_email( $email ) || WSFM_Suppression::is_suppressed( $email ) ) {
+				unset( $gefilterd[ $email ] );
+			}
+		}
+
+		return array_slice( $gefilterd, 0, self::MAX_ONTVANGERS, true );
+	}
+
+	/**
+	 * De ontvangers zoals de plugin ze zelf bepaalt, zonder filter.
+	 *
+	 * Adressen op de suppressielijst vallen hier al af, en niet pas bij het
+	 * versturen. Anders belooft het scherm "gaat naar 412 klanten" terwijl er
+	 * 380 vertrekken, en dan klopt het getal dat iemand op knopdruk ziet niet.
+	 *
+	 * Een snippet die een eigen doelgroep maakt kan hier de basis ophalen,
+	 * bijvoorbeeld ontvangers_ruw( 'klanten_alle' ), en die dan uitdunnen.
+	 *
+	 * @param string $doelgroep Doelgroepsleutel.
+	 * @return array e-mail => voornaam
+	 */
+	public static function ontvangers_ruw( $doelgroep ) {
 		global $wpdb;
 
 		/* Een eigen lijst: dat zijn precies de mensen die erop staan, en verder
