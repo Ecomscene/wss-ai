@@ -31,6 +31,21 @@
  * een product dat een seconde later weer weg is. Een minuut wachten en per
  * product maar één taak inplannen vangt dat allemaal op.
  *
+ * WAAROM HET VAKJE OP DRIE PLEKKEN AANHAAKT (november 2026)
+ * Eerst hing het alleen aan woocommerce_single_product_summary. Bij Unieke
+ * Stoffen bleek dat het vakje daardoor NOOIT verscheen: de productpagina is daar
+ * een Elementor-sjabloon dat de pagina uit losse widgets opbouwt en die haak
+ * nooit afgeeft. Nul aanmeldingen in weken, terwijl er 38 producten uitverkocht
+ * waren. Elke pagebuilder (Elementor, Divi, blokthema's) doet dat zo. Wat ze
+ * wel allemaal doen is de bestelknop-widget tonen, en die roept de gewone
+ * WooCommerce-sjablonen aan. Daarom haakt het vakje nu ook aan op de
+ * voorraadtekst (wc_get_stock_html, die bij een uitverkocht gewoon product nog
+ * wel wordt getoond terwijl het bestelformulier wegvalt) en op het einde van
+ * het bestelformulier van een variabel product. Een vlag per product zorgt dat
+ * het vakje er maar één keer staat, welke haak ook als eerste afgaat. Voor een
+ * sjabloon waar zelfs de bestelknop niet in zit is er de shortcode
+ * [wsfm_voorraad].
+ *
  * @package WS_Flow_Mailer
  */
 
@@ -58,6 +73,13 @@ class WSFM_Voorraadmail {
 
 	/** Het queryargument met de sleutel. */
 	const ARG_KEY = 'wsfm-sleutel';
+
+	/**
+	 * Voor welke producten het vakje op deze pagina al is getoond.
+	 *
+	 * @var array<int,bool>
+	 */
+	private static $getoond = array();
 
 	/* ---------------------------------------------------------------------
 	 * Aanhaken
@@ -95,12 +117,21 @@ class WSFM_Voorraadmail {
 		add_action( self::HOOK_MELDEN, array( __CLASS__, 'verwerk' ) );
 		add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
 
+		/* De shortcode altijd registreren, ook als de module uitstaat. Staat hij
+		   in een sjabloon en gaat de module uit, dan hoort er niets te staan en
+		   niet de letterlijke tekst [wsfm_voorraad] op de productpagina. */
+		add_shortcode( 'wsfm_voorraad', array( __CLASS__, 'shortcode' ) );
+
 		if ( ! self::aan() ) {
 			return;
 		}
 
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'scripts' ) );
+
+		/* Drie plekken voor het vakje, zie de uitleg bovenaan dit bestand. */
 		add_action( 'woocommerce_single_product_summary', array( __CLASS__, 'toon_formulier' ), 31 );
+		add_filter( 'woocommerce_get_stock_html', array( __CLASS__, 'na_voorraadtekst' ), 20, 2 );
+		add_action( 'woocommerce_after_add_to_cart_form', array( __CLASS__, 'na_bestelformulier' ) );
 
 		/* Vijf haken, want voorraad verandert bij WooCommerce op vijf plekken en
 		   ze vuren niet allemaal bij elkaar. set_stock is het aantal (een
@@ -435,6 +466,44 @@ class WSFM_Voorraadmail {
 	}
 
 	/**
+	 * Is dit het product van de productpagina zelf?
+	 *
+	 * De haken op de voorraadtekst en het bestelformulier gaan ook af bij
+	 * gerelateerde producten, een snelle-blik-venster of een widget met
+	 * aanbevelingen elders op de pagina. Daar hoort geen wachtlijstvakje.
+	 *
+	 * @param WC_Product $product Product.
+	 * @return bool
+	 */
+	private static function is_paginaproduct( $product ) {
+		if ( ! function_exists( 'is_product' ) || ! is_product() ) {
+			return false;
+		}
+
+		return (int) $product->get_id() === (int) get_queried_object_id();
+	}
+
+	/**
+	 * Het vakje geven, maar maar één keer per product per pagina.
+	 *
+	 * @param WC_Product $product Product.
+	 * @return string Lege tekst als het er al stond of niet hoort.
+	 */
+	private static function vakje_eenmaal( $product ) {
+		if ( ! self::hier_tonen( $product ) ) {
+			return '';
+		}
+
+		$id = (int) $product->get_id();
+		if ( isset( self::$getoond[ $id ] ) ) {
+			return '';
+		}
+		self::$getoond[ $id ] = true;
+
+		return self::html( self::instellingen(), $id, $product->is_type( 'variable' ) );
+	}
+
+	/**
 	 * De opmaak en het script klaarzetten.
 	 *
 	 * Alleen op een productpagina waar het vakje ook echt kan verschijnen. Een
@@ -450,6 +519,18 @@ class WSFM_Voorraadmail {
 		/* De globale $product staat er op dit moment nog niet; die wordt pas in
 		   de lus gezet. Het product van deze pagina is wel bekend. */
 		if ( ! self::hier_tonen( wc_get_product( get_queried_object_id() ) ) ) {
+			return;
+		}
+
+		self::scripts_laden();
+	}
+
+	/**
+	 * Stylesheet en script echt inladen. Los, zodat de shortcode het ook kan
+	 * doen op een pagina waar scripts() niets deed.
+	 */
+	private static function scripts_laden() {
+		if ( wp_script_is( 'wsfm-voorraad', 'enqueued' ) ) {
 			return;
 		}
 
@@ -471,16 +552,97 @@ class WSFM_Voorraadmail {
 	}
 
 	/**
-	 * Het vakje onder de bestelknop.
+	 * Het vakje onder de bestelknop, voor thema's die de standaard
+	 * productsamenvatting gebruiken.
 	 */
 	public static function toon_formulier() {
 		global $product;
 
-		if ( ! self::hier_tonen( $product ) ) {
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
 			return;
 		}
 
-		echo self::html( self::instellingen(), (int) $product->get_id(), $product->is_type( 'variable' ) ); // phpcs:ignore WordPress.Security.EscapingOutput -- opgebouwd met esc_* hieronder.
+		echo self::vakje_eenmaal( $product ); // phpcs:ignore WordPress.Security.EscapingOutput -- opgebouwd met esc_* in html().
+	}
+
+	/**
+	 * Haak op de voorraadtekst ("Uitverkocht").
+	 *
+	 * Bij een uitverkocht GEWOON product toont WooCommerce de voorraadtekst nog
+	 * wel, maar valt het bestelformulier weg. Dit is dus de enige plek die een
+	 * Elementor- of blokthema-productpagina zeker afgeeft. Variaties slaan we
+	 * over: hun voorraadtekst gaat als JSON naar de variatiekiezer en daar hoort
+	 * geen formulier in.
+	 *
+	 * @param string     $html    De voorraadtekst.
+	 * @param WC_Product $product Product.
+	 * @return string
+	 */
+	public static function na_voorraadtekst( $html, $product = null ) {
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) ) {
+			return $html;
+		}
+		if ( $product->is_type( 'variation' ) || $product->is_type( 'variable' ) ) {
+			return $html;
+		}
+		if ( wp_doing_ajax() || ! self::is_paginaproduct( $product ) ) {
+			return $html;
+		}
+
+		return $html . self::vakje_eenmaal( $product );
+	}
+
+	/**
+	 * Haak op het einde van het bestelformulier.
+	 *
+	 * Voor een variabel product: het formulier met de maatkiezer staat er ook
+	 * in een pagebuilder, en direct NA de afsluitende formuliertag zetten we het
+	 * (verborgen) vakje, zodat er geen formulier in een formulier komt.
+	 */
+	public static function na_bestelformulier() {
+		global $product;
+
+		if ( ! $product || ! is_a( $product, 'WC_Product' ) || ! $product->is_type( 'variable' ) ) {
+			return;
+		}
+		if ( ! self::is_paginaproduct( $product ) ) {
+			return;
+		}
+
+		echo self::vakje_eenmaal( $product ); // phpcs:ignore WordPress.Security.EscapingOutput -- opgebouwd met esc_* in html().
+	}
+
+	/**
+	 * Shortcode [wsfm_voorraad], voor een sjabloon waar zelfs de bestelknop niet
+	 * in staat. Optioneel product="123"; anders het product van de pagina.
+	 *
+	 * @param array $atts Attributen.
+	 * @return string
+	 */
+	public static function shortcode( $atts = array() ) {
+		if ( ! self::aan() || ! function_exists( 'wc_get_product' ) ) {
+			return '';
+		}
+
+		$atts = shortcode_atts( array( 'product' => 0 ), (array) $atts, 'wsfm_voorraad' );
+		$id   = (int) $atts['product'];
+
+		if ( $id < 1 ) {
+			global $product;
+			$id = ( $product && is_a( $product, 'WC_Product' ) ) ? (int) $product->get_id() : (int) get_queried_object_id();
+		}
+
+		$object = $id ? wc_get_product( $id ) : null;
+		if ( ! $object ) {
+			return '';
+		}
+
+		$uit = self::vakje_eenmaal( $object );
+		if ( '' !== $uit ) {
+			self::scripts_laden();
+		}
+
+		return $uit;
 	}
 
 	/**
