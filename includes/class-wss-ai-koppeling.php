@@ -83,6 +83,54 @@ class WSS_AI_Koppeling {
 	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'postcode' );
 
 	/**
+	 * De paden die op het eigen ChatGPT van de winkel kunnen lopen. Zie
+	 * class-wss-ai-eigen-ai.php. De stijlanalyse staat er bewust niet tussen:
+	 * dat is eenmalig werk dat bij Webshopschool blijft.
+	 */
+	private static function kan_eigen_ai( $pad ) {
+		return '/seo' === $pad
+			|| '/foto/genereer' === $pad
+			|| (bool) preg_match( '#^/foto/[^/]+/bijwerken$#', (string) $pad );
+	}
+
+	/** Loopt het werk via het eigen ChatGPT van de winkel? */
+	private static function eigen_ai() {
+		return class_exists( 'WSS_AI_Eigen_AI' ) && WSS_AI_Eigen_AI::is_eigen();
+	}
+
+	/**
+	 * Het formaat van een foto, als verhouding die de beeldmaker kent.
+	 *
+	 * Alleen nodig bij het eigen ChatGPT: dat tekent opnieuw en moet weten of
+	 * het staand of liggend wordt, anders verspringt de galerij. Lukt het lezen
+	 * niet, dan vierkant.
+	 *
+	 * @param array $bron { data, mime } zoals de fotostudio hem opstuurt.
+	 * @return string
+	 */
+	private static function formaat_van( $bron ) {
+		if ( ! is_array( $bron ) || empty( $bron['data'] ) || ! function_exists( 'getimagesizefromstring' ) ) {
+			return '1:1';
+		}
+		$maat = @getimagesizefromstring( base64_decode( (string) $bron['data'] ) ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		if ( ! $maat || empty( $maat[0] ) || empty( $maat[1] ) ) {
+			return '1:1';
+		}
+		$r      = $maat[0] / $maat[1];
+		$opties = array( '1:1' => 1, '4:5' => 0.8, '3:4' => 0.75, '2:3' => 2 / 3, '4:3' => 4 / 3, '3:2' => 1.5 );
+		$beste  = '1:1';
+		$afstand = INF;
+		foreach ( $opties as $naam => $w ) {
+			$d = abs( log( $w / $r ) );
+			if ( $d < $afstand ) {
+				$afstand = $d;
+				$beste   = $naam;
+			}
+		}
+		return $beste;
+	}
+
+	/**
 	 * Staat dit onderdeel aan voor deze webshop?
 	 *
 	 * Twee soorten schakelaars, en het verschil zit in wat er gebeurt als we
@@ -105,8 +153,10 @@ class WSS_AI_Koppeling {
 		/* Teksten en afbeeldingen kosten per keer geld. Aanstaan is dus niet
 		   genoeg; er moet ook tegoed zijn. Zolang Webshopschool niets over
 		   tegoed heeft gezegd geeft mag_ai() ja terug. Zie
-		   class-wss-ai-budget.php. */
-		if ( in_array( $naam, WSS_AI_Budget::BETAALD, true ) && ! WSS_AI_Budget::mag_ai() ) {
+		   class-wss-ai-budget.php.
+		   Loopt het via het eigen ChatGPT van de winkel, dan kost het ons niets
+		   en speelt het tegoed geen rol. */
+		if ( in_array( $naam, WSS_AI_Budget::BETAALD, true ) && ! self::eigen_ai() && ! WSS_AI_Budget::mag_ai() ) {
 			return false;
 		}
 
@@ -288,6 +338,23 @@ class WSS_AI_Koppeling {
 			return new WP_Error( 'niet-actief', self::uitleg() ? self::uitleg() : __( 'Je webshop is nog niet gekoppeld.', 'wss-ai' ) );
 		}
 
+		/* Heeft de winkel gekozen voor zijn eigen ChatGPT, dan zeggen we dat bij
+		   elk verzoek dat daarop kan lopen. Eén plek, zodat de teksten, de
+		   fotostudio en de bulkactie het allemaal vanzelf meekrijgen. */
+		if ( is_array( $body ) && self::eigen_ai() && self::kan_eigen_ai( $pad ) ) {
+			$body['ai'] = 'eigen';
+			if ( '/foto/genereer' === $pad && isset( $body['bron'] ) ) {
+				$body['formaat'] = self::formaat_van( $body['bron'] );
+			}
+			/* Het eigen ChatGPT is trager dan onze beeldmaker: geef het de tijd. */
+			if ( '/seo' !== $pad ) {
+				$wachttijd = max( (int) $wachttijd, 300 );
+				if ( function_exists( 'set_time_limit' ) ) {
+					@set_time_limit( 330 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+				}
+			}
+		}
+
 		$antwoord = wp_remote_post(
 			self::api() . $pad,
 			array(
@@ -393,6 +460,7 @@ class WSS_AI_Koppeling {
 		delete_transient( 'wss_ai_fotomodellen' );
 		delete_transient( 'wss_ai_upgrades' );
 		delete_transient( 'wss_ai_afzender' );
+		delete_transient( 'wss_ai_eigen_stand' );
 	}
 
 	/**

@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.45.6
+ * Version:           0.46.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,13 +33,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.45.6' );
+define( 'WSS_AI_VERSIE', '0.46.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
 require_once WSS_AI_MAP . 'includes/class-wss-ai-updater.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-budget.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-koppeling.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-eigen-ai.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-instellingen.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seo.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-seoplan.php';
@@ -361,6 +362,7 @@ add_action(
 /* De updater aanzetten. Zie includes/class-wss-ai-updater.php. */
 WSS_AI_Updater::init( 'Ecomscene', 'wss-ai' );
 WSS_AI_Instellingen::init();
+WSS_AI_Eigen_AI::init();
 WSS_AI_SEO::init();
 WSS_AI_Seoplan::init();
 WSS_AI_Fotostudio::init();

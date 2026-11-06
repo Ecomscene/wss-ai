@@ -19,6 +19,11 @@
  * elke webshop die deze versie binnenkrijgt zijn teksten en afbeeldingen
  * kwijtraken op het moment dat hij bijwerkt, en ze pas terugkrijgen als de
  * server bijgepraat is. Een update hoort niets af te pakken.
+ *
+ * EIGEN CHATGPT
+ * Heeft de winkel gekozen voor zijn eigen ChatGPT (class-wss-ai-eigen-ai.php),
+ * dan gaat er niets van het tegoed af en zwijgt deze meter. Dan tonen we geen
+ * bedrag dat niet over dit werk gaat.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -40,6 +45,11 @@ class WSS_AI_Budget {
 	private static function gegevens() {
 		$g = get_option( self::OPTIE, array() );
 		return is_array( $g ) ? $g : array();
+	}
+
+	/** Loopt het werk via het eigen ChatGPT van de winkel? */
+	private static function eigen() {
+		return class_exists( 'WSS_AI_Eigen_AI' ) && WSS_AI_Eigen_AI::is_eigen();
 	}
 
 	/**
@@ -270,10 +280,14 @@ class WSS_AI_Budget {
 	 * worden. Hij hoort te horen dat zijn tegoed op is en wanneer er weer
 	 * ruimte is, niet dat het "niet lukte".
 	 *
+	 * Loopt het via het eigen ChatGPT van de winkel, dan doet het tegoed er
+	 * niet toe. Of dat abonnement nog ruimte heeft hoort de winkelier van de
+	 * server, met de reden erbij.
+	 *
 	 * @return true|WP_Error
 	 */
 	public static function controleer() {
-		if ( self::ruimte() ) {
+		if ( self::eigen() || self::ruimte() ) {
 			return true;
 		}
 
@@ -307,6 +321,10 @@ class WSS_AI_Budget {
 	 * @return string HTML, of leeg als er geen tegoed van kracht is.
 	 */
 	public static function regel() {
+		if ( self::eigen() ) {
+			return '<span class="wss-ai-tegoed">' . esc_html__( 'Dit loopt via je eigen ChatGPT.', 'wss-ai' ) . '</span>';
+		}
+
 		if ( ! self::aan() ) {
 			return '';
 		}
@@ -343,7 +361,7 @@ class WSS_AI_Budget {
 	 * @return void
 	 */
 	public static function kaart() {
-		if ( ! self::aan() ) {
+		if ( self::eigen() || ! self::aan() ) {
 			return;
 		}
 
