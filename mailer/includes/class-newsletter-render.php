@@ -279,6 +279,15 @@ class WSFM_Newsletter_Render {
 		   is laat een terechte mail als ongevraagde post lezen. */
 		$voet_regel = isset( $brief->voet_regel ) ? (string) $brief->voet_regel : '';
 
+		/* De voorvertoningsregel: wat de mailapp naast het onderwerp laat zien.
+		   Zonder deze regel pakt de app zelf een stukje uit de mail, en dat ging
+		   bij de welkomstmail mis: de code en de regel eronder liepen in de
+		   platte tekst aan elkaar ("...5% korting, geldig 30 dagen"), en de
+		   samenvatting van een iPhone maakte daar "30% korting" van (Unieke
+		   Stoffen, 6-11-2026). Een nieuwsbrief zet dit niet en blijft zoals hij
+		   was. */
+		$preheader = isset( $brief->preheader ) ? (string) $brief->preheader : '';
+
 		$binnen = '';
 		foreach ( $blokken as $blok ) {
 			$binnen .= self::blok( $blok, $s );
@@ -295,6 +304,7 @@ class WSFM_Newsletter_Render {
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<title>' . esc_html( get_bloginfo( 'name' ) ) . '</title></head>'
 			. '<body style="margin:0;padding:0;background:' . $s['pagina'] . ';">'
+			. self::preheader( $preheader )
 			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' . $s['pagina'] . ';">'
 			. '<tr><td align="center" style="padding:24px 12px;">'
 			. '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background:' . $s['kaart'] . ';border-radius:' . $s['rond'] . ';overflow:hidden;font-family:' . $s['font'] . ';color:' . $s['tekst'] . ';">'
@@ -302,6 +312,29 @@ class WSFM_Newsletter_Render {
 			. $binnen
 			. self::voet( $s, $voet_regel )
 			. '</table></td></tr></table></body></html>';
+	}
+
+	/**
+	 * Een verborgen voorvertoningsregel bovenin de mail.
+	 *
+	 * Onzichtbaar in de mail zelf, wel de tekst die de mailapp in de lijst
+	 * laat zien. Daarachter een rij onzichtbare opvultekens, zodat de app na
+	 * deze zin niet alsnog verder leest in de mail en er de naam van de shop
+	 * of de code achter plakt.
+	 *
+	 * @param string $tekst De regel; leeg is geen preheader.
+	 * @return string
+	 */
+	private static function preheader( $tekst ) {
+		$tekst = trim( (string) $tekst );
+		if ( '' === $tekst ) {
+			return '';
+		}
+
+		return '<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:transparent;">'
+			. esc_html( $tekst )
+			. str_repeat( '&#847;&zwnj;&nbsp;', 60 )
+			. '</div>';
 	}
 
 	/**
@@ -441,6 +474,15 @@ class WSFM_Newsletter_Render {
 	 * Een gestippelde rand en veel ruimte eromheen: dit is het enige wat de
 	 * ontvanger moet zien, en het moet leesbaar zijn op een telefoon in de zon.
 	 *
+	 * WAAROM DE CODE EN DE REGEL ERONDER IN EIGEN TABELRIJEN STAAN
+	 * Eerst waren het twee spans met display:block in een cel. In de mail zelf
+	 * stonden ze netjes onder elkaar, maar de platte tekst die een mailapp
+	 * ervan maakt (voor de voorvertoning, of bij doorsturen) kent geen CSS en
+	 * plakte ze aan elkaar: "WELKOM-UMF4XK5% korting" (Unieke Stoffen,
+	 * 6-11-2026). Een tabelrij wordt in elke omzetting een eigen regel. De
+	 * rijen staan in een binnentabel, zodat de gestippelde rand er gewoon
+	 * als een kader omheen blijft lopen.
+	 *
 	 * @param array $blok Blokgegevens.
 	 * @param array $s    Stijlwaarden.
 	 * @return string
@@ -453,11 +495,19 @@ class WSFM_Newsletter_Render {
 
 		$onder = isset( $blok['onder'] ) ? trim( (string) $blok['onder'] ) : '';
 
+		$rijen = '<tr><td align="center" style="font-family:' . $s['font'] . ';font-size:26px;font-weight:700;letter-spacing:2px;line-height:1.3;color:' . $s['tekst'] . ';">'
+			. esc_html( $code ) . '</td></tr>';
+
+		if ( '' !== $onder ) {
+			$rijen .= '<tr><td align="center" style="padding-top:8px;font-size:13px;line-height:1.5;color:' . $s['zacht'] . ';">'
+				. esc_html( $onder ) . '</td></tr>';
+		}
+
 		$uit = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
 			. '<tr><td align="center" style="border:2px dashed ' . $s['codelijn'] . ';border-radius:' . $s['rond'] . ';padding:22px 16px;">'
-			. '<span style="display:block;font-family:' . $s['font'] . ';font-size:26px;font-weight:700;letter-spacing:2px;color:' . $s['tekst'] . ';">'
-			. esc_html( $code ) . '</span>'
-			. ( '' === $onder ? '' : '<span style="display:block;margin-top:8px;font-size:13px;color:' . $s['zacht'] . ';">' . esc_html( $onder ) . '</span>' )
+			. '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
+			. $rijen
+			. '</table>'
 			. '</td></tr></table>';
 
 		return self::rij( $uit, $s );

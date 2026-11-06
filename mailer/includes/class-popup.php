@@ -769,9 +769,11 @@ class WSFM_Popup {
 			),
 		);
 
+		$met_code = self::met_korting( $i ) && '' !== (string) $code;
+
 		/* Zonder korting geen codekader, ook niet in het voorbeeld: daar komt
 		   altijd een verzonnen code binnen. */
-		if ( self::met_korting( $i ) && '' !== (string) $code ) {
+		if ( $met_code ) {
 			$blokken[] = array(
 				'soort' => 'code',
 				'code'  => $code,
@@ -787,15 +789,26 @@ class WSFM_Popup {
 		);
 
 		$brief = (object) array(
-			'subject'  => $i['mail_onderwerp'],
-			'template' => $i['mail_sjabloon'],
-			'blocks'   => $blokken,
-			'kleuren'  => empty( $i['mail_eigen_kleuren'] ) ? array() : WSFM_Newsletter_Render::kleuren_uit(
+			'subject'    => $i['mail_onderwerp'],
+			'template'   => $i['mail_sjabloon'],
+			'blocks'     => $blokken,
+			'kleuren'    => empty( $i['mail_eigen_kleuren'] ) ? array() : WSFM_Newsletter_Render::kleuren_uit(
 				$i['mail_kleur_achtergrond'],
 				$i['mail_kleur_tekst'],
 				$i['mail_kleur_knop'],
 				$i['mail_kleur_knoptekst']
 			),
+
+			/* Een vaste voorvertoning, met de korting erin zoals hij echt is.
+			   Zonder deze regel bouwde de mailapp er zelf een uit de mail, en
+			   een iPhone maakte van "...5% korting, geldig 30 dagen" ineens
+			   "30% korting" (Unieke Stoffen, 6-11-2026). */
+			'preheader'  => self::voorvertoning( $i, $met_code ),
+
+			/* De vaste voetregel van de nieuwsbrief zegt "omdat je bij ons
+			   besteld hebt". Dat klopt niet voor iemand die zich net via de
+			   popup heeft ingeschreven en misschien nog nooit iets kocht. */
+			'voet_regel' => __( 'Je krijgt deze e-mail omdat je je hebt ingeschreven voor onze nieuwsbrief.', 'ws-flow-mailer' ),
 		);
 
 		return WSFM_Template_Engine::render_string(
@@ -803,6 +816,38 @@ class WSFM_Popup {
 			WSFM_Newsletter_Render::render( $brief ),
 			$context
 		);
+	}
+
+	/**
+	 * De voorvertoningsregel van de welkomstmail.
+	 *
+	 * Bewust alleen de korting zelf, zonder minimumbedrag en zonder het aantal
+	 * dagen: elk extra getal in die regel is een getal dat een samenvattende
+	 * mailapp met het percentage kan verwarren.
+	 *
+	 * @param array $i        Instellingen.
+	 * @param bool  $met_code Staat er een code in de mail.
+	 * @return string
+	 */
+	public static function voorvertoning( array $i, $met_code = true ) {
+		if ( ! $met_code || ! self::met_korting( $i ) ) {
+			return __( 'Leuk dat je erbij bent! Bedankt voor je inschrijving op onze nieuwsbrief.', 'ws-flow-mailer' );
+		}
+
+		/* translators: %s: kortingsbedrag of percentage, bijvoorbeeld 5%. */
+		return sprintf( __( 'Je code voor %s korting op je eerste bestelling', 'ws-flow-mailer' ), self::korting_waarde_tekst( $i ) );
+	}
+
+	/**
+	 * Het percentage of bedrag van de korting als tekst, bijvoorbeeld "5%".
+	 *
+	 * @param array $i Instellingen.
+	 * @return string
+	 */
+	public static function korting_waarde_tekst( array $i ) {
+		return 'percent' === $i['korting_soort']
+			? rtrim( rtrim( number_format_i18n( (float) $i['korting_waarde'], 2 ), '0' ), ',' ) . '%'
+			: WSFM_Template_Engine::format_price( (float) $i['korting_waarde'] );
 	}
 
 	/**
@@ -816,9 +861,7 @@ class WSFM_Popup {
 			return '';
 		}
 
-		$waarde = 'percent' === $i['korting_soort']
-			? rtrim( rtrim( number_format_i18n( (float) $i['korting_waarde'], 2 ), '0' ), ',' ) . '%'
-			: WSFM_Template_Engine::format_price( (float) $i['korting_waarde'] );
+		$waarde = self::korting_waarde_tekst( $i );
 
 		$regels = array( sprintf( /* translators: %s: kortingsbedrag of percentage. */ __( '%s korting op je bestelling', 'ws-flow-mailer' ), $waarde ) );
 
