@@ -76,6 +76,7 @@ function sanitize_text_field( $v ) { return $v; }
    implementatie als in tools/check-modules.php. */
 function sanitize_key( $t ) { return strtolower( preg_replace( '/[^a-z0-9_\-]/i', '', (string) $t ) ); }
 function get_option( $n, $d = false ) { return 'beheerder@voorbeeld.nl'; }
+function apply_filters( $naam, $waarde = null ) { return $waarde; }
 function get_bloginfo( $w = '' ) { return 'Voorbeeldshop'; }
 /* Het catalogusformaat en het middenformaat bestaan: het eerste is wat de mail
    gebruikt, het tweede wat het popup-voorbeeld opvraagt. Een maat die hier niet
