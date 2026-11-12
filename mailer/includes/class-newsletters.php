@@ -1,6 +1,6 @@
 <?php
 /**
- * Nieuwsbrieven: opslaan, ontvangers bepalen en versturen.
+ * Nieuwsbrieven: opslaan, ontvangers bepalen, versturen en inplannen.
  *
  * HET VERSCHIL MET EEN FLOW
  * Een flow reageert op iemand: er is een bestelling of een winkelwagen, en
@@ -14,6 +14,14 @@
  * een juridische grens: voor eigen klanten mag een webshop ongevraagd reclame
  * sturen zolang er een afmeldlink in staat, voor willekeurige bezoekers niet.
  * Adressen die alleen in de winkelwagen-tracking staan zijn dus geen ontvangers.
+ *
+ * INPLANNEN, EN WAAROM ALTIJD NEDERLANDSE TIJD
+ * Een winkelier kiest een datum en een tijd, en bedoelt daarmee de klok aan
+ * zijn eigen muur. De tijdzone in WordPress staat bij lang niet elke shop goed
+ * (UTC, of "UTC+1" zonder zomertijd), en dan zou een brief voor 09:00 om 08:00
+ * of 10:00 de deur uitgaan. Daarom rekenen we hier met een VASTE tijdzone,
+ * Europe/Amsterdam, en slaan we het moment op in UTC. De instelling van de
+ * site doet voor het inplannen dus niet mee.
  *
  * MAATWERK PER WINKEL
  * Drie filters laten een losse snippet eigen doelgroepen toevoegen zonder dat
@@ -42,6 +50,43 @@ class WSFM_Newsletters {
 
 	/** De doelgroepen die de plugin zelf kent (naast lijst_<id>). */
 	const VASTE_DOELGROEPEN = array( 'inschrijvingen', 'klanten_jaar', 'klanten_alle', 'alles' );
+
+	/** De klok waarmee de winkelier inplant. Vast, los van de site. */
+	const TIJDZONE = 'Europe/Amsterdam';
+
+	/** Action Scheduler-haak die op het geplande moment afgaat. */
+	const HOOK_GEPLAND = 'wsfm_verstuur_geplande_nieuwsbrieven';
+
+	/** Statussen waarin een brief nog aangepast en verstuurd kan worden. */
+	const BEWERKBAAR = array( 'concept', 'gepland' );
+
+	/**
+	 * Haken: de formulieren voor inplannen en de wekker zelf.
+	 *
+	 * Los van WooCommerce geregistreerd, zodat het formulier nooit op een lege
+	 * pagina uitkomt. Het versturen zelf heeft Action Scheduler nodig, en dat
+	 * komt met WooCommerce mee.
+	 */
+	public static function init() {
+		add_action( 'admin_post_wsfm_plan_newsletter', array( __CLASS__, 'handle_plan' ) );
+		add_action( 'admin_post_wsfm_unplan_newsletter', array( __CLASS__, 'handle_unplan' ) );
+		add_action( self::HOOK_GEPLAND, array( __CLASS__, 'wekker_af' ) );
+	}
+
+	/**
+	 * De wekker gaat af: in de wachtrij zetten en meteen beginnen met versturen.
+	 *
+	 * Zonder dat tweede deel zou de brief op het geplande moment wel klaarstaan,
+	 * maar pas bij de volgende wachtrijronde vertrekken, tot vijf minuten later.
+	 * Wie 09:00 kiest, verwacht om 09:00 post.
+	 */
+	public static function wekker_af() {
+		self::verstuur_geplande();
+
+		if ( class_exists( 'WSFM_Queue_Processor' ) ) {
+			WSFM_Queue_Processor::process();
+		}
+	}
 
 	/**
 	 * Tabelnaam.
@@ -129,6 +174,17 @@ class WSFM_Newsletters {
 	}
 
 	/**
+	 * Kan deze brief nog aangepast worden? Een concept en een ingeplande brief
+	 * wel; wat al de deur uit is niet.
+	 *
+	 * @param object $brief Nieuwsbrief.
+	 * @return bool
+	 */
+	public static function bewerkbaar( $brief ) {
+		return is_object( $brief ) && isset( $brief->status ) && in_array( $brief->status, self::BEWERKBAAR, true );
+	}
+
+	/**
 	 * Eén nieuwsbrief, met gedecodeerde blokken.
 	 *
 	 * @param int $id Nieuwsbrief-id.
@@ -186,10 +242,11 @@ class WSFM_Newsletters {
 
 		/* Een verzonden nieuwsbrief staat vast. Hem daarna nog kunnen wijzigen
 		   zou betekenen dat het scherm iets anders toont dan wat de klanten in
-		   hun inbox hebben, en dan klopt het verzendlog niet meer. */
+		   hun inbox hebben, en dan klopt het verzendlog niet meer. Een ingeplande
+		   brief mag wel nog: wat er op het moment van versturen staat, gaat eruit. */
 		if ( $id > 0 ) {
 			$bestaand = self::get( $id );
-			if ( $bestaand && 'concept' !== $bestaand->status ) {
+			if ( $bestaand && ! self::bewerkbaar( $bestaand ) ) {
 				return new WP_Error( 'wsfm_nb_verzonden', __( 'Deze nieuwsbrief is al verstuurd en kan niet meer gewijzigd worden. Maak een kopie als je hem opnieuw wilt gebruiken.', 'ws-flow-mailer' ) );
 			}
 		}
@@ -330,6 +387,8 @@ class WSFM_Newsletters {
 	/**
 	 * Verwijderen. Een verzonden nieuwsbrief blijft staan als geschiedenis.
 	 *
+	 * Een ingeplande brief mag weg: de wekker vindt daarna gewoon niets meer.
+	 *
 	 * @param int $id Nieuwsbrief-id.
 	 * @return true|WP_Error
 	 */
@@ -341,7 +400,7 @@ class WSFM_Newsletters {
 			return true;
 		}
 
-		if ( 'concept' !== $brief->status ) {
+		if ( ! self::bewerkbaar( $brief ) ) {
 			return new WP_Error( 'wsfm_nb_verzonden', __( 'Een verstuurde nieuwsbrief blijft bewaard, zodat je later kunt terugzien wat er gestuurd is.', 'ws-flow-mailer' ) );
 		}
 
@@ -559,10 +618,14 @@ class WSFM_Newsletters {
 	 * franje: twee keer op de knop drukken is de meest gemaakte fout die er is,
 	 * en de tweede klik hoort niet nog eens vierhonderd mails op te leveren.
 	 *
-	 * @param int $id Nieuwsbrief-id.
+	 * @param int  $id             Nieuwsbrief-id.
+	 * @param bool $alleen_gepland Vanuit de wekker: alleen versturen als hij
+	 *                             nog steeds ingepland staat en het moment er is.
+	 *                             Zo gaat een brief die net is teruggezet naar
+	 *                             concept er niet alsnog uit.
 	 * @return int|WP_Error Aantal ontvangers in de wachtrij.
 	 */
-	public static function verstuur( $id ) {
+	public static function verstuur( $id, $alleen_gepland = false ) {
 		global $wpdb;
 
 		$brief = self::get( $id );
@@ -620,8 +683,13 @@ class WSFM_Newsletters {
 			return $mag;
 		}
 
-		$table  = self::table();
-		$geclaimd = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'bezig' WHERE id = %d AND status = 'concept'", (int) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$table = self::table();
+
+		if ( $alleen_gepland ) {
+			$geclaimd = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'bezig' WHERE id = %d AND status = 'gepland' AND gepland_op IS NOT NULL AND gepland_op <= %s", (int) $id, gmdate( 'Y-m-d H:i:s' ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		} else {
+			$geclaimd = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'bezig' WHERE id = %d AND status IN ('concept','gepland')", (int) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		}
 
 		if ( 1 !== $geclaimd ) {
 			return new WP_Error( 'wsfm_nb_bezig', __( 'Deze nieuwsbrief is al verstuurd of wordt op dit moment verstuurd.', 'ws-flow-mailer' ) );
@@ -634,12 +702,290 @@ class WSFM_Newsletters {
 			array(
 				'status'     => 'verzonden',
 				'recipients' => $aantal,
+				'plan_fout'  => '',
 				'sent_at'    => current_time( 'mysql' ),
 			),
 			array( 'id' => (int) $id )
 		);
 
 		return $aantal;
+	}
+
+	/* ---------------------------------------------------------------------
+	 * Inplannen
+	 * ------------------------------------------------------------------- */
+
+	/**
+	 * De vaste Nederlandse klok.
+	 *
+	 * @return DateTimeZone
+	 */
+	public static function tijdzone() {
+		return new DateTimeZone( self::TIJDZONE );
+	}
+
+	/**
+	 * Een datum en tijd zoals de winkelier ze invult, als tijdstempel.
+	 *
+	 * Gelezen in Europe/Amsterdam, wat de site ook vindt. Zomer- en wintertijd
+	 * regelt PHP zelf.
+	 *
+	 * @param string $datum JJJJ-MM-DD.
+	 * @param string $tijd  UU:MM.
+	 * @return int|WP_Error Unix-tijdstempel.
+	 */
+	public static function nl_naar_tijdstempel( $datum, $tijd ) {
+		$datum = trim( (string) $datum );
+		$tijd  = trim( (string) $tijd );
+
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $datum ) || ! preg_match( '/^\d{1,2}:\d{2}$/', $tijd ) ) {
+			return new WP_Error( 'wsfm_nb_moment', __( 'Kies een datum en een tijd.', 'ws-flow-mailer' ) );
+		}
+
+		$moment = DateTime::createFromFormat( '!Y-m-d H:i', $datum . ' ' . $tijd, self::tijdzone() );
+		$fouten = DateTime::getLastErrors();
+
+		if ( ! $moment || ( is_array( $fouten ) && ( $fouten['warning_count'] > 0 || $fouten['error_count'] > 0 ) ) ) {
+			return new WP_Error( 'wsfm_nb_moment', __( 'Die datum of tijd bestaat niet. Kies een ander moment.', 'ws-flow-mailer' ) );
+		}
+
+		return $moment->getTimestamp();
+	}
+
+	/**
+	 * Een moment uit de database (UTC) als Nederlandse tijd, om te tonen.
+	 *
+	 * @param string $utc    JJJJ-MM-DD UU:MM:SS in UTC.
+	 * @param string $format Datumformaat.
+	 * @return string Leeg als er geen moment is.
+	 */
+	public static function nl_tijd( $utc, $format = 'j F Y \o\m H:i' ) {
+		if ( empty( $utc ) || '0000-00-00 00:00:00' === $utc ) {
+			return '';
+		}
+
+		$ts = strtotime( $utc . ' UTC' );
+		if ( ! $ts ) {
+			return '';
+		}
+
+		if ( function_exists( 'wp_date' ) ) {
+			return (string) wp_date( $format, $ts, self::tijdzone() );
+		}
+
+		$moment = new DateTime( '@' . $ts );
+		$moment->setTimezone( self::tijdzone() );
+		return $moment->format( $format );
+	}
+
+	/**
+	 * Een nieuwsbrief inplannen, of het moment van een ingeplande verzetten.
+	 *
+	 * Wat later toch mis zou gaan (geen inhoud, niemand in de doelgroep, geen
+	 * verzendkoppeling) wordt NU gecontroleerd. Een fout die pas om negen uur
+	 * 's ochtends opduikt terwijl niemand kijkt, is een nieuwsbrief die niet
+	 * kwam zonder dat iemand het wist.
+	 *
+	 * @param int    $id    Nieuwsbrief-id.
+	 * @param string $datum JJJJ-MM-DD, Nederlandse tijd.
+	 * @param string $tijd  UU:MM, Nederlandse tijd.
+	 * @return int|WP_Error Tijdstempel van het geplande moment.
+	 */
+	public static function plan( $id, $datum, $tijd ) {
+		global $wpdb;
+
+		$brief = self::get( $id );
+		if ( ! $brief ) {
+			return new WP_Error( 'wsfm_nb_weg', __( 'Deze nieuwsbrief bestaat niet meer.', 'ws-flow-mailer' ) );
+		}
+		if ( ! self::bewerkbaar( $brief ) ) {
+			return new WP_Error( 'wsfm_nb_verzonden', __( 'Deze nieuwsbrief is al verstuurd en kan niet meer ingepland worden.', 'ws-flow-mailer' ) );
+		}
+		if ( self::leeg( $brief ) ) {
+			return new WP_Error( 'wsfm_nb_leeg', __( 'Er staat nog niets in deze nieuwsbrief. Vul hem eerst en sla hem op.', 'ws-flow-mailer' ) );
+		}
+
+		$ts = self::nl_naar_tijdstempel( $datum, $tijd );
+		if ( is_wp_error( $ts ) ) {
+			return $ts;
+		}
+
+		if ( $ts < time() + 2 * MINUTE_IN_SECONDS ) {
+			return new WP_Error( 'wsfm_nb_moment', __( 'Dat moment is al voorbij of te dichtbij. Kies een later moment, of verstuur hem meteen met de knop hierboven.', 'ws-flow-mailer' ) );
+		}
+		if ( $ts > time() + YEAR_IN_SECONDS ) {
+			return new WP_Error( 'wsfm_nb_moment', __( 'Je kunt hooguit een jaar vooruit inplannen.', 'ws-flow-mailer' ) );
+		}
+
+		$provider = WSFM_Provider_Factory::create();
+		if ( is_wp_error( $provider ) ) {
+			return $provider;
+		}
+
+		if ( empty( self::ontvangers( $brief->audience ) ) ) {
+			return new WP_Error( 'wsfm_nb_niemand', __( 'Er zit nu niemand in deze doelgroep. Kies een andere groep voordat je hem inplant.', 'ws-flow-mailer' ) );
+		}
+
+		$table = self::table();
+		$gezet = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'gepland', gepland_op = %s, plan_fout = '' WHERE id = %d AND status IN ('concept','gepland')", gmdate( 'Y-m-d H:i:s', $ts ), (int) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		$na = self::get( $id );
+		if ( false === $gezet || ! $na || 'gepland' !== $na->status ) {
+			return new WP_Error( 'wsfm_nb_bezig', __( 'Inplannen lukte niet; misschien is hij net verstuurd. Ververs de pagina en kijk het na.', 'ws-flow-mailer' ) );
+		}
+
+		self::wekker( $ts );
+
+		return $ts;
+	}
+
+	/**
+	 * Een ingeplande brief terug naar concept.
+	 *
+	 * @param int $id Nieuwsbrief-id.
+	 * @return true|WP_Error
+	 */
+	public static function plan_intrekken( $id ) {
+		global $wpdb;
+
+		$table = self::table();
+		$terug = $wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'concept', gepland_op = NULL, plan_fout = '' WHERE id = %d AND status = 'gepland'", (int) $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( 1 !== $terug ) {
+			return new WP_Error( 'wsfm_nb_bezig', __( 'Deze nieuwsbrief stond niet (meer) ingepland. Misschien is hij net verstuurd.', 'ws-flow-mailer' ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Een losse wekker op het geplande moment.
+	 *
+	 * Action Scheduler rekent in tijdstempels en dus los van de tijdzone van de
+	 * site. Gaat de wekker om wat voor reden ook niet af, dan pakt de gewone
+	 * wachtrijronde (elke vijf minuten) hem op; zie verstuur_geplande().
+	 *
+	 * @param int $ts Tijdstempel.
+	 */
+	private static function wekker( $ts ) {
+		if ( ! function_exists( 'as_schedule_single_action' ) ) {
+			return;
+		}
+
+		$groep = class_exists( 'WSFM_Flow_Engine' ) ? WSFM_Flow_Engine::AS_GROUP : 'wsfm';
+		as_schedule_single_action( (int) $ts, self::HOOK_GEPLAND, array(), $groep );
+	}
+
+	/**
+	 * Alles versturen waarvan het geplande moment er is.
+	 *
+	 * Aangeroepen door de wekker en door elke wachtrijronde. Twee tegelijk is
+	 * geen probleem: verstuur() claimt met een voorwaardelijke UPDATE, dus de
+	 * tweede vindt niets meer.
+	 *
+	 * Lukt het niet, dan gaat de brief terug naar concept met de reden erbij.
+	 * Op 'gepland' laten staan zou betekenen dat hij elke vijf minuten opnieuw
+	 * probeert, en dat hij om drie uur 's middags alsnog vertrekt terwijl de
+	 * actie om negen uur begon.
+	 */
+	public static function verstuur_geplande() {
+		global $wpdb;
+
+		static $bezig = false;
+		if ( $bezig ) {
+			return;
+		}
+		$bezig = true;
+
+		$table = self::table();
+		$ids   = $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$table} WHERE status = 'gepland' AND gepland_op IS NOT NULL AND gepland_op <= %s ORDER BY gepland_op ASC LIMIT 5", gmdate( 'Y-m-d H:i:s' ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		foreach ( (array) $ids as $id ) {
+			$id    = (int) $id;
+			$brief = self::get( $id );
+			$uit   = self::verstuur( $id, true );
+
+			if ( ! is_wp_error( $uit ) || 'wsfm_nb_bezig' === $uit->get_error_code() ) {
+				continue;
+			}
+
+			$reden = sprintf(
+				/* translators: 1: geplande moment, 2: reden. */
+				__( 'De geplande verzending van %1$s ging niet door: %2$s', 'ws-flow-mailer' ),
+				$brief ? self::nl_tijd( $brief->gepland_op ) : '',
+				$uit->get_error_message()
+			);
+
+			$wpdb->query( $wpdb->prepare( "UPDATE {$table} SET status = 'concept', plan_fout = %s WHERE id = %d AND status = 'gepland'", substr( $reden, 0, 250 ), $id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		}
+
+		$bezig = false;
+	}
+
+	/**
+	 * Formulier: inplannen.
+	 */
+	public static function handle_plan() {
+		if ( ! current_user_can( WSFM_Flow_Admin_UI::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Je hebt geen toestemming om deze pagina te bekijken.', 'ws-flow-mailer' ) );
+		}
+		check_admin_referer( 'wsfm_plan_newsletter' );
+
+		$id    = isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0;
+		$datum = isset( $_POST['plan_datum'] ) ? sanitize_text_field( wp_unslash( $_POST['plan_datum'] ) ) : '';
+		$tijd  = isset( $_POST['plan_tijd'] ) ? sanitize_text_field( wp_unslash( $_POST['plan_tijd'] ) ) : '';
+
+		$uit = $id ? self::plan( $id, $datum, $tijd ) : new WP_Error( 'wsfm_nb_weg', __( 'Onbekende nieuwsbrief.', 'ws-flow-mailer' ) );
+
+		self::terug(
+			$id,
+			is_wp_error( $uit )
+				? array( 'wsfm-error' => rawurlencode( $uit->get_error_message() ) )
+				: array( 'wsfm-gepland' => '1' )
+		);
+	}
+
+	/**
+	 * Formulier: inplannen intrekken.
+	 */
+	public static function handle_unplan() {
+		if ( ! current_user_can( WSFM_Flow_Admin_UI::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Je hebt geen toestemming om deze pagina te bekijken.', 'ws-flow-mailer' ) );
+		}
+		check_admin_referer( 'wsfm_unplan_newsletter' );
+
+		$id  = isset( $_POST['nieuwsbrief_id'] ) ? (int) $_POST['nieuwsbrief_id'] : 0;
+		$uit = $id ? self::plan_intrekken( $id ) : new WP_Error( 'wsfm_nb_weg', __( 'Onbekende nieuwsbrief.', 'ws-flow-mailer' ) );
+
+		self::terug(
+			$id,
+			is_wp_error( $uit )
+				? array( 'wsfm-error' => rawurlencode( $uit->get_error_message() ) )
+				: array( 'wsfm-ingetrokken' => '1' )
+		);
+	}
+
+	/**
+	 * Terug naar de brief, met een boodschap.
+	 *
+	 * @param int   $id   Nieuwsbrief-id.
+	 * @param array $args Extra queryargumenten.
+	 */
+	private static function terug( $id, array $args ) {
+		wp_safe_redirect(
+			add_query_arg(
+				array_merge(
+					array(
+						'page'        => WSFM_Flow_Admin_UI::SLUG_BRIEVEN,
+						'action'      => 'edit',
+						'nieuwsbrief' => (int) $id,
+					),
+					$args
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	/**

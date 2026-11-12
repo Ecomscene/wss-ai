@@ -47,6 +47,14 @@ class WSFM_Queue_Processor {
 
 		self::recover_stale_items();
 
+		/* Ingeplande nieuwsbrieven waarvan het moment er is. Normaal doet de
+		   losse wekker dat precies op tijd; dit is het vangnet als die wekker
+		   om wat voor reden ook niet afging. Het zet alleen ontvangers in de
+		   wachtrij, het versturen gebeurt hieronder in dezelfde ronde. */
+		if ( class_exists( 'WSFM_Newsletters' ) ) {
+			WSFM_Newsletters::verstuur_geplande();
+		}
+
 		$table  = WSFM_Queue::table();
 		$start  = microtime( true );
 		$gedaan = 0;

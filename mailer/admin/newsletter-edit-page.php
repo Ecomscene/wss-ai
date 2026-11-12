@@ -15,19 +15,38 @@
  * al hadden. Vandaar de tweede stand: eigen HTML, die wij ongemoeid laten. Wat
  * we daar wel mee doen staat in class-eigen-html.php.
  *
+ * INPLANNEN
+ * Onder de verstuurknop staat een datum en een tijd. Die zijn ALTIJD
+ * Nederlandse tijd, ook als de tijdzone van de site anders staat; zie
+ * WSFM_Newsletters. Een ingeplande brief blijft bewerkbaar tot hij vertrekt.
+ *
  * @package WS_Flow_Mailer
  */
 
 defined( 'ABSPATH' ) || exit;
 
 $wsfm_id        = $brief ? (int) $brief->id : 0;
-$wsfm_verstuurd = $brief && 'concept' !== $brief->status;
+$wsfm_verstuurd = $brief && ! WSFM_Newsletters::bewerkbaar( $brief );
+$wsfm_gepland   = $brief && 'gepland' === $brief->status && ! empty( $brief->gepland_op );
+$wsfm_planfout  = ( $brief && 'concept' === $brief->status && ! empty( $brief->plan_fout ) ) ? (string) $brief->plan_fout : '';
 $wsfm_blokken   = $brief ? $brief->blocks : array();
 $wsfm_sjabloon  = $brief ? $brief->template : 'rustig';
 $wsfm_doelgroep = $brief ? $brief->audience : 'klanten_jaar';
 $wsfm_soort     = ( $brief && isset( $brief->soort ) && 'eigen' === $brief->soort ) ? 'eigen' : 'blokken';
 $wsfm_html      = ( $brief && isset( $brief->eigen_html ) ) ? (string) $brief->eigen_html : '';
 $wsfm_terug     = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN );
+
+/* Wat er in het inplanvak staat: het geplande moment, of anders morgen 09:00.
+   Allebei in Nederlandse tijd, want dat is wat de winkelier invult. */
+if ( $wsfm_gepland ) {
+	$wsfm_plan_datum = WSFM_Newsletters::nl_tijd( $brief->gepland_op, 'Y-m-d' );
+	$wsfm_plan_tijd  = WSFM_Newsletters::nl_tijd( $brief->gepland_op, 'H:i' );
+} else {
+	$wsfm_morgen     = new DateTime( 'tomorrow 09:00', WSFM_Newsletters::tijdzone() );
+	$wsfm_plan_datum = $wsfm_morgen->format( 'Y-m-d' );
+	$wsfm_plan_tijd  = '09:00';
+}
+$wsfm_vandaag = ( new DateTime( 'now', WSFM_Newsletters::tijdzone() ) )->format( 'Y-m-d' );
 
 /**
  * Eén blok als formulierregels.
@@ -173,8 +192,42 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 			?>
 		</p></div>
 	<?php endif; ?>
+	<?php if ( isset( $_GET['wsfm-gepland'] ) && $wsfm_gepland ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+		<div class="notice notice-success is-dismissible"><p>
+			<?php
+			printf(
+				/* translators: %s: datum en tijd. */
+				esc_html__( 'Ingepland. De nieuwsbrief gaat op %s (Nederlandse tijd) vanzelf de deur uit.', 'ws-flow-mailer' ),
+				esc_html( WSFM_Newsletters::nl_tijd( $brief->gepland_op ) )
+			);
+			?>
+		</p></div>
+	<?php endif; ?>
+	<?php if ( isset( $_GET['wsfm-ingetrokken'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
+		<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'De planning is ingetrokken. De nieuwsbrief staat weer als concept en gaat niet vanzelf de deur uit.', 'ws-flow-mailer' ); ?></p></div>
+	<?php endif; ?>
 	<?php if ( isset( $_GET['wsfm-error'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 		<div class="notice notice-error is-dismissible"><p><?php echo esc_html( rawurldecode( sanitize_text_field( wp_unslash( $_GET['wsfm-error'] ) ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?></p></div>
+	<?php endif; ?>
+	<?php if ( '' !== $wsfm_planfout ) : ?>
+		<div class="notice notice-error"><p><?php echo esc_html( $wsfm_planfout ); ?></p></div>
+	<?php endif; ?>
+
+	<?php if ( $wsfm_gepland ) : ?>
+		<div class="notice notice-info wsfm-gepland-melding">
+			<p>
+				<strong>
+					<?php
+					printf(
+						/* translators: %s: datum en tijd. */
+						esc_html__( 'Ingepland voor %s (Nederlandse tijd).', 'ws-flow-mailer' ),
+						esc_html( WSFM_Newsletters::nl_tijd( $brief->gepland_op ) )
+					);
+					?>
+				</strong>
+				<?php esc_html_e( 'Je kunt hem tot dat moment nog aanpassen. Wat er dan staat, gaat eruit.', 'ws-flow-mailer' ); ?>
+			</p>
+		</div>
 	<?php endif; ?>
 
 	<?php if ( $wsfm_verstuurd ) : ?>
@@ -418,9 +471,40 @@ if ( ! function_exists( 'wsfm_blok_velden' ) ) {
 					<input type="hidden" name="nieuwsbrief_id" value="<?php echo esc_attr( $wsfm_id ); ?>">
 					<?php wp_nonce_field( 'wsfm_send_newsletter' ); ?>
 					<button type="submit" class="button button-primary button-hero" id="wsfm-verstuur">
-						<?php esc_html_e( 'Verstuur naar mijn klanten', 'ws-flow-mailer' ); ?>
+						<?php echo $wsfm_gepland ? esc_html__( 'Nu meteen versturen', 'ws-flow-mailer' ) : esc_html__( 'Verstuur naar mijn klanten', 'ws-flow-mailer' ); ?>
 					</button>
 				</form>
+
+				<hr>
+
+				<h2><?php echo $wsfm_gepland ? esc_html__( 'Ander moment kiezen', 'ws-flow-mailer' ) : esc_html__( 'Of plan hem in', 'ws-flow-mailer' ); ?></h2>
+				<p>
+					<?php esc_html_e( 'Kies een dag en een tijd. Dat is altijd Nederlandse tijd, ook als je webshop op een andere tijdzone staat. Sla je wijzigingen eerst op: wat er op het geplande moment is opgeslagen, gaat eruit.', 'ws-flow-mailer' ); ?>
+				</p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="wsfm-plan-form">
+					<input type="hidden" name="action" value="wsfm_plan_newsletter">
+					<input type="hidden" name="nieuwsbrief_id" value="<?php echo esc_attr( $wsfm_id ); ?>">
+					<?php wp_nonce_field( 'wsfm_plan_newsletter' ); ?>
+					<label for="wsfm-plan-datum"><?php esc_html_e( 'Datum', 'ws-flow-mailer' ); ?></label>
+					<input type="date" id="wsfm-plan-datum" name="plan_datum" required
+						min="<?php echo esc_attr( $wsfm_vandaag ); ?>"
+						value="<?php echo esc_attr( $wsfm_plan_datum ); ?>">
+					<label for="wsfm-plan-tijd"><?php esc_html_e( 'Tijd', 'ws-flow-mailer' ); ?></label>
+					<input type="time" id="wsfm-plan-tijd" name="plan_tijd" required step="300"
+						value="<?php echo esc_attr( $wsfm_plan_tijd ); ?>">
+					<button type="submit" class="button button-secondary">
+						<?php echo $wsfm_gepland ? esc_html__( 'Moment wijzigen', 'ws-flow-mailer' ) : esc_html__( 'Inplannen', 'ws-flow-mailer' ); ?>
+					</button>
+				</form>
+
+				<?php if ( $wsfm_gepland ) : ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:12px;">
+						<input type="hidden" name="action" value="wsfm_unplan_newsletter">
+						<input type="hidden" name="nieuwsbrief_id" value="<?php echo esc_attr( $wsfm_id ); ?>">
+						<?php wp_nonce_field( 'wsfm_unplan_newsletter' ); ?>
+						<button type="submit" class="button-link"><?php esc_html_e( 'Planning intrekken (terug naar concept)', 'ws-flow-mailer' ); ?></button>
+					</form>
+				<?php endif; ?>
 			</div>
 		</div>
 

@@ -24,7 +24,7 @@ class WSFM_Install {
 	 * hieronder is gemaakt om twee keer te kunnen draaien zonder iets te
 	 * veranderen dat er al staat.
 	 */
-	const DB_VERSION = '10';
+	const DB_VERSION = '11';
 
 	/** Onthoudt dat de welkomsttemplate één keer is klaargezet. */
 	const OPTIE_WELKOM = 'wsfm_welkomsttemplate';
@@ -180,7 +180,7 @@ class WSFM_Install {
 
 		// Newsletters: one-off broadcasts. `blocks` holds a JSON array of
 		// { soort, ... } blocks; the layout comes from `template`.
-		// Status: concept | bezig | verzonden.
+		// Status: concept | gepland | bezig | verzonden.
 		//
 		// `gemaakt_door` is wie de brief heeft neergezet. Leeg betekent: de
 		// winkelier zelf, in zijn eigen beheerscherm. Staat er een naam, dan
@@ -188,6 +188,13 @@ class WSFM_Install {
 		// dan hoort dat in het overzicht te staan. Anders staat er een concept
 		// dat niemand herkent, en een nieuwsbrief die je niet herkent verstuur
 		// je niet.
+		//
+		// `gepland_op` staat ALTIJD in UTC, nooit in de tijd van de site. De
+		// winkelier kiest Nederlandse tijd en die wordt hier met een vaste
+		// tijdzone (Europe/Amsterdam) omgerekend. Een shop waarvan de tijdzone
+		// in WordPress verkeerd staat, verstuurt dus toch op het goede uur.
+		// `plan_fout` is waarom een geplande verzending niet doorging; die
+		// hoort de winkelier te zien en niet alleen een concept terug.
 		$sql_newsletters = "CREATE TABLE {$prefix}wsfm_newsletters (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			name VARCHAR(190) NOT NULL DEFAULT '',
@@ -200,11 +207,14 @@ class WSFM_Install {
 			status VARCHAR(20) NOT NULL DEFAULT 'concept',
 			gemaakt_door VARCHAR(60) NOT NULL DEFAULT '',
 			recipients INT UNSIGNED NOT NULL DEFAULT 0,
+			gepland_op DATETIME NULL DEFAULT NULL,
+			plan_fout VARCHAR(255) NOT NULL DEFAULT '',
 			sent_at DATETIME NULL DEFAULT NULL,
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			updated_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),
 			KEY status (status),
+			KEY gepland (status, gepland_op),
 			KEY gemaakt_door (gemaakt_door)
 		) $charset_collate;";
 

@@ -10,6 +10,8 @@
  * - account_created flows start zodra er een klantaccount wordt aangemaakt
  * - the queue processor runs every 5 minutes, plus een extra ronde direct
  *   achter een volle ronde aan zolang er nog post klaarstaat
+ * - ingeplande nieuwsbrieven gaan op hun moment via een losse wekker, en
+ *   anders bij de eerstvolgende wachtrijronde
  *
  * All recurring work runs through Action Scheduler (ships with
  * WooCommerce), never wp_cron directly.
@@ -40,6 +42,12 @@ class WSFM_Flow_Engine {
 	 * Register triggers and recurring actions.
 	 */
 	public static function init() {
+		/* Inplannen van nieuwsbrieven: de formulieren en de wekker. Voor de
+		   WooCommerce-controle, zodat het formulier altijd een handler heeft. */
+		if ( class_exists( 'WSFM_Newsletters' ) ) {
+			WSFM_Newsletters::init();
+		}
+
 		if ( ! class_exists( 'WooCommerce' ) ) {
 			return;
 		}
@@ -114,6 +122,7 @@ class WSFM_Flow_Engine {
 			as_unschedule_all_actions( self::HOOK_PROCESS_QUEUE, array(), self::AS_GROUP );
 			as_unschedule_all_actions( WSFM_Queue_Processor::HOOK_EXTRA, array(), self::AS_GROUP );
 			as_unschedule_all_actions( self::HOOK_CHECK_ABANDONED, array(), self::AS_GROUP );
+			as_unschedule_all_actions( WSFM_Newsletters::HOOK_GEPLAND, array(), self::AS_GROUP );
 		}
 	}
 

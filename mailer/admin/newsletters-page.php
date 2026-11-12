@@ -26,7 +26,7 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 		<div class="wsfm-leeg">
 			<h2><?php esc_html_e( 'Nog geen nieuwsbrieven', 'ws-flow-mailer' ); ?></h2>
 			<p>
-				<?php esc_html_e( 'Een nieuwsbrief is een eenmalig bericht aan je klanten. Je kiest een vormgeving, zet er wat foto\'s, tekst en producten in, en verstuurt hem. Flows zijn iets anders: die gaan vanzelf de deur uit als iemand iets bestelt of zijn winkelwagen laat staan.', 'ws-flow-mailer' ); ?>
+				<?php esc_html_e( 'Een nieuwsbrief is een eenmalig bericht aan je klanten. Je kiest een vormgeving, zet er wat foto\'s, tekst en producten in, en verstuurt hem meteen of plant hem in. Flows zijn iets anders: die gaan vanzelf de deur uit als iemand iets bestelt of zijn winkelwagen laat staan.', 'ws-flow-mailer' ); ?>
 			</p>
 			<p><a href="<?php echo esc_url( $wsfm_nieuw ); ?>" class="button button-primary button-hero"><?php esc_html_e( 'Maak je eerste nieuwsbrief', 'ws-flow-mailer' ); ?></a></p>
 		</div>
@@ -88,7 +88,8 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 					$wsfm_link = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . '&action=edit&nieuwsbrief=' . (int) $wsfm_brief->id );
 					/* Kolom kan ontbreken op een shop die de nieuwe tabel nog niet
 					   heeft gekregen; dan is het gewoon de winkelier zelf. */
-					$wsfm_door = isset( $wsfm_brief->gemaakt_door ) ? trim( (string) $wsfm_brief->gemaakt_door ) : '';
+					$wsfm_door    = isset( $wsfm_brief->gemaakt_door ) ? trim( (string) $wsfm_brief->gemaakt_door ) : '';
+					$wsfm_gepland = 'gepland' === $wsfm_brief->status && ! empty( $wsfm_brief->gepland_op );
 					?>
 					<tr>
 						<td>
@@ -118,6 +119,11 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 						<td>
 							<?php if ( 'concept' === $wsfm_brief->status ) : ?>
 								<span class="wsfm-badge"><?php esc_html_e( 'Concept', 'ws-flow-mailer' ); ?></span>
+								<?php if ( ! empty( $wsfm_brief->plan_fout ) ) : ?>
+									<br><span class="wsfm-mut"><?php esc_html_e( 'Planning ging niet door', 'ws-flow-mailer' ); ?></span>
+								<?php endif; ?>
+							<?php elseif ( $wsfm_gepland ) : ?>
+								<span class="wsfm-badge"><?php esc_html_e( 'Gepland', 'ws-flow-mailer' ); ?></span>
 							<?php else : ?>
 								<span class="wsfm-badge wsfm-badge-active"><?php esc_html_e( 'Verstuurd', 'ws-flow-mailer' ); ?></span>
 							<?php endif; ?>
@@ -125,9 +131,21 @@ $wsfm_nieuw = admin_url( 'admin.php?page=' . WSFM_Flow_Admin_UI::SLUG_BRIEVEN . 
 						<td><?php echo $wsfm_brief->recipients ? esc_html( number_format_i18n( $wsfm_brief->recipients ) ) : '-'; ?></td>
 						<td>
 							<?php
-							echo $wsfm_brief->sent_at
-								? esc_html( date_i18n( 'j M Y H:i', strtotime( $wsfm_brief->sent_at ) ) )
-								: '-';
+							if ( $wsfm_gepland ) {
+								/* Het geplande moment, in Nederlandse tijd, zodat de winkelier
+								   ziet wanneer hij weggaat en niet een tijd in UTC. */
+								echo esc_html(
+									sprintf(
+										/* translators: %s: datum en tijd. */
+										__( 'gaat %s', 'ws-flow-mailer' ),
+										WSFM_Newsletters::nl_tijd( $wsfm_brief->gepland_op, 'j M Y H:i' )
+									)
+								);
+							} else {
+								echo $wsfm_brief->sent_at
+									? esc_html( date_i18n( 'j M Y H:i', strtotime( $wsfm_brief->sent_at ) ) )
+									: '-';
+							}
 							?>
 						</td>
 					</tr>
