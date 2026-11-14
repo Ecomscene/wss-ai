@@ -14,6 +14,9 @@ defined( 'ABSPATH' ) || exit;
 
 class WSFM_Template_Engine {
 
+	/** Plek in de voorraadmelding waar het woord voor de wagen komt (zie render_string). */
+	const WAGENWOORD = '%%wsfm_wagenwoord%%';
+
 	/**
 	 * Supported merge tags with a short Dutch description (used by the
 	 * cheatsheet in the template editor).
@@ -105,6 +108,14 @@ class WSFM_Template_Engine {
 			// Subjects are plain text: strip HTML values there.
 			$subject_replace[] = in_array( $key, $html, true ) ? wp_strip_all_tags( $value ) : $value;
 		}
+
+		/* De voorraadmelding in {cart_items} gebruikt het woord van de mail
+		   zelf: een shop die in zijn mail "winkelmandje" schrijft krijgt geen
+		   regel over een "winkelwagen" ertussen. */
+		$woord             = ( false !== stripos( $body, 'winkelmandje' ) ) ? 'winkelmandje' : 'winkelwagen';
+		$search[]          = self::WAGENWOORD;
+		$replace[]         = $woord;
+		$subject_replace[] = $woord;
 
 		return array(
 			'subject'   => str_replace( $search, $subject_replace, $subject ),
@@ -266,7 +277,12 @@ class WSFM_Template_Engine {
 				? '<a href="' . esc_url( $link ) . '" style="color:inherit;text-decoration:none;font-weight:bold;">' . esc_html( $name ) . '</a>'
 				: '<strong>' . esc_html( $name ) . '</strong>';
 
-			$out .= '<td valign="middle" style="padding:12px 0;' . $cel . '">' . $naam_html . '<br><span style="font-size:13px;opacity:0.75;">' . sprintf( /* translators: %d: quantity */ esc_html__( 'Aantal: %d', 'ws-flow-mailer' ), $qty ) . '</span></td>';
+			$aantal_html = sprintf( /* translators: %d: quantity */ esc_html__( 'Aantal: %d', 'ws-flow-mailer' ), $qty );
+			if ( ! empty( $item['qty_gevraagd'] ) && (int) $item['qty_gevraagd'] > $qty ) {
+				$aantal_html .= ' &middot; ' . sprintf( /* translators: %d: quantity in stock */ esc_html__( 'nog maar %d op voorraad', 'ws-flow-mailer' ), $qty );
+			}
+
+			$out .= '<td valign="middle" style="padding:12px 0;' . $cel . '">' . $naam_html . '<br><span style="font-size:13px;opacity:0.75;">' . $aantal_html . '</span></td>';
 			$out .= '<td align="right" valign="middle" style="padding:12px 0 12px 12px;white-space:nowrap;' . $cel . '">' . esc_html( $price ) . '</td>';
 			$out .= '</tr>';
 		}
@@ -344,13 +360,201 @@ class WSFM_Template_Engine {
 
 		$first_name = $tracking->customer_name ? preg_split( '/\s+/', trim( $tracking->customer_name ) )[0] : '';
 
+		/* Voorraad bekijken op het moment dat de mail eruit gaat, niet op het
+		   moment van achterlaten. Een herinnering aan producten die je niet
+		   meer kunt kopen is een teleurstelling met een knop erin. Is alles
+		   op, dan gaat deze stap niet: de WP_Error laat de wachtrij hem
+		   stoppen met de reden in het log. Een latere stap staat los in de
+		   wachtrij en kijkt zelf opnieuw; is er dan weer iets, dan gaat die
+		   gewoon. */
+		$voorraad = self::wagen_voorraad( $items );
+		$cart_html = self::items_html( $items );
+
+		if ( ! empty( $items ) && empty( $voorraad['op_voorraad'] ) ) {
+			$namen = array();
+			foreach ( $voorraad['uitverkocht'] as $weg ) {
+				$namen[] = isset( $weg['name'] ) ? (string) $weg['name'] : '';
+			}
+
+			return new WP_Error(
+				'wsfm_cart_uitverkocht',
+				sprintf(
+					/* translators: %s: product names */
+					__( 'Niet verstuurd: alles in deze winkelwagen is uitverkocht of niet meer te koop (%s).', 'ws-flow-mailer' ),
+					implode( ', ', array_filter( $namen ) )
+				)
+			);
+		}
+
+		if ( $voorraad['gewijzigd'] ) {
+			$cart_html = self::voorraad_html( $voorraad );
+			$total     = $voorraad['totaal'];
+		}
+
 		return array(
 			'first_name'      => $first_name,
-			'cart_items'      => self::items_html( $items ),
+			'cart_items'      => $cart_html,
 			'cart_total'      => self::format_price( $total ),
 			'cart_url'        => class_exists( 'WSFM_Cart_Recovery' ) ? WSFM_Cart_Recovery::link( $tracking ) : self::winkelwagen_url(),
 			'unsubscribe_url' => $unsubscribe_url,
 		);
+	}
+
+	/**
+	 * Splits bewaarde winkelwagenregels in wat nu nog te koop is en wat niet.
+	 *
+	 * Per regel telt het product dat echt in de wagen lag: de variatie als die
+	 * er is, anders het product. Te koop betekent: gepubliceerd (bij een
+	 * variatie ook het hoofdproduct), koopbaar en op voorraad. Nabestellen
+	 * toegestaan telt als op voorraad, want dan kan de klant het gewoon kopen.
+	 * Is er minder dan er in de wagen lag, dan gaat het aantal omlaag naar wat
+	 * er is en onthoudt de regel het oorspronkelijke aantal in qty_gevraagd.
+	 *
+	 * Ook gebruikt door de herstellink (WSFM_Cart_Recovery), zodat de mail en
+	 * de knop erin precies hetzelfde zeggen.
+	 *
+	 * @param array $items Regels uit wsfm_cart_tracking.cart_contents.
+	 * @return array { op_voorraad: array, uitverkocht: array, gewijzigd: bool, totaal: float }
+	 */
+	public static function wagen_voorraad( array $items ) {
+		$uit = array(
+			'op_voorraad' => array(),
+			'uitverkocht' => array(),
+			'gewijzigd'   => false,
+			'totaal'      => 0.0,
+		);
+
+		foreach ( $items as $item ) {
+			if ( ! is_array( $item ) ) {
+				continue;
+			}
+
+			$product = self::regel_product( $item );
+
+			if ( ! $product ) {
+				/* Zonder product_id (heel oude rij) kunnen we niets controleren;
+				   dan laten we de regel staan zoals hij was. Een product_id
+				   waarvan het product weg is, is wel uitverkocht. */
+				if ( empty( $item['product_id'] ) || ! function_exists( 'wc_get_product' ) ) {
+					$uit['op_voorraad'][] = $item;
+				} else {
+					$uit['uitverkocht'][] = $item;
+					$uit['gewijzigd']     = true;
+				}
+				continue;
+			}
+
+			if ( ! self::is_te_koop( $product ) ) {
+				if ( empty( $item['name'] ) ) {
+					$item['name'] = $product->get_name();
+				}
+				$uit['uitverkocht'][] = $item;
+				$uit['gewijzigd']     = true;
+				continue;
+			}
+
+			$qty = isset( $item['qty'] ) ? max( 1, (int) $item['qty'] ) : 1;
+			$max = (int) $product->get_max_purchase_quantity(); // -1 = onbeperkt (geen voorraadbeheer of nabestellen mag).
+
+			if ( $max > 0 && $qty > $max ) {
+				$item['qty_gevraagd'] = $qty;
+				$item['qty']          = $max;
+				$qty                  = $max;
+				$uit['gewijzigd']     = true;
+			}
+
+			if ( function_exists( 'wc_get_price_to_display' ) ) {
+				$uit['totaal'] += (float) wc_get_price_to_display( $product, array( 'qty' => $qty ) );
+			}
+
+			$uit['op_voorraad'][] = $item;
+		}
+
+		return $uit;
+	}
+
+	/**
+	 * Het product achter een winkelwagenregel: de variatie, anders het product.
+	 *
+	 * @param array $item Regel.
+	 * @return WC_Product|null
+	 */
+	private static function regel_product( array $item ) {
+		if ( ! function_exists( 'wc_get_product' ) ) {
+			return null;
+		}
+
+		$id = ! empty( $item['variation_id'] ) ? (int) $item['variation_id'] : ( isset( $item['product_id'] ) ? (int) $item['product_id'] : 0 );
+		if ( $id < 1 ) {
+			return null;
+		}
+
+		$product = wc_get_product( $id );
+
+		return $product ? $product : null;
+	}
+
+	/**
+	 * Is dit product nu te koop: gepubliceerd, koopbaar en op voorraad?
+	 *
+	 * @param WC_Product $product Product of variatie.
+	 * @return bool
+	 */
+	public static function is_te_koop( $product ) {
+		if ( ! $product || 'publish' !== $product->get_status() ) {
+			return false;
+		}
+
+		if ( $product->get_parent_id() ) {
+			$ouder = wc_get_product( $product->get_parent_id() );
+			if ( ! $ouder || 'publish' !== $ouder->get_status() ) {
+				return false;
+			}
+		}
+
+		/* is_in_stock() is ook waar bij 'onbackorder', en dat is precies wat
+		   we willen: nabestellen mag, dus de klant kan het kopen. */
+		return $product->is_purchasable() && $product->is_in_stock();
+	}
+
+	/**
+	 * {cart_items} als er iets uitverkocht is of minder op voorraad dan in de wagen lag.
+	 *
+	 * Bovenaan een korte regel, dan de producten die er nog zijn als gewone
+	 * regels met foto en prijs, en onderaan klein en grijs wat op is: zonder
+	 * foto, link of knop, want daar kan de klant niets mee.
+	 *
+	 * @param array $voorraad Uitkomst van wagen_voorraad().
+	 * @return string
+	 */
+	private static function voorraad_html( array $voorraad ) {
+		$tekst = 'font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.7;';
+		$out   = '';
+
+		if ( ! empty( $voorraad['uitverkocht'] ) ) {
+			$out .= '<p style="margin:4px 0 0 0;' . $tekst . '">' . sprintf(
+				/* translators: %s: "winkelwagen" or "winkelmandje", whichever word the mail itself uses */
+				esc_html__( 'Let op: een paar producten uit je %s zijn inmiddels uitverkocht. Deze zijn nog wel op voorraad:', 'ws-flow-mailer' ),
+				self::WAGENWOORD
+			) . '</p>';
+		} else {
+			$out .= '<p style="margin:4px 0 0 0;' . $tekst . '">' . esc_html__( 'Let op: van een paar producten is er nog maar een klein aantal. Dit is er nog voor je:', 'ws-flow-mailer' ) . '</p>';
+		}
+
+		$out .= self::items_html( $voorraad['op_voorraad'] );
+
+		if ( ! empty( $voorraad['uitverkocht'] ) ) {
+			$grijs = 'font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#9a9a9a;padding:4px 0;';
+			$out  .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 12px 0;border-collapse:collapse;">';
+			foreach ( $voorraad['uitverkocht'] as $item ) {
+				$naam = isset( $item['name'] ) ? (string) $item['name'] : '';
+				$out .= '<tr><td style="' . $grijs . '">' . esc_html( $naam ) . '</td>'
+					. '<td align="right" style="white-space:nowrap;' . $grijs . '">' . esc_html__( 'uitverkocht', 'ws-flow-mailer' ) . '</td></tr>';
+			}
+			$out .= '</table>';
+		}
+
+		return $out;
 	}
 
 	/**

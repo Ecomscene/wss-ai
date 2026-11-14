@@ -114,7 +114,8 @@ class WSFM_Cart_Recovery {
 			self::doorsturen();
 		}
 
-		$aantal = self::leg_terug( $rij );
+		$terug  = self::leg_terug( $rij );
+		$aantal = $terug['erbij'];
 
 		/* Het adres in de sessie zetten, zodat het afrekenen al is voorgevuld
 		   en de wagen opnieuw gevolgd wordt als hij wéér weggaat. Alleen als er
@@ -129,8 +130,32 @@ class WSFM_Cart_Recovery {
 			WC()->customer->save();
 		}
 
-		if ( $aantal > 0 && function_exists( 'wc_add_notice' ) ) {
-			wc_add_notice( __( 'We hebben je winkelwagen weer voor je klaargezet.', 'ws-flow-mailer' ), 'success' );
+		if ( function_exists( 'wc_add_notice' ) ) {
+			/* Zonder sessiecookie haalt een bezoeker zonder producten in zijn
+			   wagen de melding na het doorsturen nooit op. */
+			if ( ( $terug['uitverkocht'] || $terug['beperkt'] ) && WC()->session && ! WC()->session->has_session() ) {
+				WC()->session->set_customer_session_cookie( true );
+			}
+
+			if ( $aantal > 0 ) {
+				wc_add_notice( __( 'We hebben je winkelwagen weer voor je klaargezet.', 'ws-flow-mailer' ), 'success' );
+			}
+
+			foreach ( $terug['uitverkocht'] as $naam ) {
+				/* translators: %s: product name */
+				wc_add_notice( sprintf( __( '%s is inmiddels uitverkocht en niet teruggezet in je winkelwagen.', 'ws-flow-mailer' ), esc_html( $naam ) ), 'notice' );
+			}
+
+			foreach ( $terug['beperkt'] as $regel ) {
+				/* translators: 1: product name, 2: quantity */
+				wc_add_notice( sprintf( __( 'Van %1$s is er nog maar %2$d op voorraad. Dat aantal staat in je winkelwagen.', 'ws-flow-mailer' ), esc_html( $regel[0] ), (int) $regel[1] ), 'notice' );
+			}
+		}
+
+		/* Kon er niets terug omdat alles op is, en is de wagen dus leeg? Dan
+		   naar de winkel met de melding, niet naar een lege winkelwagen. */
+		if ( $terug['uitverkocht'] && 0 === $aantal && WC()->cart->is_empty() ) {
+			self::doorsturen( function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'shop' ) : home_url( '/' ) );
 		}
 
 		self::doorsturen();
@@ -143,13 +168,27 @@ class WSFM_Cart_Recovery {
 	 * tussendoor zelf iets hebben toegevoegd, en van een link uit een mail mag
 	 * nooit iets dubbel in zijn wagen komen.
 	 *
+	 * Alleen wat nu te koop is gaat terug (zelfde controle als de mail, zie
+	 * WSFM_Template_Engine::wagen_voorraad), en van een product met minder
+	 * voorraad dan er in de wagen lag zoveel als er is.
+	 *
 	 * @param object $rij Tracking-rij.
-	 * @return int Aantal producten dat erbij is gezet.
+	 * @return array { erbij: int, uitverkocht: string[] namen, beperkt: array[] (naam, aantal) }
 	 */
 	private static function leg_terug( $rij ) {
-		$inhoud   = json_decode( (string) $rij->cart_contents, true );
+		$inhoud    = json_decode( (string) $rij->cart_contents, true );
 		$producten = ( is_array( $inhoud ) && ! empty( $inhoud['items'] ) ) ? $inhoud['items'] : array();
-		$erbij    = 0;
+		$erbij     = 0;
+		$beperkt   = array();
+		$op        = array();
+
+		$voorraad = WSFM_Template_Engine::wagen_voorraad( $producten );
+		foreach ( $voorraad['uitverkocht'] as $weg ) {
+			if ( ! empty( $weg['name'] ) ) {
+				$op[] = (string) $weg['name'];
+			}
+		}
+		$producten = $voorraad['op_voorraad'];
 
 		foreach ( $producten as $product ) {
 			$product_id   = isset( $product['product_id'] ) ? (int) $product['product_id'] : 0;
@@ -180,10 +219,17 @@ class WSFM_Cart_Recovery {
 			$gelukt = WC()->cart->add_to_cart( $product_id, $aantal, $variatie_id, $variatie );
 			if ( $gelukt ) {
 				$erbij++;
+				if ( ! empty( $product['qty_gevraagd'] ) && (int) $product['qty_gevraagd'] > $aantal ) {
+					$beperkt[] = array( $object->get_name(), $aantal );
+				}
 			}
 		}
 
-		return $erbij;
+		return array(
+			'erbij'       => $erbij,
+			'uitverkocht' => $op,
+			'beperkt'     => $beperkt,
+		);
 	}
 
 	/**
@@ -207,10 +253,14 @@ class WSFM_Cart_Recovery {
 	}
 
 	/**
-	 * Doorsturen naar de winkelwagen, zonder de sleutel in de adresbalk.
+	 * Doorsturen naar de winkelwagen (of een andere pagina), zonder de sleutel in de adresbalk.
+	 *
+	 * @param string $naar Doel; leeg = winkelwagen.
 	 */
-	private static function doorsturen() {
-		$naar = function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' );
+	private static function doorsturen( $naar = '' ) {
+		if ( '' === (string) $naar ) {
+			$naar = function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' );
+		}
 
 		wp_safe_redirect( $naar );
 		exit;
