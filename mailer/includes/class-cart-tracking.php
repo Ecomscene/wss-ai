@@ -15,6 +15,14 @@ defined( 'ABSPATH' ) || exit;
 class WSFM_Cart_Tracking {
 
 	/**
+	 * Set while capture_now() runs from the e-mail capture AJAX call, so
+	 * capture_cart() does not bail out on is_admin() (true for admin-ajax).
+	 *
+	 * @var bool
+	 */
+	private static $allow_ajax = false;
+
+	/**
 	 * Table name.
 	 *
 	 * @return string
@@ -31,6 +39,21 @@ class WSFM_Cart_Tracking {
 		add_action( 'woocommerce_add_to_cart', array( __CLASS__, 'capture_cart' ), 20 );
 		add_action( 'woocommerce_cart_updated', array( __CLASS__, 'capture_cart' ), 20 );
 		add_action( 'woocommerce_new_order', array( __CLASS__, 'mark_order_placed' ), 10, 2 );
+	}
+
+	/**
+	 * Capture the cart right now, also from an AJAX request. Used by the
+	 * checkout e-mail capture: a guest who types his address and leaves at
+	 * once would otherwise only be tracked on a next page load that never
+	 * comes.
+	 */
+	public static function capture_now() {
+		self::$allow_ajax = true;
+		try {
+			self::capture_cart();
+		} finally {
+			self::$allow_ajax = false;
+		}
 	}
 
 	/**
@@ -82,7 +105,10 @@ class WSFM_Cart_Tracking {
 	public static function capture_cart() {
 		global $wpdb;
 
-		if ( ! function_exists( 'WC' ) || ! WC()->cart || is_admin() ) {
+		if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+			return;
+		}
+		if ( is_admin() && ! ( self::$allow_ajax && wp_doing_ajax() ) ) {
 			return;
 		}
 

@@ -196,7 +196,12 @@ class WSFM_Identity {
 			return;
 		}
 
-		wp_enqueue_script( 'wsfm-front', WSFM_PLUGIN_URL . 'assets/front.js', array(), WSFM_VERSION, true );
+		// File time in the version so a changed front.js is not served from
+		// a page or browser cache under the old plugin version.
+		$file    = dirname( __DIR__ ) . '/assets/front.js';
+		$version = WSFM_VERSION . ( file_exists( $file ) ? '.' . filemtime( $file ) : '' );
+
+		wp_enqueue_script( 'wsfm-front', WSFM_PLUGIN_URL . 'assets/front.js', array(), $version, true );
 		wp_localize_script(
 			'wsfm-front',
 			'wsfmFront',
@@ -208,7 +213,8 @@ class WSFM_Identity {
 	}
 
 	/**
-	 * AJAX: an e-mail field on checkout was filled in (on blur).
+	 * AJAX: an e-mail field on checkout was filled in (blur, change, or the
+	 * page being left).
 	 */
 	public static function ajax_capture_email() {
 		check_ajax_referer( 'wsfm_capture_email' );
@@ -222,10 +228,22 @@ class WSFM_Identity {
 		self::map_email( $email );
 
 		// Also update the WooCommerce session so cart tracking can use the
-		// address immediately.
-		if ( function_exists( 'WC' ) && WC()->customer && ! WC()->customer->get_billing_email() ) {
+		// address immediately. The last address typed wins, so a corrected
+		// typo does not stay stuck on the first attempt.
+		if ( function_exists( 'WC' ) && WC()->customer && strtolower( (string) WC()->customer->get_billing_email() ) !== strtolower( $email ) ) {
 			WC()->customer->set_billing_email( $email );
 			WC()->customer->save();
+		}
+
+		// Track the cart now: a guest who types his address as the last
+		// thing and leaves never triggers another page load, so waiting for
+		// woocommerce_cart_updated would miss him.
+		if ( class_exists( 'WSFM_Cart_Tracking' ) ) {
+			try {
+				WSFM_Cart_Tracking::capture_now();
+			} catch ( \Throwable $e ) {
+				// Tracking must never break checkout.
+			}
 		}
 
 		wp_send_json_success( array( 'stored' => true ) );
