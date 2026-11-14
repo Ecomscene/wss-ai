@@ -155,14 +155,37 @@ class WSFM_Template_Engine {
 	}
 
 	/**
-	 * Build an HTML <ul> out of an items array.
+	 * Build the HTML for an items array.
 	 *
-	 * @param array $items Arrays with keys: name, qty, price (formatted, optional).
+	 * Items that carry a product_id (winkelwagen-regels uit WSFM_Cart_Tracking)
+	 * worden een tabel met productfoto, naam, aantal en prijs. Een herinnering
+	 * aan een winkelwagen zonder foto's is een lijstje tekst, en juist de foto
+	 * is wat iemand terug laat komen. Items zonder product_id (orderregels)
+	 * houden de eenvoudige lijst.
+	 *
+	 * De prijs komt dan uit het product zelf, op de manier waarop de winkel
+	 * prijzen toont (incl. of excl. btw). De opgeslagen line_total is altijd
+	 * excl. btw en gaf in de mail dus een te lage prijs bij een shop die
+	 * prijzen incl. btw toont.
+	 *
+	 * @param array $items Arrays with keys: name, qty, price (formatted, optional), product_id, variation_id (optional).
 	 * @return string
 	 */
 	public static function items_html( array $items ) {
 		if ( empty( $items ) ) {
 			return '';
+		}
+
+		$met_product = false;
+		foreach ( $items as $item ) {
+			if ( ! empty( $item['product_id'] ) ) {
+				$met_product = true;
+				break;
+			}
+		}
+
+		if ( $met_product && function_exists( 'wc_get_product' ) ) {
+			return self::items_table_html( $items );
 		}
 
 		$out = '<ul style="padding-left:20px;margin:16px 0;">';
@@ -178,6 +201,77 @@ class WSFM_Template_Engine {
 			$out .= '</li>';
 		}
 		return $out . '</ul>';
+	}
+
+	/**
+	 * Items as an e-mail-safe table: photo, name + quantity, price.
+	 *
+	 * Colours are neutral and the text colour is inherited, so the table fits
+	 * inside any template.
+	 *
+	 * @param array $items Items (see items_html).
+	 * @return string
+	 */
+	private static function items_table_html( array $items ) {
+		$cel  = 'border-bottom:1px solid #e9e3dc;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;';
+		$out  = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:12px 0 16px 0;border-collapse:collapse;">';
+
+		foreach ( $items as $item ) {
+			$qty     = isset( $item['qty'] ) ? max( 1, (int) $item['qty'] ) : 1;
+			$name    = isset( $item['name'] ) ? (string) $item['name'] : '';
+			$price   = isset( $item['price'] ) ? (string) $item['price'] : '';
+			$foto    = '';
+			$link    = '';
+			$welk_id = ! empty( $item['variation_id'] ) ? (int) $item['variation_id'] : ( isset( $item['product_id'] ) ? (int) $item['product_id'] : 0 );
+			$product = $welk_id ? wc_get_product( $welk_id ) : null;
+
+			if ( ! $product && ! empty( $item['product_id'] ) ) {
+				$product = wc_get_product( (int) $item['product_id'] );
+			}
+
+			if ( $product ) {
+				if ( '' === $name ) {
+					$name = $product->get_name();
+				}
+
+				$beeld_id = (int) $product->get_image_id();
+				if ( ! $beeld_id && $product->get_parent_id() ) {
+					$ouder    = wc_get_product( $product->get_parent_id() );
+					$beeld_id = $ouder ? (int) $ouder->get_image_id() : 0;
+				}
+				if ( $beeld_id ) {
+					$foto = (string) wp_get_attachment_image_url( $beeld_id, 'woocommerce_thumbnail' );
+				}
+
+				$link = (string) $product->get_permalink();
+
+				if ( function_exists( 'wc_get_price_to_display' ) ) {
+					$bedrag = (float) wc_get_price_to_display( $product, array( 'qty' => $qty ) );
+					if ( $bedrag > 0 ) {
+						$price = self::format_price( $bedrag );
+					}
+				}
+			}
+
+			$out .= '<tr>';
+
+			$out .= '<td width="84" valign="middle" style="width:84px;padding:12px 14px 12px 0;' . $cel . '">';
+			if ( '' !== $foto ) {
+				$img = '<img src="' . esc_url( $foto ) . '" alt="' . esc_attr( $name ) . '" width="72" height="72" style="display:block;width:72px;height:72px;object-fit:cover;border:0;border-radius:8px;">';
+				$out .= '' !== $link ? '<a href="' . esc_url( $link ) . '" style="text-decoration:none;">' . $img . '</a>' : $img;
+			}
+			$out .= '</td>';
+
+			$naam_html = '' !== $link
+				? '<a href="' . esc_url( $link ) . '" style="color:inherit;text-decoration:none;font-weight:bold;">' . esc_html( $name ) . '</a>'
+				: '<strong>' . esc_html( $name ) . '</strong>';
+
+			$out .= '<td valign="middle" style="padding:12px 0;' . $cel . '">' . $naam_html . '<br><span style="font-size:13px;opacity:0.75;">' . sprintf( /* translators: %d: quantity */ esc_html__( 'Aantal: %d', 'ws-flow-mailer' ), $qty ) . '</span></td>';
+			$out .= '<td align="right" valign="middle" style="padding:12px 0 12px 12px;white-space:nowrap;' . $cel . '">' . esc_html( $price ) . '</td>';
+			$out .= '</tr>';
+		}
+
+		return $out . '</table>';
 	}
 
 	/**
