@@ -9,6 +9,7 @@
  * onder een submenu waar niemand het vindt.
  *
  * WAT ER OP STAAT
+ *  0. Bovenaan één schakelaar die de popup en de melding samen aan of uit zet.
  *  1. De actie: per regel wat de actie is en van wanneer tot wanneer, met een
  *     indicator of hij live is. Die kijkt naar de datum EN naar de producten
  *     zelf: een actie die volgens de kalender loopt maar waarvan de prijzen
@@ -29,11 +30,14 @@
  * Een lege of nieuwe pagina toont niets aan bezoekers. De popup en de melding
  * hebben elk een eigen schakelaar, en die staan standaard uit.
  *
- * LOS VAN DE NIEUWSBRIEF
+ * LOS VAN DE NIEUWSBRIEF, MAAR NIET ER BOVENOP
  * De popup lijkt op die van de mailer, maar leunt er niet op: de mailer is een
  * eigen module die bij veel winkels uit staat. Daarom eigen opmaak en eigen
- * namen (wssbf-), zodat de twee elkaar ook niet in de weg zitten als ze
- * allebei aanstaan.
+ * namen (wssbf-). Twee popups achter elkaar wil niemand, dus zolang de Black
+ * Friday-popup loopt blijft de inschrijfpopup van de nieuwsbrief weg (Joey,
+ * 19-11-2026). Aan de instellingen van de mailer verandert daarbij niets: is
+ * de Black Friday-popup uit of voorbij, dan is de nieuwsbriefpopup er vanzelf
+ * weer. Zie nieuwsbrief_popup_uit().
  *
  * OPT-IN
  * Alleen maandklanten krijgen dit, geen proefperiodes. Daarom staat de module
@@ -61,6 +65,7 @@ class WSS_AI_Blackfriday {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ), 9 );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'beheer_opmaak' ) );
 		add_action( 'admin_post_wss_ai_bf_opslaan', array( __CLASS__, 'opslaan' ) );
+		add_action( 'admin_post_wss_ai_bf_alles', array( __CLASS__, 'alles' ) );
 		add_action( 'admin_post_wss_ai_bf_prompt', array( __CLASS__, 'prompt' ) );
 		add_action( 'admin_post_wss_ai_bf_terug', array( __CLASS__, 'terugzetten' ) );
 
@@ -423,7 +428,50 @@ class WSS_AI_Blackfriday {
 		}
 		if ( $popup ) {
 			add_action( 'wp_footer', array( __CLASS__, 'toon_popup' ), 5 );
+			if ( self::binnen( $i['popup']['van'], $i['popup']['tot'] ) ) {
+				self::nieuwsbrief_popup_uit();
+			}
 		}
+	}
+
+	/**
+	 * Loopt onze popup nu echt, dus aan en binnen zijn datums?
+	 *
+	 * @return bool
+	 */
+	public static function popup_loopt() {
+		$i = self::instellingen();
+		return self::beschikbaar()
+			&& ! empty( $i['popup']['aan'] )
+			&& '' !== $i['popup']['kop']
+			&& self::binnen( $i['popup']['van'], $i['popup']['tot'] );
+	}
+
+	/**
+	 * De inschrijfpopup van de nieuwsbrief deze pagina overslaan.
+	 *
+	 * WAAROM ZO EN NIET DE INSTELLING UITZETTEN
+	 * Joey (19-11-2026): als de Black Friday-popup aangaat mag de
+	 * nieuwsbriefpopup tijdelijk uit, automatisch. Zouden we daarvoor de
+	 * instelling van de mailer omzetten, dan moet iemand eraan denken hem na
+	 * Black Friday weer aan te zetten, en dat vergeet je. Dus halen we alleen
+	 * voor deze paginaweergave zijn twee haken weg. Gaat onze popup uit of is
+	 * de einddatum voorbij, dan komt deze functie niet meer langs en staat de
+	 * nieuwsbriefpopup er weer, zonder dat er iets is omgezet.
+	 *
+	 * Het inschrijven zelf (de REST-route) blijft werken, en de inschrijving
+	 * bij het afrekenen ook: we halen alleen de popup uit beeld.
+	 *
+	 * De klasse heet WSFM_Popup, in onze mailer en in de losse plugin WS Flow
+	 * Mailer; dit werkt dus voor allebei. Voor een pagina die al voor de start
+	 * in de cache stond doet het script in js() hetzelfde in de browser.
+	 */
+	private static function nieuwsbrief_popup_uit() {
+		if ( ! class_exists( 'WSFM_Popup' ) ) {
+			return;
+		}
+		remove_action( 'wp_enqueue_scripts', array( 'WSFM_Popup', 'scripts' ) );
+		remove_action( 'wp_footer', array( 'WSFM_Popup', 'toon' ), 5 );
 	}
 
 	/**
@@ -491,6 +539,11 @@ class WSS_AI_Blackfriday {
 	 *
 	 * De datum wordt hier nog eens nagekeken, in de browser. De pagina kan uit
 	 * de cache komen en dan is wat PHP gisteren besloot niet meer waar.
+	 *
+	 * Om dezelfde reden haalt het script de nieuwsbriefpopup uit de pagina
+	 * zodra onze popup volgens de datum loopt: stond de pagina al voor de start
+	 * in de cache, dan zit die er nog in. Het element gaat weg en er wordt geen
+	 * koekje gezet, dus na Black Friday is hij er gewoon weer.
 	 */
 	private static function js() {
 		return '(function(){'
@@ -503,6 +556,8 @@ class WSS_AI_Blackfriday {
 			. 'document.body.insertBefore(b,document.body.firstChild);}b.hidden=false;}else{b.hidden=true;}}'
 			. 'var l=document.querySelector(".wssbf-laag");'
 			. 'if(!l||!mag(l)){return;}'
+			. 'var w=document.querySelector(".wsfm-popup-laag");'
+			. 'if(w&&w.parentNode){w.parentNode.removeChild(w);}'
 			. 'if(document.cookie.indexOf("wssbf_popup=1")!==-1){return;}'
 			. 'function sluit(){l.classList.remove("is-open");l.hidden=true;'
 			. 'var e=new Date();e.setTime(e.getTime()+864e5);'
@@ -689,7 +744,18 @@ class WSS_AI_Blackfriday {
 			. '.wssbf-voorbeeld{margin-top:14px;padding:18px;background:#f0f0f1;border-radius:6px}'
 			. '.wssbf-voorbeeld>small{display:block;color:#646970;margin-bottom:8px}'
 			. '.wssbf-voorbeeld .wssbf-popup{max-height:none;margin:0 auto}'
-			. '.wssbf-prompt textarea{width:100%;min-height:90px}';
+			. '.wssbf-prompt textarea{width:100%;min-height:90px}'
+			. '.wssbf-alles{display:flex;align-items:center;gap:18px;flex-wrap:wrap}'
+			. '.wssbf-alles form{margin:0}'
+			. '.wssbf-alles-tekst{flex:1 1 320px;min-width:0}'
+			. '.wssbf-alles-tekst p{margin:4px 0 0}'
+			. '.wssbf-toggle{position:relative;width:58px;height:32px;border:0;border-radius:16px;background:#8c8f94;cursor:pointer;'
+			. 'padding:0;transition:background .15s ease;flex:0 0 auto}'
+			. '.wssbf-toggle:after{content:"";position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;'
+			. 'background:#fff;transition:left .15s ease}'
+			. '.wssbf-toggle.is-aan{background:#00a32a}.wssbf-toggle.is-aan:after{left:30px}'
+			. '.wssbf-toggle.is-deels{background:#dba617}.wssbf-toggle.is-deels:after{left:17px}'
+			. '.wssbf-toggle:focus-visible{outline:2px solid #2271b1;outline-offset:2px}';
 		wp_register_style( 'wssbf-beheer', false, array(), WSS_AI_VERSIE );
 		wp_enqueue_style( 'wssbf-beheer' );
 		wp_add_inline_style( 'wssbf-beheer', $css . self::css() );
@@ -729,6 +795,47 @@ class WSS_AI_Blackfriday {
 		$in = isset( $_POST['bf'] ) && is_array( $_POST['bf'] ) ? wp_unslash( $_POST['bf'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput
 		self::bewaar( self::schoon( $in, self::instellingen() ) );
 		self::terug( __( 'Opgeslagen.', 'wss-ai' ) );
+	}
+
+	/**
+	 * De schakelaar bovenaan: de popup en de melding samen aan of uit.
+	 *
+	 * Joey (19-11-2026): er moet bovenin een toggle zijn om alles aan te zetten
+	 * en uit. Hij zet alleen de twee schakelaars om; teksten, datums en acties
+	 * blijven zoals ze zijn. Aan de prijzen komt hij niet: die gaan vanzelf in
+	 * op de datum waarop Webshopschool ze heeft ingepland.
+	 *
+	 * Aanzetten met een leeg onderdeel zegt dat erbij. Een melding zonder tekst
+	 * verschijnt niet in de winkel, en dan denk je dat hij aanstaat terwijl
+	 * niemand hem ziet.
+	 */
+	public static function alles() {
+		self::controleer( 'wss_ai_bf_alles' );
+		$aan                 = empty( $_POST['aan'] ) ? 0 : 1;
+		$nieuw               = self::instellingen();
+		$nieuw['popup']['aan'] = $aan;
+		$nieuw['balk']['aan']  = $aan;
+		self::bewaar( $nieuw );
+
+		if ( ! $aan ) {
+			self::terug( __( 'Alles staat uit: de popup en de melding bovenin zijn niet meer te zien in je winkel.', 'wss-ai' ) );
+		}
+
+		$mist = array();
+		if ( '' === $nieuw['popup']['kop'] ) {
+			$mist[] = __( 'de popup heeft nog geen kop', 'wss-ai' );
+		}
+		if ( '' === $nieuw['balk']['tekst'] ) {
+			$mist[] = __( 'de melding bovenin heeft nog geen tekst', 'wss-ai' );
+		}
+		if ( $mist ) {
+			self::terug(
+				/* translators: %s: wat er nog ontbreekt */
+				sprintf( __( 'Alles staat aan, maar let op: %s. Dat onderdeel is pas te zien als je het invult.', 'wss-ai' ), implode( ' en ', $mist ) ),
+				'warning'
+			);
+		}
+		self::terug( __( 'Alles staat aan: de popup en de melding bovenin zijn te zien in je winkel, binnen de datums die je hebt ingesteld.', 'wss-ai' ) );
 	}
 
 	public static function terugzetten() {
@@ -848,6 +955,45 @@ class WSS_AI_Blackfriday {
 			printf( '<div class="notice notice-%s"><p>%s</p></div>', esc_attr( $soort ), esc_html( $melding['tekst'] ) );
 		}
 
+		/* ---- Alles aan of uit ---- */
+		$aantal = ( $i['popup']['aan'] ? 1 : 0 ) + ( $i['balk']['aan'] ? 1 : 0 );
+		if ( 2 === $aantal ) {
+			$toggle = 'is-aan';
+			$kop    = __( 'Alles staat aan', 'wss-ai' );
+		} elseif ( 1 === $aantal ) {
+			$toggle = 'is-deels';
+			$kop    = $i['popup']['aan']
+				? __( 'Alleen de popup staat aan', 'wss-ai' )
+				: __( 'Alleen de melding bovenin staat aan', 'wss-ai' );
+		} else {
+			$toggle = 'is-uit';
+			$kop    = __( 'Alles staat uit', 'wss-ai' );
+		}
+		echo '<div class="wssbf-kaart wssbf-alles">';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		echo '<input type="hidden" name="action" value="wss_ai_bf_alles">';
+		/* Staat alles aan, dan zet de schakelaar alles uit. In elk ander geval,
+		   ook als er maar één aanstaat, zet hij alles aan. */
+		printf( '<input type="hidden" name="aan" value="%d">', 2 === $aantal ? 0 : 1 );
+		wp_nonce_field( 'wss_ai_bf_alles' );
+		printf(
+			'<button type="submit" class="wssbf-toggle %s" role="switch" aria-checked="%s" aria-label="%s"></button>',
+			esc_attr( $toggle ),
+			2 === $aantal ? 'true' : 'false',
+			2 === $aantal ? esc_attr__( 'Alles uitzetten', 'wss-ai' ) : esc_attr__( 'Alles aanzetten', 'wss-ai' )
+		);
+		echo '</form>';
+		echo '<div class="wssbf-alles-tekst"><h2>' . esc_html( $kop ) . '</h2>';
+		echo '<p class="wssbf-mut">' . esc_html__( 'Met deze schakelaar zet je de popup en de melding bovenin in één keer aan of uit. Je actieprijzen gaan vanzelf in en uit op de datums hieronder; daar verandert deze schakelaar niets aan.', 'wss-ai' ) . '</p></div>';
+		if ( 1 === $aantal ) {
+			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+			echo '<input type="hidden" name="action" value="wss_ai_bf_alles"><input type="hidden" name="aan" value="0">';
+			wp_nonce_field( 'wss_ai_bf_alles' );
+			submit_button( __( 'Alles uitzetten', 'wss-ai' ), 'link', 'submit', false );
+			echo '</form>';
+		}
+		echo '</div>';
+
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		echo '<input type="hidden" name="action" value="wss_ai_bf_opslaan">';
 		wp_nonce_field( 'wss_ai_bf_opslaan' );
@@ -913,6 +1059,15 @@ class WSS_AI_Blackfriday {
 			$p['aan'] ? 'live' : 'voorbij',
 			$p['aan'] ? esc_html__( 'Aan', 'wss-ai' ) : esc_html__( 'Uit', 'wss-ai' )
 		);
+		/* Alleen noemen als de winkel een nieuwsbriefpopup heeft die aanstaat;
+		   anders is het een zin over iets wat er niet is. */
+		if ( class_exists( 'WSFM_Popup' ) && WSFM_Popup::aan() ) {
+			echo '<p class="wssbf-mut">' . esc_html(
+				self::popup_loopt()
+					? __( 'Je nieuwsbriefpopup staat nu tijdelijk uit, zodat bezoekers niet twee popups krijgen. Hij komt vanzelf terug zodra deze popup uit is of de einddatum voorbij is.', 'wss-ai' )
+					: __( 'Zolang deze popup loopt, blijft je nieuwsbriefpopup tijdelijk weg, zodat bezoekers niet twee popups krijgen. Daarna komt hij vanzelf terug.', 'wss-ai' )
+			) . '</p>';
+		}
 		echo '<div class="wssbf-rij">';
 		self::veld( 'bf[popup][kop]', $p['kop'], __( 'Kop', 'wss-ai' ) );
 		self::veld( 'bf[popup][knop]', $p['knop'], __( 'Tekst op de knop', 'wss-ai' ) );
