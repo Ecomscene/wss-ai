@@ -3,7 +3,7 @@
  * Plugin Name:       WSS Tools
  * Plugin URI:        https://github.com/Ecomscene/wss-ai
  * Description:       Gereedschap voor je webshop: teksten, productfoto's, voorraadbeheer en nieuwsbrieven. Beheerd door Webshopschool.
- * Version:           0.47.0
+ * Version:           0.48.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Webshopschool
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WSS_AI_VERSIE', '0.47.0' );
+define( 'WSS_AI_VERSIE', '0.48.0' );
 define( 'WSS_AI_BESTAND', __FILE__ );
 define( 'WSS_AI_MAP', plugin_dir_path( __FILE__ ) );
 
@@ -51,6 +51,7 @@ require_once WSS_AI_MAP . 'includes/class-wss-ai-verzoek.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-voorraad.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-mailer.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-postcode.php';
+require_once WSS_AI_MAP . 'includes/class-wss-ai-blackfriday.php';
 require_once WSS_AI_MAP . 'includes/class-wss-ai-menu.php';
 
 /**
@@ -372,6 +373,7 @@ WSS_AI_Verzoek::init();
 WSS_AI_Voorraad::init();
 WSS_AI_Mailer::init();
 WSS_AI_Postcode::init();
+WSS_AI_Blackfriday::init();
 WSS_AI_Menu::init();
 
 /* Het voorraadbeheer raakt geen orders aan, maar WooCommerce waarschuwt de klant

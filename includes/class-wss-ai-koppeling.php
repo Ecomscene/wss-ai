@@ -54,7 +54,7 @@ class WSS_AI_Koppeling {
 	 * iets kapot lijkt. tools/check-modules.php telt na dat elke naam die in de
 	 * code wordt opgevraagd hier ook echt in staat.
 	 */
-	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades', 'postcode' );
+	const MODULES = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'upgrades', 'postcode', 'blackfriday' );
 
 	/**
 	 * Onderdelen die UIT staan tot Webshopschool ze aanzet.
@@ -79,8 +79,11 @@ class WSS_AI_Koppeling {
 	 * zet je aan bij een shop waar je het met de ondernemer over hebt gehad.
 	 * Ook als hij aanstaat doet hij niets tot de winkel hem op zijn eigen
 	 * pagina inschakelt.
+	 *
+	 * Black Friday staat er ook in: dat is voor maandklanten, niet voor
+	 * proefperiodes (Joey, 19-11-2026).
 	 */
-	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'postcode' );
+	const OPTIN = array( 'teksten', 'afbeeldingen', 'voorraad', 'nieuwsbrief', 'seoplan', 'verzoeken', 'postcode', 'blackfriday' );
 
 	/**
 	 * De paden die op het eigen ChatGPT van de winkel kunnen lopen. Zie
