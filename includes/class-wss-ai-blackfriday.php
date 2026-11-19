@@ -398,14 +398,6 @@ class WSS_AI_Blackfriday {
 		);
 	}
 
-	private static function nette_datum( $d ) {
-		if ( '' === $d ) {
-			return '';
-		}
-		$t = strtotime( $d . ' 12:00:00' );
-		return $t ? date_i18n( 'j F Y', $t ) : $d;
-	}
-
 	/* ------------------------------------------------------------------
 	 * De voorkant
 	 * ------------------------------------------------------------------ */
@@ -750,6 +742,31 @@ class WSS_AI_Blackfriday {
 	}
 
 	/**
+	 * Is het ChatGPT van de winkel gekoppeld op het platform?
+	 *
+	 * WAAROM NIET is_eigen()
+	 * Die zegt alleen welke AI de winkelier voor teksten en foto's heeft
+	 * GEKOZEN: zijn eigen abonnement of het tegoed van Webshopschool. Hier valt
+	 * niets te kiezen, want dit vak loopt nooit op ons tegoed. Wat telt is of
+	 * de koppeling op platform.collegaonline.nl er is, en dat is dezelfde die
+	 * de WhatsApp-assistent al gebruikt (Joey, 19-11-2026). Wie daar gekoppeld
+	 * is hoeft in WSS Tools dus niets meer te doen.
+	 *
+	 * @param bool $vers Niet uit het geheugen, opnieuw vragen.
+	 * @return string ja | nee | onbekend
+	 */
+	private static function gekoppeld( $vers = false ) {
+		if ( ! class_exists( 'WSS_AI_Eigen_AI' ) ) {
+			return 'onbekend';
+		}
+		$st = WSS_AI_Eigen_AI::stand( $vers );
+		if ( ! empty( $st['tekst'] ) ) {
+			return 'ja';
+		}
+		return ( ! isset( $st['status'] ) || 'onbekend' === $st['status'] ) ? 'onbekend' : 'nee';
+	}
+
+	/**
 	 * Aanpassen met een opdracht in gewone taal.
 	 *
 	 * De winkelier schrijft wat hij anders wil; de server van Webshopschool
@@ -757,8 +774,10 @@ class WSS_AI_Blackfriday {
 	 * herschrijven en stuurt ze terug. Wij maken ze schoon en slaan ze op.
 	 *
 	 * ALLEEN VIA HET EIGEN CHATGPT
-	 * Geen stille terugval op het tegoed van Webshopschool: is het eigen
-	 * abonnement niet gekoppeld, dan zeggen we dat en gebeurt er niets.
+	 * Geen stille terugval op het tegoed van Webshopschool: is het abonnement
+	 * niet gekoppeld, dan zeggen we dat en gebeurt er niets. Weten we het niet
+	 * (het platform antwoordde even niet), dan proberen we het wel: de server
+	 * weigert zelf als er geen koppeling is.
 	 *
 	 * 'ai' => 'eigen' zetten we hier zelf mee. WSS_AI_Koppeling::vraag() doet
 	 * dat alleen voor de paden van teksten en foto's, en die lijst hoort bij
@@ -771,8 +790,8 @@ class WSS_AI_Blackfriday {
 		if ( '' === trim( $opdracht ) ) {
 			self::terug( __( 'Schrijf eerst wat je wilt aanpassen.', 'wss-ai' ), 'warning' );
 		}
-		if ( ! class_exists( 'WSS_AI_Eigen_AI' ) || ! WSS_AI_Eigen_AI::is_eigen() ) {
-			self::terug( __( 'Koppel eerst je eigen ChatGPT onder WSS Tools. Daarna kun je hier met een opdracht aanpassen.', 'wss-ai' ), 'warning' );
+		if ( 'nee' === self::gekoppeld( true ) ) {
+			self::terug( __( 'Je ChatGPT is nog niet gekoppeld op het platform. Koppel hem daar één keer, dan kun je hier met een opdracht aanpassen.', 'wss-ai' ), 'warning' );
 		}
 
 		$huidig = self::instellingen();
@@ -957,19 +976,31 @@ class WSS_AI_Blackfriday {
 		echo '</form>';
 
 		/* ---- Aanpassen met een opdracht ---- */
-		$eigen = class_exists( 'WSS_AI_Eigen_AI' ) && WSS_AI_Eigen_AI::is_eigen();
+		$gekoppeld = self::gekoppeld( isset( $_GET['wss_ai_eigen_check'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
 		echo '<div class="wssbf-kaart wssbf-prompt"><h2>' . esc_html__( 'Aanpassen met een opdracht', 'wss-ai' ) . '</h2>';
 		echo '<p class="wssbf-mut">' . esc_html__( 'Schrijf in gewone taal wat je anders wilt, bijvoorbeeld: "Maak de popup feestelijker en zet de melding bovenin aan met de tekst 20% korting op alles". Dit past de actieregels, de popup en de melding op deze pagina aan. De prijzen van je producten veranderen hier niet door.', 'wss-ai' ) . '</p>';
-		if ( $eigen ) {
+		if ( 'nee' !== $gekoppeld ) {
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 			echo '<input type="hidden" name="action" value="wss_ai_bf_prompt">';
 			wp_nonce_field( 'wss_ai_bf_prompt' );
 			echo '<textarea name="opdracht" placeholder="' . esc_attr__( 'Wat wil je aanpassen?', 'wss-ai' ) . '"></textarea>';
-			echo '<p class="wssbf-mut">' . esc_html__( 'Dit loopt via je eigen ChatGPT en kan een minuut duren.', 'wss-ai' ) . '</p>';
+			echo '<p class="wssbf-mut">' . esc_html__( 'Dit loopt via je eigen ChatGPT, dezelfde koppeling als je WhatsApp-assistent, en kan een minuut duren.', 'wss-ai' ) . '</p>';
 			submit_button( __( 'Aanpassen', 'wss-ai' ), 'secondary', 'submit', false );
 			echo '</form>';
 		} else {
-			echo '<p class="wssbf-tip">' . esc_html__( 'Dit werkt via je eigen ChatGPT-abonnement. Koppel dat eerst onder WSS Tools, dan verschijnt hier het invulvak. Tot die tijd kun je Bennie een appje sturen met wat je wilt aanpassen.', 'wss-ai' ) . '</p>';
+			echo '<p class="wssbf-tip">' . esc_html__( 'Dit werkt via je eigen ChatGPT-abonnement. Koppel dat één keer op het platform; het is dezelfde koppeling als die van je WhatsApp-assistent. Tot die tijd kun je Bennie een appje sturen met wat je wilt aanpassen.', 'wss-ai' ) . '</p>';
+			echo '<p>';
+			printf(
+				'<a class="button" href="%s" target="_blank" rel="noopener">%s</a> ',
+				esc_url( WSS_AI_Eigen_AI::PLATFORM ),
+				esc_html__( 'ChatGPT koppelen op het platform', 'wss-ai' )
+			);
+			printf(
+				'<a class="button-link" href="%s">%s</a>',
+				esc_url( admin_url( 'admin.php?page=' . self::SLUG . '&wss_ai_eigen_check=1' ) ),
+				esc_html__( 'Opnieuw controleren', 'wss-ai' )
+			);
+			echo '</p>';
 		}
 		if ( is_array( get_option( self::VORIGE ) ) ) {
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin-top:12px">';
