@@ -334,6 +334,85 @@ class WSS_AI_Blackfriday {
 	}
 
 	/**
+	 * De gewone prijs en de actieprijs van één product, zoals ze erop staan.
+	 *
+	 * Uit de meta gelezen en niet via get_sale_price(): een actieprijs die pas
+	 * over een paar dagen ingaat staat er dan al, en juist die wil je voor de
+	 * start kunnen nakijken. Bij een product met varianten nemen we de laagste
+	 * van beide en zeggen we er "vanaf" bij.
+	 *
+	 * @param WC_Product $p Het product.
+	 * @return array { gewoon: float|null, actie: float|null, vanaf: bool }
+	 */
+	private static function prijzen( $p ) {
+		$uit = array( 'gewoon' => null, 'actie' => null, 'vanaf' => false );
+		$ids = array( $p->get_id() );
+		if ( $p->is_type( 'variable' ) ) {
+			$ids          = $p->get_children();
+			$uit['vanaf'] = count( $ids ) > 1;
+		}
+		foreach ( $ids as $id ) {
+			$gewoon = get_post_meta( $id, '_regular_price', true );
+			$actie  = get_post_meta( $id, '_sale_price', true );
+			if ( '' !== (string) $gewoon && ( null === $uit['gewoon'] || (float) $gewoon < $uit['gewoon'] ) ) {
+				$uit['gewoon'] = (float) $gewoon;
+			}
+			if ( '' !== (string) $actie && ( null === $uit['actie'] || (float) $actie < $uit['actie'] ) ) {
+				$uit['actie'] = (float) $actie;
+			}
+		}
+		return $uit;
+	}
+
+	/**
+	 * De gekoppelde producten als leesbare lijst: naam, en wat de prijs wordt.
+	 *
+	 * Joey (19-11-2026): je moet hier echt de producten zien en geen ID's. Een
+	 * winkelier kan aan "10211, 10414" niet zien of zijn actie klopt; aan de
+	 * naam met de oude en de nieuwe prijs wel.
+	 *
+	 * @param int[] $ids Product-ID's.
+	 * @return string HTML, of leeg als er niets gekoppeld is.
+	 */
+	private static function productlijst( $ids ) {
+		$ids = array_slice( (array) $ids, 0, self::MAX_IDS );
+		if ( ! $ids || ! function_exists( 'wc_get_product' ) ) {
+			return '';
+		}
+		$h = '<ul class="wssbf-producten">';
+		foreach ( $ids as $id ) {
+			try {
+				$p = wc_get_product( $id );
+				if ( ! $p ) {
+					/* translators: %d: product-ID */
+					$h .= '<li class="is-weg"><span>' . esc_html( sprintf( __( 'Product %d bestaat niet meer', 'wss-ai' ), $id ) ) . '</span></li>';
+					continue;
+				}
+				$naam = $p->get_name();
+				$link = get_edit_post_link( $id );
+				$pr   = self::prijzen( $p );
+
+				if ( null !== $pr['actie'] ) {
+					$prijs = ( $pr['vanaf'] ? esc_html__( 'vanaf', 'wss-ai' ) . ' ' : '' )
+						. ( null !== $pr['gewoon'] ? '<del>' . wp_kses_post( wc_price( $pr['gewoon'] ) ) . '</del> ' : '' )
+						. '<strong>' . wp_kses_post( wc_price( $pr['actie'] ) ) . '</strong>';
+				} else {
+					$prijs = '<em>' . esc_html__( 'geen actieprijs', 'wss-ai' ) . '</em>';
+				}
+
+				$h .= '<li' . ( null === $pr['actie'] ? ' class="is-zonder"' : '' ) . '>';
+				$h .= $link
+					? '<a href="' . esc_url( $link ) . '" target="_blank" rel="noopener">' . esc_html( $naam ) . '</a>'
+					: '<span>' . esc_html( $naam ) . '</span>';
+				$h .= '<span class="wssbf-prijs">' . $prijs . '</span></li>';
+			} catch ( \Throwable $e ) {
+				unset( $e );
+			}
+		}
+		return $h . '</ul>';
+	}
+
+	/**
 	 * De stand van één actie.
 	 *
 	 * @param array $a De actie.
@@ -728,6 +807,16 @@ class WSS_AI_Blackfriday {
 			. '.wssbf-acties input[type=text]{width:100%}'
 			. '.wssbf-ids{margin-top:6px}.wssbf-ids summary{cursor:pointer;color:#646970;font-size:12px}'
 			. '.wssbf-ids textarea{width:100%;font-size:12px}'
+			. '.wssbf-ids .wssbf-ids{margin:6px 0 0}'
+			. '.wssbf-producten{margin:6px 0 0;padding:0;max-height:280px;overflow:auto;border:1px solid #dcdcde;border-radius:4px;background:#fff}'
+			. '.wssbf-producten li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0;padding:6px 10px;'
+			. 'font-size:13px;border-top:1px solid #f0f0f1}'
+			. '.wssbf-producten li:first-child{border-top:0}'
+			. '.wssbf-producten li a,.wssbf-producten li>span:first-child{min-width:0;flex:1 1 auto}'
+			. '.wssbf-producten a{text-decoration:none}'
+			. '.wssbf-prijs{flex:0 0 auto;white-space:nowrap;color:#1d2327}'
+			. '.wssbf-prijs del{color:#8c8f94;font-weight:400}'
+			. '.wssbf-producten li.is-zonder .wssbf-prijs,.wssbf-producten li.is-weg{color:#8a6100}'
 			. '.wssbf-stand{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;white-space:nowrap}'
 			. '.wssbf-stand.is-live{background:#e3f2e6;color:#00701a}'
 			. '.wssbf-stand.is-wacht{background:#f0f6fc;color:#135e96}'
@@ -1022,13 +1111,29 @@ class WSS_AI_Blackfriday {
 				esc_attr( $a['titel'] ),
 				$nieuw ? esc_attr__( 'Nieuwe actie, bijvoorbeeld: 20% korting op alle jassen', 'wss-ai' ) : ''
 			);
-			printf(
+
+			/* De producten bij naam, met wat de prijs wordt. De ID's zelf zitten
+			   een laag dieper: die zijn voor Webshopschool, niet voor de
+			   winkelier. Het tekstvak blijft wel in het formulier staan, ook
+			   dichtgeklapt, anders zou opslaan de koppeling wissen. */
+			$aantal_ids = count( (array) $a['ids'] );
+			$ids_vak    = sprintf(
 				'<details class="wssbf-ids"><summary>%s</summary><textarea name="%s[ids]" rows="2">%s</textarea></details>',
-				/* translators: %d: aantal gekoppelde producten */
-				esc_html( sprintf( __( 'Gekoppelde producten: %d (vult Webshopschool in)', 'wss-ai' ), count( (array) $a['ids'] ) ) ),
+				esc_html__( 'Product-ID\'s aanpassen (doet Webshopschool)', 'wss-ai' ),
 				esc_attr( $naam ),
 				esc_textarea( implode( ', ', (array) $a['ids'] ) )
 			);
+			if ( $aantal_ids > 0 ) {
+				printf(
+					'<details class="wssbf-ids"><summary>%s</summary>%s%s</details>',
+					/* translators: %d: aantal gekoppelde producten */
+					esc_html( sprintf( _n( 'Bekijk het product in deze actie (%d)', 'Bekijk de producten in deze actie (%d)', $aantal_ids, 'wss-ai' ), $aantal_ids ) ),
+					self::productlijst( $a['ids'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+					$ids_vak // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				);
+			} else {
+				echo $ids_vak; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
 			echo '</td>';
 			printf( '<td><input type="date" name="%s[van]" value="%s"></td>', esc_attr( $naam ), esc_attr( $a['van'] ) );
 			printf( '<td><input type="date" name="%s[tot]" value="%s"></td>', esc_attr( $naam ), esc_attr( $a['tot'] ) );
