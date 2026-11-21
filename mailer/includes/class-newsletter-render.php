@@ -712,7 +712,7 @@ class WSFM_Newsletter_Render {
 			}
 		}
 
-		$prijs = html_entity_decode( wp_strip_all_tags( (string) $product->get_price_html() ), ENT_QUOTES, 'UTF-8' );
+		$prijs = self::prijs_html( $product, $s );
 
 		return array(
 			'beeld' => $beeld,
@@ -722,8 +722,58 @@ class WSFM_Newsletter_Render {
 			'prijs' => '' === $prijs
 				? '&nbsp;'
 				: '<span style="display:block;font-size:14px;line-height:1.5;color:' . $s['zacht'] . ';">'
-					. esc_html( $prijs ) . '</span>',
+					. $prijs . '</span>',
 		);
+	}
+
+	/**
+	 * De prijs van een product, rustig: bij een aanbieding alleen de oude prijs
+	 * doorgestreept en de actieprijs erachter.
+	 *
+	 * WAAROM NIET GEWOON get_price_html() ZONDER TAGS
+	 * Dat deden we eerst. WooCommerce zet in die HTML de oude prijs in <del> en
+	 * een tekst voor schermlezers in een verborgen span. Haal je de tags weg, dan
+	 * verdwijnt de doorstreping en blijft die verborgen tekst juist staan. In de
+	 * mail stond dan per product "€28,95 Oorspronkelijke prijs was: €28,95.
+	 * €23,16 Huidige prijs is: €23,16." (Made by Samantha, 21-11-2026).
+	 *
+	 * Een product in de aanbieding met één prijs bouwen we nu zelf op. Al het
+	 * andere (variabele producten met een prijsbereik, gegroepeerde) loopt nog
+	 * via get_price_html(), maar zonder de schermlezertekst.
+	 *
+	 * @param WC_Product $product Product.
+	 * @param array      $s       Stijlwaarden.
+	 * @return string HTML, al ontsmet; leeg als er geen prijs is.
+	 */
+	private static function prijs_html( $product, array $s ) {
+		if ( $product->is_on_sale() && ! $product->is_type( 'variable' ) && ! $product->is_type( 'grouped' ) ) {
+			$regulier = $product->get_regular_price();
+			if ( '' !== (string) $regulier ) {
+				$oud   = (float) wc_get_price_to_display( $product, array( 'price' => $regulier ) );
+				$nieuw = (float) wc_get_price_to_display( $product );
+				if ( $oud > $nieuw ) {
+					return '<span style="text-decoration:line-through;">' . esc_html( self::bedrag( $oud ) ) . '</span>'
+						. '&nbsp;&nbsp;<span style="color:' . $s['tekst'] . ';font-weight:600;">' . esc_html( self::bedrag( $nieuw ) ) . '</span>';
+				}
+			}
+		}
+
+		$html = (string) $product->get_price_html();
+		$html = preg_replace( '#<span[^>]*class="[^"]*screen-reader-text[^"]*"[^>]*>.*?</span>#s', '', $html );
+		$tekst = html_entity_decode( wp_strip_all_tags( (string) $html ), ENT_QUOTES, 'UTF-8' );
+		$tekst = trim( preg_replace( '/\s+/u', ' ', $tekst ) );
+
+		return '' === $tekst ? '' : esc_html( $tekst );
+	}
+
+	/**
+	 * Een bedrag zoals de shop het schrijft, als platte tekst.
+	 *
+	 * @param float $bedrag Bedrag.
+	 * @return string
+	 */
+	private static function bedrag( $bedrag ) {
+		return trim( html_entity_decode( wp_strip_all_tags( wc_price( $bedrag ) ), ENT_QUOTES, 'UTF-8' ) );
 	}
 
 	/**
