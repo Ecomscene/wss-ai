@@ -121,7 +121,15 @@ class WSFM_Proef_Product {
 		return 3 === $this->id ? 'Een naam die zo lang is dat hij over twee regels valt' : 'Product ' . $this->id;
 	}
 	public function get_price_html() { return 3 === $this->id ? '' : '&euro; 4,95'; }
+	/* Product 2 staat in de aanbieding, zodat de rustige prijs (oud doorgestreept,
+	   nieuw ernaast) in de proefmail meegebouwd en nagekeken wordt. */
+	public function is_on_sale() { return 2 === $this->id; }
+	public function is_type( $t ) { return 'simple' === $t; }
+	public function get_regular_price() { return 2 === $this->id ? '6.95' : '4.95'; }
+	public function get_price() { return '4.95'; }
 }
+function wc_get_price_to_display( $p, $args = array() ) { return isset( $args['price'] ) ? (float) $args['price'] : (float) $p->get_price(); }
+function wc_price( $b ) { return '<span>&euro;&nbsp;' . number_format( (float) $b, 2, ',', '.' ) . '</span>'; }
 function wc_get_product( $id ) { return 5 === $id ? false : new WSFM_Proef_Product( $id ); }
 
 class WSFM_Flow_Admin_UI {
