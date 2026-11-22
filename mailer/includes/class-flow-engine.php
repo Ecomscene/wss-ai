@@ -36,7 +36,7 @@ class WSFM_Flow_Engine {
 	 * geleden voor hebben aangemeld. Dat is de fout die je bij een verhuizing
 	 * naar een nieuw mailpakket maar één keer hoeft te maken.
 	 */
-	const BRONNEN_ZONDER_FLOW = array( 'import' );
+	const BRONNEN_ZONDER_FLOW = array( 'import', 'shopify' ); /* shopify: de webhook synct ook bestaande klanten; geen welkomstkorting voor wie al kocht. */
 
 	/**
 	 * Register triggers and recurring actions.
