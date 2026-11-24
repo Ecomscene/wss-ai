@@ -24,7 +24,7 @@ class WSFM_Install {
 	 * hieronder is gemaakt om twee keer te kunnen draaien zonder iets te
 	 * veranderen dat er al staat.
 	 */
-	const DB_VERSION = '11';
+	const DB_VERSION = '12';
 
 	/** Onthoudt dat de welkomsttemplate één keer is klaargezet. */
 	const OPTIE_WELKOM = 'wsfm_welkomsttemplate';
@@ -147,6 +147,7 @@ class WSFM_Install {
 			cart_contents LONGTEXT NULL,
 			last_activity DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			order_placed_flag TINYINT UNSIGNED NOT NULL DEFAULT 0,
+			order_placed_at DATETIME NULL DEFAULT NULL,
 			queued_flag TINYINT UNSIGNED NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),

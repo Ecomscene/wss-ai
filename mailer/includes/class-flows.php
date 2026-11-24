@@ -235,6 +235,11 @@ class WSFM_Flows {
 		$flow_id = isset( $data['id'] ) ? (int) $data['id'] : 0;
 
 		if ( $flow_id > 0 ) {
+			$was_actief = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT status FROM ' . self::table() . ' WHERE id = %d', $flow_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+			if ( 'active' === $status && 'active' !== $was_actief ) {
+				self::noteer_activatie( $flow_id );
+			}
+
 			/* Wordt het trigger-type gewijzigd, dan moeten de items die nog in de
 			   wachtrij staan STOPPEN.
 
@@ -261,7 +266,38 @@ class WSFM_Flows {
 
 		$row['created_at'] = current_time( 'mysql' );
 		$wpdb->insert( self::table(), $row );
-		return (int) $wpdb->insert_id;
+		$nieuw_id = (int) $wpdb->insert_id;
+		if ( $nieuw_id && 'active' === $status ) {
+			self::noteer_activatie( $nieuw_id );
+		}
+		return $nieuw_id;
+	}
+
+	/** Optie met per flow het moment waarop hij voor het laatst is aangezet. */
+	const OPTIE_ACTIVATIE = 'wsfm_flow_geactiveerd';
+
+	/**
+	 * Leg vast WANNEER een flow is aangezet. Een verlaten-winkelwagenflow mag
+	 * alleen wagens oppakken waarvan de laatste activiteit na dit moment ligt.
+	 *
+	 * @param int $flow_id Flow id.
+	 */
+	public static function noteer_activatie( $flow_id ) {
+		$alles               = (array) get_option( self::OPTIE_ACTIVATIE, array() );
+		$alles[ (int) $flow_id ] = current_time( 'mysql' );
+		update_option( self::OPTIE_ACTIVATIE, $alles, false );
+	}
+
+	/**
+	 * Moment (site-tijd, MySQL) waarop deze flow voor het laatst is aangezet,
+	 * of lege string als dat niet bekend is (flow van voor deze versie).
+	 *
+	 * @param int $flow_id Flow id.
+	 * @return string
+	 */
+	public static function geactiveerd_op( $flow_id ) {
+		$alles = (array) get_option( self::OPTIE_ACTIVATIE, array() );
+		return isset( $alles[ (int) $flow_id ] ) ? (string) $alles[ (int) $flow_id ] : '';
 	}
 
 	/**
@@ -293,6 +329,9 @@ class WSFM_Flows {
 		}
 
 		$new_status = ( 'active' === $flow->status ) ? 'paused' : 'active';
+		if ( 'active' === $new_status ) {
+			self::noteer_activatie( $flow_id );
+		}
 		$wpdb->update(
 			self::table(),
 			array(

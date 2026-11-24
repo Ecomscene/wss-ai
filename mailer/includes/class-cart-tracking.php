@@ -154,7 +154,7 @@ class WSFM_Cart_Tracking {
 
 		$cart_hash = WC()->cart->get_cart_hash();
 		$now       = current_time( 'mysql' );
-		$existing  = $wpdb->get_row( $wpdb->prepare( "SELECT id, cart_hash, queued_flag, last_activity FROM {$table} WHERE customer_email = %s", $email ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$existing  = $wpdb->get_row( $wpdb->prepare( "SELECT id, cart_hash, queued_flag, last_activity, order_placed_flag, order_placed_at FROM {$table} WHERE customer_email = %s", $email ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
 		if ( $existing ) {
 			// woocommerce_cart_updated fires on every page load with a cart;
@@ -164,6 +164,14 @@ class WSFM_Cart_Tracking {
 				return;
 			}
 			$queued_flag = (int) $existing->queued_flag;
+
+			/* Een order van minder dan twee dagen geleden blijft 'besteld'.
+			   Bij Mollie (en elke gateway die na de order nog iets met de wagen
+			   doet) vuurt woocommerce_cart_updated NA de order nog een keer; de
+			   vlag ging dan weer uit en de klant kreeg alsnog een herinnering
+			   voor een wagen die hij net had afgerekend. Pas na het venster telt
+			   nieuwe winkelwagenactiviteit weer als een nieuwe wagen. */
+			$besteld_vlag = ( (int) $existing->order_placed_flag && self::recent_besteld_binnen_venster( $existing ) ) ? 1 : 0;
 
 			// A NEW cart after an earlier abandoned-cart run: stop the old
 			// pending reminders and let this cart start a fresh run.
@@ -179,7 +187,7 @@ class WSFM_Cart_Tracking {
 					'customer_name'     => sanitize_text_field( $customer['name'] ),
 					'cart_contents'     => $contents,
 					'last_activity'     => $now,
-					'order_placed_flag' => 0,
+					'order_placed_flag' => $besteld_vlag,
 					'queued_flag'       => $queued_flag,
 				),
 				array( 'id' => $existing->id )
@@ -225,14 +233,52 @@ class WSFM_Cart_Tracking {
 		}
 
 		$table = self::table();
-		$wpdb->update( $table, array( 'order_placed_flag' => 1 ), array( 'customer_email' => $email ) );
+		$wpdb->update(
+			$table,
+			array(
+				'order_placed_flag' => 1,
+				'order_placed_at'   => current_time( 'mysql' ),
+			),
+			array( 'customer_email' => $email )
+		);
 	}
 
 	/**
-	 * Fetch a tracking row for context building: by cart hash first,
-	 * falling back to the customer e-mail.
+	 * Hoeveel dagen een bestelling een herinnering tegenhoudt.
 	 *
-	 * @param string $cart_hash Cart hash (nullable).
+	 * @return int
+	 */
+	public static function bestel_venster_dagen() {
+		return max( 1, (int) apply_filters( 'wsfm_cart_bestel_venster_dagen', 2 ) );
+	}
+
+	/**
+	 * Valt de bestelling op deze rij nog binnen het venster?
+	 *
+	 * Een rij met vlag maar zonder tijdstip (van voor deze versie) telt als
+	 * binnen het venster: liever een mail te weinig dan een mail te veel.
+	 *
+	 * @param object $rij Tracking-rij.
+	 * @return bool
+	 */
+	private static function recent_besteld_binnen_venster( $rij ) {
+		if ( empty( $rij->order_placed_at ) ) {
+			return true;
+		}
+		return strtotime( (string) $rij->order_placed_at ) >= strtotime( current_time( 'mysql' ) ) - self::bestel_venster_dagen() * DAY_IN_SECONDS;
+	}
+
+	/**
+	 * Fetch a tracking row for context building: ALLEEN op het e-mailadres
+	 * van de ontvanger (er is per adres precies een rij, unieke sleutel).
+	 *
+	 * Vroeger werd eerst op cart_hash gezocht. Die hash hangt alleen van de
+	 * INHOUD van de wagen af: twee klanten met dezelfde producten delen hem.
+	 * De mail kon dan de wagen, het bedrag en de herstellink van een ander
+	 * tonen, en die link vult diens e-mailadres in. De hash-parameter blijft
+	 * bestaan zodat bestaande aanroepen niet breken, maar wordt genegeerd.
+	 *
+	 * @param string $cart_hash Genegeerd (alleen voor compatibiliteit).
 	 * @param string $email     Customer e-mail.
 	 * @return object|null
 	 */
@@ -240,13 +286,6 @@ class WSFM_Cart_Tracking {
 		global $wpdb;
 
 		$table = self::table();
-
-		if ( $cart_hash ) {
-			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE cart_hash = %s LIMIT 1", $cart_hash ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			if ( $row ) {
-				return $row;
-			}
-		}
 
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE customer_email = %s LIMIT 1", strtolower( $email ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
@@ -264,7 +303,16 @@ class WSFM_Cart_Tracking {
 		$table  = self::table();
 		$cutoff = get_date_from_gmt( gmdate( 'Y-m-d H:i:s', time() - $threshold_minutes * MINUTE_IN_SECONDS ) );
 
-		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE last_activity <= %s AND order_placed_flag = 0 AND queued_flag = 0", $cutoff ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		/* Een wagen die al dagen stilligt is geen verlaten wagen meer maar een
+		   oude. Bij het aanzetten van een flow werden anders ALLE oude wagens
+		   in een keer gemaild (Rockstyle, 21-11: wagens van 1 t/m 16 nov). De
+		   grens is 48 uur, of de wachttijd van de eerste stap plus een dag als
+		   die langer is. */
+		$max_minuten = max( 48 * 60, $threshold_minutes + 24 * 60 );
+		$max_minuten = (int) apply_filters( 'wsfm_cart_max_leeftijd_minuten', $max_minuten );
+		$oudste      = get_date_from_gmt( gmdate( 'Y-m-d H:i:s', time() - $max_minuten * MINUTE_IN_SECONDS ) );
+
+		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE last_activity <= %s AND last_activity >= %s AND order_placed_flag = 0 AND queued_flag = 0", $cutoff, $oudste ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	/**

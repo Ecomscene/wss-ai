@@ -213,6 +213,24 @@ class WSFM_Queue {
 	}
 
 	/**
+	 * Is er voor dit adres in de afgelopen dagen al een verlaten-winkelwagenrun
+	 * gestart (wachtend, bezig of verzonden)?
+	 *
+	 * @param string $email Adres.
+	 * @param int    $dagen Aantal dagen terug.
+	 * @return bool
+	 */
+	public static function recent_cart_run_for_email( $email, $dagen ) {
+		global $wpdb;
+
+		$queue = self::table();
+		$flows = $wpdb->prefix . 'wsfm_flows';
+		$sinds = get_date_from_gmt( gmdate( 'Y-m-d H:i:s', time() - (int) $dagen * DAY_IN_SECONDS ) );
+
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT q.id FROM {$queue} q INNER JOIN {$flows} f ON f.id = q.flow_id WHERE q.customer_email = %s AND f.trigger_type = 'abandoned_cart' AND q.status IN ('pending','processing','sent') AND q.created_at >= %s LIMIT 1", strtolower( $email ), $sinds ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
+
+	/**
 	 * Stop all pending items for a customer within one trigger type
 	 * (used when a new cart supersedes an old abandoned-cart run).
 	 *

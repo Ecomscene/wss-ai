@@ -308,6 +308,15 @@ class WSFM_Flow_Engine {
 	}
 
 	/**
+	 * Minimaal aantal dagen tussen twee verlaten-winkelwagenruns voor een adres.
+	 *
+	 * @return int
+	 */
+	public static function cart_mail_interval_dagen() {
+		return max( 1, (int) apply_filters( 'wsfm_cart_mail_interval_dagen', 3 ) );
+	}
+
+	/**
 	 * Enqueue all active abandoned-cart flows for one tracked cart.
 	 *
 	 * @param object   $tracking Tracking row.
@@ -321,9 +330,36 @@ class WSFM_Flow_Engine {
 			return;
 		}
 
+		/* Betaalde, wachtende of in-de-wacht-order op dit adres in de afgelopen
+		   dagen: dan is dit geen verlaten wagen. Bij Mollie verandert de wagen
+		   nog na de order, waardoor de vlag hierboven niet genoeg is. */
+		if ( WSFM_Flow_Conditions::recent_besteld( $tracking->customer_email ) ) {
+			WSFM_Cart_Tracking::mark_queued( $tracking->id );
+			return;
+		}
+
+		/* Eigen shopdomein: testorders en personeel, geen klanten. */
+		if ( WSFM_Flow_Conditions::is_eigen_domein( $tracking->customer_email ) ) {
+			WSFM_Cart_Tracking::mark_queued( $tracking->id );
+			return;
+		}
+
+		/* Maximaal een run per adres per paar dagen, hoeveel wagens iemand ook
+		   achterlaat. */
+		if ( WSFM_Queue::recent_cart_run_for_email( $tracking->customer_email, self::cart_mail_interval_dagen() ) ) {
+			WSFM_Cart_Tracking::mark_queued( $tracking->id );
+			return;
+		}
+
 		$base = strtotime( get_gmt_from_date( $tracking->last_activity ) );
 
 		foreach ( $flows as $flow ) {
+			/* Nooit een wagen van voor het moment dat DEZE flow is aangezet. */
+			$aan = WSFM_Flows::geactiveerd_op( $flow->id );
+			if ( '' !== $aan && $tracking->last_activity < $aan ) {
+				continue;
+			}
+
 			WSFM_Queue::enqueue_flow(
 				$flow,
 				array(

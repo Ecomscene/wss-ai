@@ -34,7 +34,53 @@ class WSFM_Flow_Conditions {
 			return false;
 		}
 
+		if ( 'abandoned_cart' === $flow->trigger_type ) {
+			/* Een herinnering voor een wagen is alleen zinvol voor iemand die
+			   NIET net besteld heeft, ook niet op een andere manier of bij een
+			   betaling die nog loopt. */
+			if ( self::recent_besteld( $item->customer_email ) ) {
+				return true;
+			}
+			if ( self::is_eigen_domein( $item->customer_email ) ) {
+				return true;
+			}
+		}
+
 		return self::has_ordered_since( $item->customer_email, $item->created_at );
+	}
+
+	/**
+	 * Is er de afgelopen dagen een order op dit adres, in welke bruikbare
+	 * status dan ook (ook 'wachtend op betaling' en 'in de wacht')?
+	 *
+	 * 'Wachtend op betaling' hoort niet in de verlaten-winkelwagenflow: die
+	 * klant heeft wel besteld en moet een betaalherinnering krijgen, geen
+	 * 'je bent iets vergeten'. Dat is een aparte functie.
+	 *
+	 * @param string $email E-mailadres.
+	 * @return bool
+	 */
+	public static function recent_besteld( $email ) {
+		$dagen = class_exists( 'WSFM_Cart_Tracking' ) ? WSFM_Cart_Tracking::bestel_venster_dagen() : 2;
+		$sinds = gmdate( 'Y-m-d H:i:s', time() - $dagen * DAY_IN_SECONDS );
+		return self::has_ordered_since( $email, get_date_from_gmt( $sinds ), false );
+	}
+
+	/**
+	 * Staat dit adres op het domein van de shop zelf (of een subdomein)?
+	 * Dat zijn testbestellingen en medewerkers, geen klanten.
+	 *
+	 * @param string $email E-mailadres.
+	 * @return bool
+	 */
+	public static function is_eigen_domein( $email ) {
+		$domein = strtolower( (string) substr( strrchr( (string) $email, '@' ), 1 ) );
+		$host   = strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
+		$host   = preg_replace( '/^www\./', '', $host );
+		if ( '' === $domein || '' === $host ) {
+			return false;
+		}
+		return $domein === $host || substr( $domein, -strlen( '.' . $host ) ) === '.' . $host;
 	}
 
 	/**
@@ -52,16 +98,20 @@ class WSFM_Flow_Conditions {
 	 *
 	 * @param string $email E-mail address.
 	 * @param string $since MySQL datetime (site timezone).
+	 * @param bool   $snelle_weg Eerst de vlag op de winkelwagenrij bekijken.
 	 * @return bool
 	 */
-	public static function has_ordered_since( $email, $since ) {
+	public static function has_ordered_since( $email, $since, $snelle_weg = true ) {
 		global $wpdb;
 
-		// Fast path: the order hook flags the tracking row.
-		$tracking = $wpdb->prefix . 'wsfm_cart_tracking';
-		$flagged  = $wpdb->get_var( $wpdb->prepare( "SELECT order_placed_flag FROM {$tracking} WHERE customer_email = %s", strtolower( $email ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		if ( $flagged ) {
-			return true;
+		// Fast path: the order hook flags the tracking row. Niet bij de
+		// 'recent besteld'-vraag: die kijkt alleen naar echte orders in het venster.
+		if ( $snelle_weg ) {
+			$tracking = $wpdb->prefix . 'wsfm_cart_tracking';
+			$flagged  = $wpdb->get_var( $wpdb->prepare( "SELECT order_placed_flag FROM {$tracking} WHERE customer_email = %s", strtolower( $email ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			if ( $flagged ) {
+				return true;
+			}
 		}
 
 		if ( ! function_exists( 'wc_get_orders' ) ) {
