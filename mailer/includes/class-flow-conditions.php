@@ -26,6 +26,15 @@ class WSFM_Flow_Conditions {
 	 * @return bool
 	 */
 	public static function should_stop( $item, $flow, array $step ) {
+	/* Flows die met een order beginnen hebben een EIGEN vinkel:
+       "stop als de klant intussen opnieuw bestelt" (stop_on_new_order). Het
+       oude vinkje (stop_on_order) bleef bij ordertriggers altijd zonder effect
+       en doet dat nog steeds, zodat bestaande flows op live shops niet anders
+       gaan werken. */
+	if ( in_array( $flow->trigger_type, WSFM_Flows::ORDER_TRIGGERS, true ) ) {
+		return ! empty( $step['stop_on_new_order'] ) && self::heeft_nieuwere_order( $item );
+	}
+
 		if ( empty( $step['stop_on_order'] ) ) {
 			return false;
 		}
@@ -114,7 +123,12 @@ class WSFM_Flow_Conditions {
 			}
 		}
 
-		if ( ! function_exists( 'wc_get_orders' ) ) {
+		/* Bestellingen die via een webhook binnenkwamen (Shopify). */
+if ( class_exists( 'WSFM_Ext_Orders' ) && WSFM_Ext_Orders::sinds( $email, $since ) ) {
+	return true;
+}
+
+if ( ! function_exists( 'wc_get_orders' ) ) {
 			return false;
 		}
 
@@ -130,5 +144,105 @@ class WSFM_Flow_Conditions {
 		);
 
 		return ! empty( $orders );
+	}
+
+	/**
+	 * Heeft deze klant na de bestelling waarmee de flow begon opnieuw besteld?
+	 * Kijkt naar WooCommerce-orders en naar bestellingen via een webhook.
+	 *
+	 * @param object $item Wachtrij-rij.
+	 * @return bool
+	 */
+	public static function heeft_nieuwere_order( $item ) {
+		$email = strtolower( (string) $item->customer_email );
+
+		if ( ! empty( $item->ext_order_id ) && class_exists( 'WSFM_Ext_Orders' ) ) {
+			if ( WSFM_Ext_Orders::nieuwere_dan( $email, (int) $item->ext_order_id ) ) {
+				return true;
+			}
+			$rij = WSFM_Ext_Orders::get( (int) $item->ext_order_id );
+			if ( $rij && function_exists( 'wc_get_orders' ) ) {
+				return self::wc_order_na( $email, strtotime( get_gmt_from_date( $rij->created_at ) ), 0 );
+			}
+			return false;
+		}
+
+		if ( ! empty( $item->order_id ) && function_exists( 'wc_get_order' ) ) {
+			$order = wc_get_order( (int) $item->order_id );
+			$datum = $order ? $order->get_date_created() : null;
+			if ( ! $datum ) {
+				return false;
+			}
+			if ( self::wc_order_na( $email, $datum->getTimestamp(), (int) $item->order_id ) ) {
+				return true;
+			}
+			return class_exists( 'WSFM_Ext_Orders' ) && WSFM_Ext_Orders::sinds( $email, get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $datum->getTimestamp() ) ) );
+		}
+
+		return false;
+	}
+
+	/**
+	 * Is er een WooCommerce-order van dit adres NA dit moment?
+	 *
+	 * @param string $email   Adres.
+	 * @param int    $ts      Tijdstempel.
+	 * @param int    $behalve Order die niet meetelt (0 = geen).
+	 * @return bool
+	 */
+	private static function wc_order_na( $email, $ts, $behalve ) {
+		$orders = wc_get_orders(
+			array(
+				'billing_email' => $email,
+				'date_created'  => '>' . (int) $ts,
+				'status'        => array( 'pending', 'on-hold', 'processing', 'completed' ),
+				'exclude'       => $behalve ? array( (int) $behalve ) : array(),
+				'limit'         => 1,
+				'return'        => 'ids',
+			)
+		);
+		return ! empty( $orders );
+	}
+
+	/**
+	 * Hoeveel bestellingen had de klant vóór deze WooCommerce-order?
+	 *
+	 * @param WC_Order $order Order.
+	 * @return int
+	 */
+	public static function eerdere_orders_wc( $order ) {
+		if ( ! function_exists( 'wc_get_orders' ) ) {
+			return 0;
+		}
+		$datum = $order->get_date_created();
+		$ids   = wc_get_orders(
+			array(
+				'billing_email' => strtolower( (string) $order->get_billing_email() ),
+				'date_created'  => '<' . ( $datum ? $datum->getTimestamp() : time() ),
+				'status'        => array( 'on-hold', 'processing', 'completed' ),
+				'exclude'       => array( (int) $order->get_id() ),
+				'limit'         => 2,
+				'return'        => 'ids',
+			)
+		);
+		return count( (array) $ids );
+	}
+
+	/**
+	 * Past de bestelling bij de voorwaarde van de flow?
+	 *
+	 * @param object $flow   Flow.
+	 * @param int    $eerder Aantal eerdere bestellingen van de klant.
+	 * @return bool
+	 */
+	public static function voorwaarde_geldt( $flow, $eerder ) {
+		$voorwaarde = isset( $flow->voorwaarde ) ? (string) $flow->voorwaarde : '';
+		if ( 'eerste_bestelling' === $voorwaarde ) {
+			return 0 === (int) $eerder;
+		}
+		if ( 'terugkerende_klant' === $voorwaarde ) {
+			return (int) $eerder > 0;
+		}
+		return true;
 	}
 }

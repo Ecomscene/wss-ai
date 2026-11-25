@@ -62,6 +62,68 @@ class WSFM_Flows {
 	const STATUSES = array( 'active', 'paused' );
 
 	/**
+	 * Voorwaarde op de FLOW (niet op een stap), voor flows met een order als begin.
+	 *
+	 * Klaviyo splitst "Customer Thank You" in een mail voor een eerste bestelling
+	 * en een voor een terugkerende klant. Zonder deze keuze gaan beide flows op
+	 * elke order af. Leeg betekent: altijd.
+	 */
+	const VOORWAARDEN = array( '', 'eerste_bestelling', 'terugkerende_klant' );
+
+	/**
+	 * @return array sleutel => label
+	 */
+	public static function voorwaarde_labels() {
+		return array(
+			''                   => __( 'Altijd', 'ws-flow-mailer' ),
+			'eerste_bestelling'  => __( 'Alleen bij de eerste bestelling van de klant', 'ws-flow-mailer' ),
+			'terugkerende_klant' => __( 'Alleen bij een terugkerende klant (eerder besteld)', 'ws-flow-mailer' ),
+		);
+	}
+
+	/**
+	 * Een tijd als UU:MM, of leeg als het geen tijd is.
+	 *
+	 * @param mixed $tijd Invoer.
+	 * @return string
+	 */
+	public static function schoon_tijd( $tijd ) {
+		if ( preg_match( '/^([01]?\d|2[0-3]):([0-5]\d)$/', trim( (string) $tijd ), $m ) ) {
+			return sprintf( '%02d:%s', (int) $m[1], $m[2] );
+		}
+		return '';
+	}
+
+	/**
+	 * Het eerstvolgende moment op of na $ts waarop de klok in Nederland $tijd
+	 * aanwijst. Vaste tijdzone, los van de instelling van de site: dezelfde reden
+	 * als bij het inplannen van nieuwsbrieven.
+	 *
+	 * @param int    $ts   Tijdstempel.
+	 * @param string $tijd UU:MM.
+	 * @return int
+	 */
+	public static function op_tijdstip( $ts, $tijd ) {
+		$tijd = self::schoon_tijd( $tijd );
+		if ( '' === $tijd ) {
+			return (int) $ts;
+		}
+		try {
+			list( $u, $m ) = array_map( 'intval', explode( ':', $tijd ) );
+			$d = new DateTime( '@' . (int) $ts );
+			$d->setTimezone( new DateTimeZone( 'Europe/Amsterdam' ) );
+			$d->setTime( $u, $m, 0 );
+			if ( $d->getTimestamp() < (int) $ts ) {
+				$d->modify( '+1 day' );
+				$d->setTime( $u, $m, 0 );
+			}
+			return $d->getTimestamp();
+		} catch ( Exception $e ) {
+			return (int) $ts;
+		}
+	}
+
+	/**
 	 * Hoe de triggers op het scherm heten.
 	 *
 	 * Eén plek, want dit lijstje stond eerder drie keer in de admin-bestanden en
@@ -166,6 +228,9 @@ class WSFM_Flows {
 	 */
 	private static function decode_steps( $flow ) {
 		$steps       = json_decode( (string) $flow->steps, true );
+		if ( ! isset( $flow->voorwaarde ) ) {
+			$flow->voorwaarde = '';
+		}
 		$flow->steps = array();
 
 		if ( is_array( $steps ) ) {
@@ -176,6 +241,9 @@ class WSFM_Flows {
 				$flow->steps[] = array(
 					'wait_minutes'  => max( 0, (int) $step['wait_minutes'] ),
 					'template_id'   => (int) $step['template_id'],
+	'stop_on_new_order' => ! empty( $step['stop_on_new_order'] ),
+	'at_time'       => self::schoon_tijd( isset( $step['at_time'] ) ? $step['at_time'] : '' ),
+	'from_name'     => isset( $step['from_name'] ) ? sanitize_text_field( (string) $step['from_name'] ) : '',
 					'stop_on_order' => ! empty( $step['stop_on_order'] ),
 				);
 			}
@@ -196,6 +264,7 @@ class WSFM_Flows {
 		$name         = sanitize_text_field( isset( $data['name'] ) ? $data['name'] : '' );
 		$trigger_type = isset( $data['trigger_type'] ) ? $data['trigger_type'] : '';
 		$status       = isset( $data['status'] ) ? $data['status'] : 'paused';
+		$voorwaarde   = isset( $data['voorwaarde'] ) && in_array( $data['voorwaarde'], self::VOORWAARDEN, true ) ? $data['voorwaarde'] : '';
 
 		if ( '' === $name ) {
 			return new WP_Error( 'wsfm_flow_name', __( 'Geef de flow een naam.', 'ws-flow-mailer' ) );
@@ -216,6 +285,9 @@ class WSFM_Flows {
 			$steps[] = array(
 				'wait_minutes'  => max( 0, isset( $step['wait_minutes'] ) ? (int) $step['wait_minutes'] : 0 ),
 				'template_id'   => $template_id,
+	'stop_on_new_order' => ! empty( $step['stop_on_new_order'] ),
+	'at_time'       => self::schoon_tijd( isset( $step['at_time'] ) ? $step['at_time'] : '' ),
+	'from_name'     => isset( $step['from_name'] ) ? sanitize_text_field( (string) $step['from_name'] ) : '',
 				'stop_on_order' => ! empty( $step['stop_on_order'] ),
 			);
 		}
@@ -229,6 +301,7 @@ class WSFM_Flows {
 			'trigger_type' => $trigger_type,
 			'status'       => $status,
 			'steps'        => wp_json_encode( $steps ),
+			'voorwaarde'   => $voorwaarde,
 			'updated_at'   => current_time( 'mysql' ),
 		);
 

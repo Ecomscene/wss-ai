@@ -337,4 +337,81 @@ class WSFM_Cart_Tracking {
 		$cutoff = get_date_from_gmt( gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS ) );
 		$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE last_activity < %s", $cutoff ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
+
+	/**
+	 * Een winkelwagen (checkout) van buiten WooCommerce vastleggen, bijvoorbeeld
+	 * uit een Shopify-webhook. Zelfde regels als capture_cart(): een rij per adres,
+	 * de laatste wagen wint, een recente bestelling blijft een bestelling.
+	 *
+	 * @param array $d { email, name, contents (JSON met regels en totaal), hash, herstel_url, bron }.
+	 * @return bool
+	 */
+	public static function capture_extern( array $d ) {
+		global $wpdb;
+
+		$email = strtolower( trim( (string) $d['email'] ) );
+		if ( ! is_email( $email ) ) {
+			return false;
+		}
+
+		$table  = self::table();
+		$now    = current_time( 'mysql' );
+		$hash   = substr( (string) $d['hash'], 0, 64 );
+		$velden = array(
+			'cart_hash'     => $hash,
+			'customer_name' => sanitize_text_field( (string) $d['name'] ),
+			'cart_contents' => (string) $d['contents'],
+			'last_activity' => $now,
+			'herstel_url'   => esc_url_raw( (string) $d['herstel_url'] ),
+			'bron'          => sanitize_key( (string) $d['bron'] ),
+		);
+
+		$existing = $wpdb->get_row( $wpdb->prepare( "SELECT id, cart_hash, queued_flag, last_activity, order_placed_flag, order_placed_at FROM {$table} WHERE customer_email = %s", $email ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+		if ( $existing ) {
+			$age = strtotime( $now ) - strtotime( $existing->last_activity );
+			if ( $existing->cart_hash === $hash && $age < 5 * MINUTE_IN_SECONDS ) {
+				return true;
+			}
+
+			$queued_flag  = (int) $existing->queued_flag;
+			$besteld_vlag = ( (int) $existing->order_placed_flag && self::recent_besteld_binnen_venster( $existing ) ) ? 1 : 0;
+
+			if ( $queued_flag && $existing->cart_hash !== $hash ) {
+				WSFM_Queue::stop_pending_for_customer( $email, 'abandoned_cart' );
+				$queued_flag = 0;
+			}
+
+			$velden['order_placed_flag'] = $besteld_vlag;
+			$velden['queued_flag']       = $queued_flag;
+			$wpdb->update( $table, $velden, array( 'id' => $existing->id ) );
+			return true;
+		}
+
+		$velden['customer_email']    = $email;
+		$velden['order_placed_flag'] = 0;
+		$velden['queued_flag']       = 0;
+		$velden['created_at']        = $now;
+		$wpdb->insert( $table, $velden );
+		return true;
+	}
+
+	/**
+	 * Een bestelling van buiten WooCommerce is binnen: de wagen van dit adres is
+	 * geen verlaten wagen meer.
+	 *
+	 * @param string $email Adres.
+	 */
+	public static function mark_extern_order( $email ) {
+		global $wpdb;
+
+		$wpdb->update(
+			self::table(),
+			array(
+				'order_placed_flag' => 1,
+				'order_placed_at'   => current_time( 'mysql' ),
+			),
+			array( 'customer_email' => strtolower( trim( (string) $email ) ) )
+		);
+	}
 }

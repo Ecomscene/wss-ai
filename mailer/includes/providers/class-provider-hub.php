@@ -87,7 +87,7 @@ class WSFM_Provider_Hub implements WSFM_Mail_Provider {
 				'onderwerp' => $subject,
 				'html'      => $html_body,
 				'van'       => $instellingen['ses_from_email'],
-				'vanNaam'   => $instellingen['ses_from_name'],
+				'vanNaam'   => ! empty( $merge_data['from_name'] ) ? sanitize_text_field( (string) $merge_data['from_name'] ) : $instellingen['ses_from_name'],
 				/* Antwoorden horen bij de winkelier te belanden en niet bij ons. */
 				'antwoordNaar' => get_option( 'admin_email' ),
 			),

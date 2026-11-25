@@ -24,7 +24,7 @@ class WSFM_Install {
 	 * hieronder is gemaakt om twee keer te kunnen draaien zonder iets te
 	 * veranderen dat er al staat.
 	 */
-	const DB_VERSION = '12';
+	const DB_VERSION = '13';
 
 	/** Onthoudt dat de welkomsttemplate één keer is klaargezet. */
 	const OPTIE_WELKOM = 'wsfm_welkomsttemplate';
@@ -72,6 +72,7 @@ class WSFM_Install {
 			trigger_type VARCHAR(40) NOT NULL DEFAULT '',
 			status VARCHAR(20) NOT NULL DEFAULT 'paused',
 			steps LONGTEXT NULL,
+			voorwaarde VARCHAR(30) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			updated_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),
@@ -94,6 +95,7 @@ class WSFM_Install {
 			step_index INT UNSIGNED NOT NULL DEFAULT 0,
 			order_id BIGINT UNSIGNED NULL DEFAULT NULL,
 			cart_hash VARCHAR(64) NULL DEFAULT NULL,
+			ext_order_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
 			customer_email VARCHAR(190) NOT NULL DEFAULT '',
 			customer_name VARCHAR(190) NOT NULL DEFAULT '',
 			status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -104,6 +106,7 @@ class WSFM_Install {
 			KEY flow_id (flow_id),
 			KEY newsletter_id (newsletter_id),
 			KEY stock_request_id (stock_request_id),
+			KEY ext_order_id (ext_order_id),
 			KEY customer_email (customer_email),
 			KEY status_scheduled (status, scheduled_at)
 		) $charset_collate;";
@@ -148,6 +151,8 @@ class WSFM_Install {
 			last_activity DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			order_placed_flag TINYINT UNSIGNED NOT NULL DEFAULT 0,
 			order_placed_at DATETIME NULL DEFAULT NULL,
+			herstel_url TEXT NULL,
+			bron VARCHAR(20) NOT NULL DEFAULT '',
 			queued_flag TINYINT UNSIGNED NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
 			PRIMARY KEY  (id),
@@ -291,7 +296,23 @@ class WSFM_Install {
 			KEY email (email)
 		) $charset_collate;";
 
-		dbDelta( $sql_flows );
+		$sql_ext = "CREATE TABLE {$prefix}wsfm_ext_orders (
+	id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+	bron VARCHAR(20) NOT NULL DEFAULT '',
+	ext_id VARCHAR(40) NOT NULL DEFAULT '',
+	customer_email VARCHAR(190) NOT NULL DEFAULT '',
+	first_name VARCHAR(190) NOT NULL DEFAULT '',
+	order_number VARCHAR(40) NOT NULL DEFAULT '',
+	total_text VARCHAR(40) NOT NULL DEFAULT '',
+	items LONGTEXT NULL,
+	prior_orders INT UNSIGNED NOT NULL DEFAULT 0,
+	created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+	PRIMARY KEY  (id),
+	UNIQUE KEY bron_ext (bron, ext_id),
+	KEY customer_email (customer_email)
+) $charset_collate;";
+
+dbDelta( $sql_flows );
 		dbDelta( $sql_queue );
 		dbDelta( $sql_log );
 		dbDelta( $sql_suppression );
@@ -303,6 +324,7 @@ class WSFM_Install {
 		dbDelta( $sql_lijsten );
 		dbDelta( $sql_lijst_leden );
 		dbDelta( $sql_stock );
+		dbDelta( $sql_ext );
 	}
 
 	/**

@@ -72,7 +72,7 @@ class WSS_AI_Mailer {
 			'providers/class-provider-hub',
 			'class-suppression', 'class-template-engine', 'class-templates', 'class-postlog',
 			'class-eigen-html', 'class-newsletter-render', 'class-newsletters',
-			'class-subscribers', 'class-lijsten', 'class-popup', 'class-shopify', 'class-afrekenen',
+			'class-subscribers', 'class-ext-orders', 'class-lijsten', 'class-popup', 'class-shopify', 'class-afrekenen',
 			'class-flows', 'class-flow-conditions', 'class-queue', 'class-queue-processor',
 			'class-cart-tracking', 'class-cart-recovery', 'class-flow-engine',
 			'class-voorraadmail',

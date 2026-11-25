@@ -54,17 +54,25 @@ class WSFM_Queue {
 
 		// Dedupe: never enqueue the same flow twice for the same order or,
 		// for cart flows, while this customer already has items for it.
-		if ( self::already_enqueued( $flow->id, $email, isset( $args['order_id'] ) ? (int) $args['order_id'] : 0 ) ) {
+		if ( self::already_enqueued( $flow->id, $email, isset( $args['order_id'] ) ? (int) $args['order_id'] : 0, isset( $args['ext_order_id'] ) ? (int) $args['ext_order_id'] : 0 ) ) {
 			return 0;
 		}
 
 		$base       = isset( $args['base_timestamp'] ) ? (int) $args['base_timestamp'] : time();
 		$now_mysql  = current_time( 'mysql' );
 		$cumulative = 0;
+		$moment     = $base;
 		$created    = 0;
 
 		foreach ( $flow->steps as $index => $step ) {
 			$cumulative += $step['wait_minutes'];
+	/* De wachttijd telt vanaf de vorige stap, ook als die door een vaste
+       tijd naar later is geschoven. Zonder vaste tijd is dit dezelfde som als
+       voorheen. */
+	$moment += $step['wait_minutes'] * MINUTE_IN_SECONDS;
+	if ( ! empty( $step['at_time'] ) ) {
+		$moment = WSFM_Flows::op_tijdstip( $moment, $step['at_time'] );
+	}
 
 			$inserted = $wpdb->insert(
 				self::table(),
@@ -73,10 +81,11 @@ class WSFM_Queue {
 					'step_index'     => $index,
 					'order_id'       => ! empty( $args['order_id'] ) ? (int) $args['order_id'] : null,
 					'cart_hash'      => ! empty( $args['cart_hash'] ) ? $args['cart_hash'] : null,
+					'ext_order_id'   => ! empty( $args['ext_order_id'] ) ? (int) $args['ext_order_id'] : 0,
 					'customer_email' => $email,
 					'customer_name'  => sanitize_text_field( isset( $args['customer_name'] ) ? $args['customer_name'] : '' ),
 					'status'         => 'pending',
-					'scheduled_at'   => get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $base + $cumulative * MINUTE_IN_SECONDS ) ),
+					'scheduled_at'   => get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $moment ) ),
 					'attempts'       => 0,
 					'created_at'     => $now_mysql,
 				)
@@ -198,12 +207,16 @@ class WSFM_Queue {
 	 * @param int    $order_id Order id (0 for cart flows).
 	 * @return bool
 	 */
-	public static function already_enqueued( $flow_id, $email, $order_id = 0 ) {
+	public static function already_enqueued( $flow_id, $email, $order_id = 0, $ext_order_id = 0 ) {
 		global $wpdb;
 
 		$table = self::table();
 
-		if ( $order_id > 0 ) {
+		if ( $ext_order_id > 0 ) {
+	return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE flow_id = %d AND ext_order_id = %d LIMIT 1", $flow_id, $ext_order_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+}
+
+if ( $order_id > 0 ) {
 			return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE flow_id = %d AND order_id = %d LIMIT 1", $flow_id, $order_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
 

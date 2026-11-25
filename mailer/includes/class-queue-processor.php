@@ -202,7 +202,12 @@ class WSFM_Queue_Processor {
 			return self::finish( $item, 'stopped', (int) $step['template_id'], $context->get_error_message() );
 		}
 
-		// 4. Render template.
+		/* Afzendernaam per mail (stap-instelling). Providers lezen hem uit de context. */
+if ( ! empty( $step['from_name'] ) ) {
+	$context['from_name'] = $step['from_name'];
+}
+
+// 4. Render template.
 		$rendered = WSFM_Template_Engine::render( $step['template_id'], $context );
 		if ( is_wp_error( $rendered ) ) {
 			WSFM_Queue::log( $item, $step['template_id'], 'failed', '', '', $rendered->get_error_message() );
@@ -477,7 +482,15 @@ class WSFM_Queue_Processor {
 		   zou een flow op "bestelling betaald" de winkelwagen gaan opzoeken en
 		   een mail over een wagen sturen die allang is afgerekend. */
 		if ( in_array( $flow->trigger_type, WSFM_Flows::ORDER_TRIGGERS, true ) ) {
-			$order = $item->order_id ? wc_get_order( $item->order_id ) : false;
+			if ( ! empty( $item->ext_order_id ) ) {
+	$rij = WSFM_Ext_Orders::get( (int) $item->ext_order_id );
+	if ( ! $rij ) {
+		return new WP_Error( 'wsfm_order_gone', sprintf( __( 'Bestelling %d bestaat niet meer.', 'ws-flow-mailer' ), $item->ext_order_id ) );
+	}
+	return WSFM_Template_Engine::build_ext_order_context( $rij, $unsubscribe_url );
+}
+
+$order = ( $item->order_id && function_exists( 'wc_get_order' ) ) ? wc_get_order( $item->order_id ) : false;
 			if ( ! $order ) {
 				return new WP_Error( 'wsfm_order_gone', sprintf( __( 'Order %d bestaat niet meer.', 'ws-flow-mailer' ), $item->order_id ) );
 			}

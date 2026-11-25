@@ -62,6 +62,17 @@ $wsfm_trigger_nu     = $wsfm_is_edit ? $flow->trigger_type : 'abandoned_cart';
 				</td>
 			</tr>
 			<tr>
+				<th scope="row"><label for="wsfm_voorwaarde"><?php esc_html_e( 'Voor welke klanten', 'ws-flow-mailer' ); ?></label></th>
+				<td>
+					<select name="voorwaarde" id="wsfm_voorwaarde">
+						<?php foreach ( WSFM_Flows::voorwaarde_labels() as $wsfm_vkey => $wsfm_vlabel ) : ?>
+							<option value="<?php echo esc_attr( $wsfm_vkey ); ?>" <?php selected( $wsfm_is_edit ? (string) $flow->voorwaarde : '', $wsfm_vkey ); ?>><?php echo esc_html( $wsfm_vlabel ); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<p class="description"><?php esc_html_e( 'Alleen voor flows die met een bestelling beginnen. Zo kun je een bedankmail voor een eerste bestelling en een voor een terugkerende klant naast elkaar laten draaien, zonder dat een klant er twee krijgt.', 'ws-flow-mailer' ); ?></p>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><?php esc_html_e( 'Status', 'ws-flow-mailer' ); ?></th>
 				<td>
 					<label>
@@ -112,6 +123,7 @@ $wsfm_trigger_nu     = $wsfm_is_edit ? $flow->trigger_type : 'abandoned_cart';
 							<input type="checkbox" name="steps[<?php echo (int) $wsfm_i; ?>][stop_on_order]" value="1" <?php checked( $wsfm_step['stop_on_order'] ); ?> />
 							<?php esc_html_e( 'Stop als er alsnog een order is geplaatst', 'ws-flow-mailer' ); ?>
 						</label>
+						<div class="wsfm-step-extra" style="margin-top:8px;"><label class="wsfm-step-stop"><input type="checkbox" name="steps[<?php echo (int) $wsfm_i; ?>][stop_on_new_order]" value="1" <?php checked( ! empty( $wsfm_step['stop_on_new_order'] ) ); ?> /> <?php esc_html_e( 'Stop als de klant intussen opnieuw bestelt (voor flows die met een bestelling beginnen)', 'ws-flow-mailer' ); ?></label> <label><?php esc_html_e( 'Verstuur om', 'ws-flow-mailer' ); ?> <input type="time" name="steps[<?php echo (int) $wsfm_i; ?>][at_time]" value="<?php echo esc_attr( $wsfm_step['at_time'] ); ?>" /></label> <span class="description"><?php esc_html_e( '(leeg = direct na de wachttijd, anders op dat uur in Nederland)', 'ws-flow-mailer' ); ?></span> <label><?php esc_html_e( 'Afzendernaam', 'ws-flow-mailer' ); ?> <input type="text" name="steps[<?php echo (int) $wsfm_i; ?>][from_name]" value="<?php echo esc_attr( $wsfm_step['from_name'] ); ?>" class="regular-text" placeholder="<?php esc_attr_e( 'standaard van de instellingen', 'ws-flow-mailer' ); ?>" /></label></div>
 						<button type="button" class="button-link-delete wsfm-remove-step"><?php esc_html_e( 'Verwijderen', 'ws-flow-mailer' ); ?></button>
 					</div>
 				</div>
@@ -147,6 +159,7 @@ $wsfm_trigger_nu     = $wsfm_is_edit ? $flow->trigger_type : 'abandoned_cart';
 						<input type="checkbox" name="steps[__INDEX__][stop_on_order]" value="1" class="wsfm-stop-default" />
 						<?php esc_html_e( 'Stop als er alsnog een order is geplaatst', 'ws-flow-mailer' ); ?>
 					</label>
+					<div class="wsfm-step-extra" style="margin-top:8px;"><label class="wsfm-step-stop"><input type="checkbox" name="steps[__INDEX__][stop_on_new_order]" value="1"  /> <?php esc_html_e( 'Stop als de klant intussen opnieuw bestelt (voor flows die met een bestelling beginnen)', 'ws-flow-mailer' ); ?></label> <label><?php esc_html_e( 'Verstuur om', 'ws-flow-mailer' ); ?> <input type="time" name="steps[__INDEX__][at_time]" value="" /></label> <span class="description"><?php esc_html_e( '(leeg = direct na de wachttijd, anders op dat uur in Nederland)', 'ws-flow-mailer' ); ?></span> <label><?php esc_html_e( 'Afzendernaam', 'ws-flow-mailer' ); ?> <input type="text" name="steps[__INDEX__][from_name]" value="" class="regular-text" placeholder="<?php esc_attr_e( 'standaard van de instellingen', 'ws-flow-mailer' ); ?>" /></label></div>
 					<button type="button" class="button-link-delete wsfm-remove-step"><?php esc_html_e( 'Verwijderen', 'ws-flow-mailer' ); ?></button>
 				</div>
 			</div>

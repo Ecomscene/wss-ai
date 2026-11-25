@@ -49,6 +49,7 @@ class WSFM_Flow_Engine {
 		}
 
 		if ( ! class_exists( 'WooCommerce' ) ) {
+			self::init_zonder_woocommerce();
 			return;
 		}
 
@@ -118,6 +119,9 @@ class WSFM_Flow_Engine {
 	 * Remove recurring actions (called on plugin deactivation).
 	 */
 	public static function unschedule_recurring_actions() {
+		wp_clear_scheduled_hook( self::HOOK_PROCESS_QUEUE );
+		wp_clear_scheduled_hook( self::HOOK_CHECK_ABANDONED );
+
 		if ( function_exists( 'as_unschedule_all_actions' ) ) {
 			as_unschedule_all_actions( self::HOOK_PROCESS_QUEUE, array(), self::AS_GROUP );
 			as_unschedule_all_actions( WSFM_Queue_Processor::HOOK_EXTRA, array(), self::AS_GROUP );
@@ -223,7 +227,18 @@ class WSFM_Flow_Engine {
 			return;
 		}
 
+		$eerder = null;
 		foreach ( $flows as $flow ) {
+			/* Voorwaarde op de flow: eerste bestelling of terugkerende klant. */
+			if ( ! empty( $flow->voorwaarde ) ) {
+				if ( null === $eerder ) {
+					$eerder = WSFM_Flow_Conditions::eerdere_orders_wc( $order );
+				}
+				if ( ! WSFM_Flow_Conditions::voorwaarde_geldt( $flow, $eerder ) ) {
+					continue;
+				}
+			}
+
 			WSFM_Queue::enqueue_flow(
 				$flow,
 				array(
@@ -372,5 +387,55 @@ class WSFM_Flow_Engine {
 		}
 
 		WSFM_Cart_Tracking::mark_queued( $tracking->id );
+	}
+
+	/**
+	 * Een kale WordPress zonder WooCommerce (de nieuwsbrief-WP bij een
+	 * Shopify-winkel): de flow-motor draait dan op wp-cron, want Action Scheduler
+	 * komt met WooCommerce mee en is er niet.
+	 *
+	 * Alleen als de Shopify-koppeling aanstaat. Zonder koppeling en zonder
+	 * WooCommerce is er geen bron voor flows en verandert er niets.
+	 *
+	 * LET OP: wp-cron gaat alleen af als er bezoek is. Op een stille site hoort er
+	 * een echte cron op de server te staan die wp-cron.php elke paar minuten aanroept.
+	 */
+	private static function init_zonder_woocommerce() {
+		if ( ! class_exists( 'WSFM_Shopify' ) || ! WSFM_Shopify::aan() ) {
+			return;
+		}
+
+		add_filter( 'cron_schedules', array( __CLASS__, 'cron_schedules' ) );
+		add_action( self::HOOK_PROCESS_QUEUE, array( 'WSFM_Queue_Processor', 'process' ) );
+		add_action( self::HOOK_CHECK_ABANDONED, array( __CLASS__, 'check_abandoned_carts' ) );
+		add_action( 'init', array( __CLASS__, 'plan_cron' ) );
+	}
+
+	/**
+	 * @param array $schemas Bestaande ritmes.
+	 * @return array
+	 */
+	public static function cron_schedules( $schemas ) {
+		$schemas['wsfm_5min']  = array(
+			'interval' => 5 * MINUTE_IN_SECONDS,
+			'display'  => 'Elke 5 minuten (WS Flow Mailer)',
+		);
+		$schemas['wsfm_15min'] = array(
+			'interval' => 15 * MINUTE_IN_SECONDS,
+			'display'  => 'Elke 15 minuten (WS Flow Mailer)',
+		);
+		return $schemas;
+	}
+
+	/**
+	 * De twee terugkerende taken inplannen als ze er nog niet staan.
+	 */
+	public static function plan_cron() {
+		if ( ! wp_next_scheduled( self::HOOK_PROCESS_QUEUE ) ) {
+			wp_schedule_event( time() + MINUTE_IN_SECONDS, 'wsfm_5min', self::HOOK_PROCESS_QUEUE );
+		}
+		if ( ! wp_next_scheduled( self::HOOK_CHECK_ABANDONED ) ) {
+			wp_schedule_event( time() + MINUTE_IN_SECONDS, 'wsfm_15min', self::HOOK_CHECK_ABANDONED );
+		}
 	}
 }

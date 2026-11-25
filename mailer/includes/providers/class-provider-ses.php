@@ -119,8 +119,9 @@ class WSFM_Provider_SES implements WSFM_Mail_Provider {
 	 * @return WSFM_Send_Result
 	 */
 	public function send( $to, $subject, $html_body, array $merge_data ) {
-		$source = $this->from_name
-			? sprintf( '%s <%s>', $this->from_name, $this->from_email )
+		$naam   = ! empty( $merge_data['from_name'] ) ? sanitize_text_field( (string) $merge_data['from_name'] ) : $this->from_name;
+		$source = $naam
+			? sprintf( '%s <%s>', $naam, $this->from_email )
 			: $this->from_email;
 
 		$params = array(

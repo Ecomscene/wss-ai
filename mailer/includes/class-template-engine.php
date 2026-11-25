@@ -131,7 +131,7 @@ class WSFM_Template_Engine {
 	public static function default_context() {
 		return array(
 			'shop_name'   => get_bloginfo( 'name' ),
-			'shop_url'    => home_url( '/' ),
+			'shop_url'    => self::winkel_url(),
 			'sender_info' => self::afzenderregel(),
 		);
 	}
@@ -195,7 +195,15 @@ class WSFM_Template_Engine {
 			}
 		}
 
-		if ( $met_product && function_exists( 'wc_get_product' ) ) {
+		$met_beeld = false;
+foreach ( $items as $item ) {
+	if ( ! empty( $item['image'] ) ) {
+		$met_beeld = true;
+		break;
+	}
+}
+
+if ( ( $met_product && function_exists( 'wc_get_product' ) ) || $met_beeld ) {
 			return self::items_table_html( $items );
 		}
 
@@ -234,9 +242,9 @@ class WSFM_Template_Engine {
 			$foto    = '';
 			$link    = '';
 			$welk_id = ! empty( $item['variation_id'] ) ? (int) $item['variation_id'] : ( isset( $item['product_id'] ) ? (int) $item['product_id'] : 0 );
-			$product = $welk_id ? wc_get_product( $welk_id ) : null;
+			$product = ( $welk_id && function_exists( 'wc_get_product' ) ) ? wc_get_product( $welk_id ) : null;
 
-			if ( ! $product && ! empty( $item['product_id'] ) ) {
+			if ( ! $product && ! empty( $item['product_id'] ) && function_exists( 'wc_get_product' ) ) {
 				$product = wc_get_product( (int) $item['product_id'] );
 			}
 
@@ -264,7 +272,15 @@ class WSFM_Template_Engine {
 				}
 			}
 
-			$out .= '<tr>';
+			/* Regels van buiten WooCommerce (Shopify) brengen hun eigen foto mee. */
+if ( '' === $foto && ! empty( $item['image'] ) ) {
+	$foto = (string) $item['image'];
+}
+if ( '' === $link && ! empty( $item['url'] ) ) {
+	$link = (string) $item['url'];
+}
+
+$out .= '<tr>';
 
 			$out .= '<td width="84" valign="middle" style="width:84px;padding:12px 14px 12px 0;' . $cel . '">';
 			if ( '' !== $foto ) {
@@ -310,7 +326,7 @@ class WSFM_Template_Engine {
 	 * @return string
 	 */
 	private static function winkelwagen_url() {
-		return function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : home_url( '/' );
+		return function_exists( 'wc_get_cart_url' ) ? wc_get_cart_url() : self::winkel_url();
 	}
 
 	/**
@@ -394,8 +410,8 @@ class WSFM_Template_Engine {
 		return array(
 			'first_name'      => $first_name,
 			'cart_items'      => $cart_html,
-			'cart_total'      => self::format_price( $total ),
-			'cart_url'        => class_exists( 'WSFM_Cart_Recovery' ) ? WSFM_Cart_Recovery::link( $tracking ) : self::winkelwagen_url(),
+			'cart_total'      => ( is_array( $contents ) && ! empty( $contents['total_text'] ) && empty( $voorraad['gewijzigd'] ) ) ? (string) $contents['total_text'] : self::format_price( $total ),
+			'cart_url'        => ! empty( $tracking->herstel_url ) ? (string) $tracking->herstel_url : ( class_exists( 'WSFM_Cart_Recovery' ) ? WSFM_Cart_Recovery::link( $tracking ) : self::winkelwagen_url() ),
 			'unsubscribe_url' => $unsubscribe_url,
 		);
 	}
@@ -623,6 +639,42 @@ class WSFM_Template_Engine {
 			'order_items'     => self::items_html( $items ),
 			'coupon_code'     => 'WELKOM-4KP7HQ',
 			'unsubscribe_url' => home_url( '/?voorbeeld-afmeldlink' ),
+		);
+	}
+
+	/**
+	 * De webwinkel zelf. Op een nieuwsbrief-WP bij een Shopify-winkel is dat de
+	 * Shopify-winkel en niet de WordPress waar de mailer op draait.
+	 *
+	 * @return string
+	 */
+	public static function winkel_url() {
+		if ( class_exists( 'WSFM_Shopify' ) ) {
+			$url = WSFM_Shopify::winkel_url();
+			if ( '' !== $url ) {
+				return $url;
+			}
+		}
+		return home_url( '/' );
+	}
+
+	/**
+	 * Merge-gegevens voor een bestelling uit een webhook (zie WSFM_Ext_Orders).
+	 *
+	 * @param object $rij             Rij uit wsfm_ext_orders.
+	 * @param string $unsubscribe_url Afmeldlink.
+	 * @return array
+	 */
+	public static function build_ext_order_context( $rij, $unsubscribe_url = '' ) {
+		$items = json_decode( (string) $rij->items, true );
+
+		return array(
+			'first_name'      => (string) $rij->first_name,
+			'order_number'    => (string) $rij->order_number,
+			'order_total'     => (string) $rij->total_text,
+			'order_items'     => self::items_html( is_array( $items ) ? $items : array() ),
+			'cart_url'        => self::winkel_url(),
+			'unsubscribe_url' => $unsubscribe_url,
 		);
 	}
 }

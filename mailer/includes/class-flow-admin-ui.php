@@ -793,6 +793,9 @@ class WSFM_Flow_Admin_UI {
 					'wait_minutes'  => $value * $multiplier,
 					'template_id'   => isset( $step['template_id'] ) ? (int) $step['template_id'] : 0,
 					'stop_on_order' => ! empty( $step['stop_on_order'] ),
+	'stop_on_new_order' => ! empty( $step['stop_on_new_order'] ),
+	'at_time'       => isset( $step['at_time'] ) ? WSFM_Flows::schoon_tijd( $step['at_time'] ) : '',
+	'from_name'     => isset( $step['from_name'] ) ? sanitize_text_field( $step['from_name'] ) : '',
 				);
 			}
 		}
@@ -804,6 +807,7 @@ class WSFM_Flow_Admin_UI {
 				'trigger_type' => isset( $_POST['trigger_type'] ) ? sanitize_key( wp_unslash( $_POST['trigger_type'] ) ) : '',
 				'status'       => ! empty( $_POST['flow_active'] ) ? 'active' : 'paused',
 				'steps'        => $steps,
+				'voorwaarde'   => isset( $_POST['voorwaarde'] ) ? sanitize_key( wp_unslash( $_POST['voorwaarde'] ) ) : '',
 			)
 		);
 
